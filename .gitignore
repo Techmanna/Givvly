@@ -1,0 +1,117 @@
+# ==============================================================================
+# Givvly Monorepo .gitignore
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Dependencies
+# ------------------------------------------------------------------------------
+node_modules/
+.pnp
+.pnp.js
+.pnpm-store/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# ------------------------------------------------------------------------------
+# Production Builds & Compiled Outputs
+# ------------------------------------------------------------------------------
+dist/
+build/
+out/
+.next/
+apps/api/dist/
+apps/web/.next/
+apps/web/out/
+*.tsbuildinfo
+apps/*/*.tsbuildinfo
+packages/*/*.tsbuildinfo
+
+# ------------------------------------------------------------------------------
+# Environment Variables & Secrets (CRITICAL)
+# ------------------------------------------------------------------------------
+.env
+.env*.local
+.env.development
+.env.test
+.env.production
+apps/*/.env
+apps/*/.env.local
+apps/*/.env.production
+apps/*/.env.development
+apps/*/.env.test
+# Explicitly allow committing example templates
+!.env.example
+!apps/*/.env.example
+!packages/*/.env.example
+
+# Private certificates, tokens and keys
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+*user_cookies.txt
+*.cookies
+
+# ------------------------------------------------------------------------------
+# Logs & Diagnostic Dumps
+# ------------------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+lerna-debug.log*
+
+# ------------------------------------------------------------------------------
+# Testing & Coverage
+# ------------------------------------------------------------------------------
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# ------------------------------------------------------------------------------
+# Databases & Local Volume Data
+# ------------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.db
+*.db-journal
+postgres_data/
+redis_data/
+mailpit_data/
+
+# ------------------------------------------------------------------------------
+# Operating System & Editor Artifacts
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE & Editor caches
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*~
+
+# ------------------------------------------------------------------------------
+# Next.js & Turbopack
+# ------------------------------------------------------------------------------
+.turbo/
+next-env.d.ts

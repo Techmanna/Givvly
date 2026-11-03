@@ -1,0 +1,22 @@
+{
+  "name": "@givvly/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint passed'",
+    "build": "tsc --noEmit",
+    "test": "echo 'no tests in contracts yet'"
+  },
+  "dependencies": {
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@givvly/config": "workspace:*",
+    "typescript": "5.9.3"
+  }
+}

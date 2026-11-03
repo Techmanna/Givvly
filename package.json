@@ -1,0 +1,25 @@
+{
+  "name": "givvly",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @givvly/web dev",
+    "dev:api": "pnpm --filter @givvly/api start:dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "argon2",
+      "prisma"
+    ]
+  },
+  "packageManager": "pnpm@10.30.1",
+  "devDependencies": {
+    "playwright-core": "^1.64.1"
+  }
+}

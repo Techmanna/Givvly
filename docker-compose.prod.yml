@@ -1,0 +1,94 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: givvly-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-givvly}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-givvly_secure_prod_password}
+      POSTGRES_DB: ${POSTGRES_DB:-givvly_prod}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-givvly} -d ${POSTGRES_DB:-givvly_prod}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - givvly-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: givvly-redis-prod
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - givvly-network
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: givvly-api-prod
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-givvly}:${POSTGRES_PASSWORD:-givvly_secure_prod_password}@postgres:5432/${POSTGRES_DB:-givvly_prod}
+      REDIS_URL: redis://redis:6379
+      APP_URL: ${APP_URL:-https://givvly.ng}
+      API_URL: ${API_URL:-https://api.givvly.ng}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://givvly.ng}
+      JWT_SECRET: ${JWT_SECRET:-production_super_secret_jwt_key_at_least_32_bytes}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      ACCOUNT_HASH_KEY: ${ACCOUNT_HASH_KEY:-production_account_hash_key_for_hmac_32_bytes}
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY}
+      PAYSTACK_PUBLIC_KEY: ${PAYSTACK_PUBLIC_KEY}
+      PAYSTACK_BASE_URL: https://api.paystack.co
+    ports:
+      - "4000:4000"
+    networks:
+      - givvly-network
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: givvly-web-prod
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:4000/api/v1}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://givvly.ng}
+    ports:
+      - "3000:3000"
+    networks:
+      - givvly-network
+
+networks:
+  givvly-network:
+    driver: bridge
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+
