@@ -6,6 +6,7 @@ import { Calendar, Heart, MapPin, Search, Users } from "lucide-react";
 import { EventCover } from "@/components/shared/EventCover";
 import { Money } from "@/components/shared/Money";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 import { formatDate, formatNaira } from "@/lib/format";
 import { usePublicEventsList } from "../hooks/useEvents";
 import type { EventType, PublicEvent } from "../types";
@@ -38,11 +39,32 @@ export function LiveCelebrationsDirectory({
 }: LiveCelebrationsDirectoryProps) {
   const [selectedType, setSelectedType] = React.useState<string>(initialType);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [page, setPage] = React.useState(1);
+
+  const PAGE_SIZE = 9;
 
   const { data: events, isLoading } = usePublicEventsList({
     type: selectedType === "ALL" ? undefined : selectedType,
     q: searchQuery.trim() || undefined,
   });
+
+  const allEvents = events ?? [];
+  const totalPages = Math.max(1, Math.ceil(allEvents.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedEvents = allEvents.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  const handleTypeChange = (typeVal: string) => {
+    setSelectedType(typeVal);
+    setPage(1);
+  };
+
+  const handleSearchChange = (q: string) => {
+    setSearchQuery(q);
+    setPage(1);
+  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
@@ -79,7 +101,7 @@ export function LiveCelebrationsDirectory({
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  onClick={() => setSelectedType(filter.value)}
+                  onClick={() => handleTypeChange(filter.value)}
                   className={`rounded-full px-4 py-2 text-xs font-semibold transition-all duration-200 sm:text-sm ${
                     active
                       ? "bg-primary text-white shadow-xs"
@@ -101,7 +123,7 @@ export function LiveCelebrationsDirectory({
               type="search"
               aria-label="Search live celebrations"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search host, city, or ceremony..."
               className="h-10 w-full rounded-full border border-border bg-card pr-4 pl-10 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />
@@ -136,10 +158,21 @@ export function LiveCelebrationsDirectory({
           </button>
         </div>
       ) : (
-        <div className="mt-10 grid grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
-          {events.map((evt, index) => (
-            <CelebrationDirectoryCard key={evt.id} event={evt} index={index} />
-          ))}
+        <div className="mt-10 space-y-8">
+          <div className="grid grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
+            {paginatedEvents.map((evt, index) => (
+              <CelebrationDirectoryCard key={evt.id} event={evt} index={index} />
+            ))}
+          </div>
+
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={allEvents.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            itemName="celebrations"
+          />
         </div>
       )}
     </div>

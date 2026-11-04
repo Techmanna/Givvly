@@ -44,6 +44,8 @@ export type MockCatalogProduct = {
   isCombo?: boolean;
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
   packagingIncluded?: string;
+  isDigital?: boolean;
+  digitalKind?: "AIRTIME" | "DATA" | "VOUCHER" | "GIFT_CARD";
 };
 
 export type MockCatalogCollection = {
@@ -1116,7 +1118,162 @@ export const MOCK_CATALOG_PRODUCTS: MockCatalogProduct[] = [
     rating: 5.0,
     reviewCount: 62,
   },
+  // --- DIGITAL VTU AIRTIME & DATA GIFTS (BILLSPOT PARTNER VTU) ---
+  {
+    id: "prod_vtu_airtime_01",
+    slug: "billspot-vtu-airtime-gift",
+    name: "Instant Airtime Top-Up Gift (MTN, Airtel, Glo, T2mobile)",
+    description:
+      "Send instant mobile airtime top-up directly to one or up to 50 Nigerian phone numbers via BillSpot VTU.",
+    priceKobo: 500_000, // ₦5,000 default
+    category: "Airtime & Data",
+    giftType: "GIFT_CARDS",
+    mainCategories: ["BIRTHDAY", "CORPORATE", "FOR_HIM", "FOR_HER"],
+    occasions: ["BIRTHDAY", "APPRECIATION", "JUST_BECAUSE", "THANK_YOU", "GRADUATION"],
+    relationships: ["FRIEND", "COLLEAGUE", "FAMILY", "EMPLOYEE", " SIBLING"],
+    gender: "UNISEX",
+    ageGroup: "ADULT",
+    vendorName: "BillSpot Instant VTU",
+    inStock: true,
+    rating: 5.0,
+    reviewCount: 94,
+    isDigital: true,
+    digitalKind: "AIRTIME",
+  },
+  {
+    id: "prod_vtu_data_01",
+    slug: "billspot-vtu-data-bundle-gift",
+    name: "Instant Mobile Data Bundle Gift (1GB – 1.5TB Plans)",
+    description:
+      "Gift daily, weekly, monthly, or broadband data bundles across MTN, Airtel, Glo, and T2mobile with instant activation.",
+    priceKobo: 500_000, // ₦5,000 default
+    category: "Airtime & Data",
+    giftType: "GIFT_CARDS",
+    mainCategories: ["BIRTHDAY", "CORPORATE", "FOR_HIM", "FOR_HER"],
+    occasions: ["BIRTHDAY", "APPRECIATION", "JUST_BECAUSE", "THANK_YOU", "GRADUATION"],
+    relationships: ["FRIEND", "COLLEAGUE", "FAMILY", "EMPLOYEE"],
+    gender: "UNISEX",
+    ageGroup: "ADULT",
+    vendorName: "BillSpot Instant VTU",
+    inStock: true,
+    rating: 4.9,
+    reviewCount: 78,
+    isDigital: true,
+    digitalKind: "DATA",
+  },
 ];
+
+export const MOCK_BILLSPOT_PROVIDERS = [
+  {
+    id: 1,
+    name: "MTN",
+    slug: "mtn",
+    logo: "https://kudatestblob.blob.core.windows.net/kuda-biller-mgmt/011839210304125856595365919707",
+  },
+  {
+    id: 2,
+    name: "Airtel",
+    slug: "airtel",
+    logo: "https://kudatestblob.blob.core.windows.net/kuda-biller-mgmt/011971210304130554599549680517",
+  },
+  {
+    id: 3,
+    name: "Glo",
+    slug: "glo",
+    logo: "https://kudatestblob.blob.core.windows.net/kuda-biller-mgmt/011360210304130041596415277062",
+  },
+  {
+    id: 4,
+    name: "T2mobile",
+    slug: "t2mobile",
+    logo: "https://kudatestblob.blob.core.windows.net/kuda-biller-mgmt/011839260317172647652078968234",
+  },
+];
+
+export const MOCK_BILLSPOT_PLANS: Record<
+  string,
+  Array<{ name: string; bill_item_identifier: string; amount: number }>
+> = {
+  mtn: [
+    { name: "1GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-MTND-008", amount: 1000 },
+    { name: "1.5TB Data (1 Year)", bill_item_identifier: "KUD-DAT-MTND-038", amount: 225000 },
+    { name: "3.5GB Weekly Plan (7 Days)", bill_item_identifier: "KUD-DAT-MTND-071", amount: 1500 },
+    { name: "34GB For 30 Days", bill_item_identifier: "KUD-DAT-MTND-070", amount: 10000 },
+    { name: "5.5GB For 2 Days", bill_item_identifier: "KUD-DAT-MTND-069", amount: 1500 },
+    { name: "4GB FOR 2 Days", bill_item_identifier: "KUD-DAT-MTND-068", amount: 1200 },
+    { name: "3.5GB FOR 1 Day", bill_item_identifier: "KUD-DAT-MTND-067", amount: 1000 },
+    { name: "20GB Weekly Data Plan (7 Days)", bill_item_identifier: "KUD-DAT-MTND-066", amount: 5000 },
+    { name: "2.5GB Daily Data Plan (1 Day)", bill_item_identifier: "KUD-DAT-MTND-065", amount: 750 },
+    { name: "450GB 3-Month Broadband Plan", bill_item_identifier: "KUD-DAT-MTND-064", amount: 75000 },
+    { name: "60GB HyNetFlex Router Only (30 Days)", bill_item_identifier: "KUD-DAT-MTND-063", amount: 14500 },
+    { name: "150GB 2-Month Plan", bill_item_identifier: "KUD-DAT-MTND-062", amount: 40000 },
+    { name: "75GB FOR 1 MONTH", bill_item_identifier: "KUD-DAT-MTND-061", amount: 18000 },
+    { name: "36GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-MTND-060", amount: 11000 },
+    { name: "5GB Monthly Data (30 Days)", bill_item_identifier: "KUD-DAT-MTND-032", amount: 2500 },
+    { name: "6GB Weekly Data Plan", bill_item_identifier: "KUD-DAT-MTND-043", amount: 2500 },
+    { name: "165GB FOR 1 MONTH", bill_item_identifier: "KUD-DAT-MTND-042", amount: 35000 },
+    { name: "14.5GB Monthly Data (30 Days)", bill_item_identifier: "KUD-DAT-MTND-041", amount: 5000 },
+    { name: "1.5GB Weekly Plan (7 Days)", bill_item_identifier: "KUD-DAT-MTND-039", amount: 1000 },
+    { name: "480GB FOR 3 MONTHS", bill_item_identifier: "KUD-DAT-MTND-037", amount: 90000 },
+    { name: "3.2GB FOR 2 DAYS", bill_item_identifier: "KUD-DAT-MTND-036", amount: 1000 },
+    { name: "150GB + 2GB daily 5G Router (30 Days)", bill_item_identifier: "KUD-DAT-MTND-035", amount: 30000 },
+    { name: "7GB Daily Plan (2 Days)", bill_item_identifier: "KUD-DAT-MTND-034", amount: 1800 },
+    { name: "40GB Weekly Plan (14 Days)", bill_item_identifier: "KUD-DAT-MTND-033", amount: 10000 },
+    { name: "18GB Weekly Plan (14 Days)", bill_item_identifier: "KUD-DAT-MTND-031", amount: 6000 },
+    { name: "12.5 GB Weekly Plan (14 Days)", bill_item_identifier: "KUD-DAT-MTND-030", amount: 4500 },
+    { name: "15GB Weekly Plan (7 Days)", bill_item_identifier: "KUD-DAT-MTND-029", amount: 4000 },
+    { name: "28GB Weekly Plan (14 Days)", bill_item_identifier: "KUD-DAT-MTND-028", amount: 8000 },
+    { name: "120GB + 5 GB Youtube/MS Teams / Zoom", bill_item_identifier: "KUD-DAT-MTND-027", amount: 24000 },
+    { name: "3GB Monthly Data (30 Days)", bill_item_identifier: "KUD-DAT-MTND-026", amount: 2000 },
+    { name: "1.5GB FOR 2 DAYS", bill_item_identifier: "KUD-DAT-MTND-025", amount: 600 },
+    { name: "6.75GB Monthly Data (30 Days)", bill_item_identifier: "KUD-DAT-MTND-024", amount: 3000 },
+    { name: "7GB Monthly Plan", bill_item_identifier: "KUD-DAT-MTND-023", amount: 3500 },
+    { name: "20GB FOR 1 MONTH", bill_item_identifier: "KUD-DAT-MTND-022", amount: 7500 },
+    { name: "65GB FOR 30 DAYS", bill_item_identifier: "KUD-DAT-MTND-021", amount: 16000 },
+    { name: "16.5GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-MTND-020", amount: 6500 },
+    { name: "2.7GB + 2 Mins Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-MTND-019", amount: 2000 },
+    { name: "11GB Weekly Plan (7 Days)", bill_item_identifier: "KUD-DAT-MTND-018", amount: 3500 },
+    { name: "10GB + 10Mins Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-MTND-017", amount: 4500 },
+    { name: "3.5GB + 5 Mins Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-MTND-016", amount: 2500 },
+    { name: "1.8GB Xtra Bundle Monthly Data (30 Days)", bill_item_identifier: "KUD-DAT-MTND-015", amount: 1500 },
+    { name: "2.7GB Xtra Bundle Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-MTND-014", amount: 3000 },
+    { name: "1GB + 1GB Youtube Night (7 Days)", bill_item_identifier: "KUD-DAT-MTND-013", amount: 800 },
+    { name: "2GB + 2 Mins Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-MTND-012", amount: 1500 },
+    { name: "2GB FOR 2 DAYS", bill_item_identifier: "KUD-DAT-MTND-011", amount: 750 },
+    { name: "2.5GB FOR 2 DAYS", bill_item_identifier: "KUD-DAT-MTND-010", amount: 900 },
+    { name: "500MB + 1GB Youtube (7 Days)", bill_item_identifier: "KUD-DAT-MTND-009", amount: 500 },
+    { name: "1GB Daily Data + 1.5 Mins (1 Day)", bill_item_identifier: "KUD-DAT-MTND-007", amount: 500 },
+    { name: "500MB FOR 1 DAY", bill_item_identifier: "KUD-DAT-MTND-006", amount: 350 },
+    { name: "230MB FOR 1 DAY", bill_item_identifier: "KUD-DAT-MTND-005", amount: 200 },
+    { name: "600MB + 2 Mins Weekly Plan (7 Days)", bill_item_identifier: "KUD-DAT-MTND-004", amount: 500 },
+    { name: "30GB HyNetFlex Router Only Data Plan (30 Days)", bill_item_identifier: "KUD-DAT-MTND-001", amount: 9000 },
+    { name: "110MB FOR 1 DAY", bill_item_identifier: "KUD-DAT-MTND-003", amount: 100 },
+  ],
+  airtel: [
+    { name: "500MB Daily Plan (1 Day)", bill_item_identifier: "KUD-DAT-AIRT-001", amount: 300 },
+    { name: "1.5GB Weekly Plan (7 Days)", bill_item_identifier: "KUD-DAT-AIRT-002", amount: 1000 },
+    { name: "3GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-AIRT-003", amount: 2000 },
+    { name: "6GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-AIRT-004", amount: 3000 },
+    { name: "10GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-AIRT-005", amount: 4000 },
+    { name: "15GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-AIRT-006", amount: 5000 },
+    { name: "40GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-AIRT-007", amount: 10000 },
+  ],
+  glo: [
+    { name: "1GB Daily Plan (1 Day)", bill_item_identifier: "KUD-DAT-GLOD-001", amount: 350 },
+    { name: "2.5GB Weekly Plan (7 Days)", bill_item_identifier: "KUD-DAT-GLOD-002", amount: 1000 },
+    { name: "5.8GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-GLOD-003", amount: 2000 },
+    { name: "10GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-GLOD-005", amount: 3000 },
+    { name: "18GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-GLOD-006", amount: 5000 },
+    { name: "50GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-GLOD-007", amount: 10000 },
+  ],
+  t2mobile: [
+    { name: "1GB Daily Plan (1 Day)", bill_item_identifier: "KUD-DAT-T2MB-001", amount: 300 },
+    { name: "2GB Weekly Plan (7 Days)", bill_item_identifier: "KUD-DAT-T2MB-002", amount: 1000 },
+    { name: "4.5GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-T2MB-003", amount: 2000 },
+    { name: "11GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-T2MB-004", amount: 4000 },
+    { name: "15GB Monthly Plan (30 Days)", bill_item_identifier: "KUD-DAT-T2MB-005", amount: 5000 },
+  ],
+};
 
 export const MOCK_CATALOG_COLLECTIONS: MockCatalogCollection[] = [
   {

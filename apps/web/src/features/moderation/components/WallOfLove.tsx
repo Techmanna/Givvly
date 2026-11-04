@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 import { ApiClientError } from "@/lib/api-client";
 import { presignWallPhoto } from "../api";
 import {
@@ -157,6 +158,15 @@ export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
   });
 
   const posts = wallQuery.data ?? [];
+  const [page, setPage] = useState(1);
+
+  const PAGE_SIZE = 8;
+  const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedPosts = posts.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   return (
     <section className="space-y-6" aria-labelledby="wall-of-love-heading">
@@ -347,10 +357,21 @@ export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
           description={`Be the first to leave a wish for ${ownerFirstName}.`}
         />
       ) : (
-        <div className="space-y-3">
-          {posts.map((post) => (
-            <WallPostCard key={post.id} post={post} mode="public" />
-          ))}
+        <div className="space-y-4">
+          <div className="space-y-3">
+            {paginatedPosts.map((post) => (
+              <WallPostCard key={post.id} post={post} mode="public" />
+            ))}
+          </div>
+
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={posts.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            itemName="wishes"
+          />
         </div>
       )}
     </section>

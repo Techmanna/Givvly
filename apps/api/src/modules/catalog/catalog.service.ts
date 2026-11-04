@@ -55,6 +55,8 @@ export class CatalogService {
             { name: "Gourmet Chocolates", qty: 1 },
           ]
         : undefined,
+      isDigital: Boolean(product.isDigital),
+      digitalKind: product.digitalKind ?? undefined,
     };
   }
 
@@ -148,7 +150,7 @@ export class CatalogService {
    * Get single product detail by slug
    */
   async getProductBySlug(slug: string): Promise<CatalogProductResponseDto> {
-    const product = await this.prisma.product.findUnique({
+    let product = await this.prisma.product.findUnique({
       where: { slug },
       include: {
         vendor: {
@@ -158,6 +160,44 @@ export class CatalogService {
         },
       },
     });
+
+    if (
+      !product &&
+      (slug === "billspot-vtu-airtime-gift" ||
+        slug === "billspot-vtu-data-bundle-gift")
+    ) {
+      const isData = slug.includes("data");
+      product = await this.prisma.product.create({
+        data: {
+          slug,
+          title: isData
+            ? "Instant Mobile Data Bundle Gift (1GB – 1.5TB Plans)"
+            : "Instant Airtime Top-Up Gift (MTN, Airtel, Glo, T2mobile)",
+          description: isData
+            ? "Gift daily, weekly, monthly, or broadband data bundles across MTN, Airtel, Glo, and T2mobile with instant activation."
+            : "Send instant mobile airtime top-up directly to one or up to 50 Nigerian phone numbers via BillSpot VTU.",
+          priceKobo: 500_000,
+          images: [
+            "https://images.unsplash.com/photo-1512428559087-560fa5ceab42?w=800&auto=format&fit=crop",
+          ],
+          occasions: ["BIRTHDAY", "OTHER"],
+          relationships: ["FRIEND", "COLLEAGUE", "FAMILY"],
+          isDigital: true,
+          digitalKind: isData ? "DATA" : "AIRTIME",
+          stock: null,
+          active: true,
+          ratingAvg: 5.0,
+          ratingCount: 64,
+        },
+        include: {
+          vendor: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+    }
 
     if (!product || !product.active) {
       throw new NotFoundException(`Product with slug '${slug}' was not found`);

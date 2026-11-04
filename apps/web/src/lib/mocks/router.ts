@@ -37,6 +37,8 @@ import {
   INITIAL_RSVPS_BY_EVENT,
   INITIAL_WALL_POSTS_BY_EVENT,
   MOCK_BANKS,
+  MOCK_BILLSPOT_PLANS,
+  MOCK_BILLSPOT_PROVIDERS,
   MOCK_CATALOG_COLLECTIONS,
   MOCK_CATALOG_PRODUCTS,
   MOCK_EVENT_STATS,
@@ -1322,6 +1324,39 @@ export async function handleMockApiRequest<T>(
     return wrapSuccess(buildPublicEventFromDetail(ev) as unknown as T);
   }
 
+  // --- DIGITAL GIFTS & BILLSPOT VTU ---
+  if (method === "GET" && normalizedPath === "/digital-gifts/vtu/providers") {
+    const vtuType = searchParams.get("type") === "data" ? "data" : "airtime";
+    return wrapSuccess({
+      message: "providers fetched",
+      type: vtuType,
+      providers: MOCK_BILLSPOT_PROVIDERS,
+    } as unknown as T);
+  }
+
+  const vtuPlansMatch = /^\/digital-gifts\/vtu\/plans\/([^/]+)$/.exec(
+    normalizedPath
+  );
+  if (method === "GET" && vtuPlansMatch) {
+    const rawProvider = decodeURIComponent(vtuPlansMatch[1]!).toLowerCase();
+    const slug =
+      rawProvider.includes("airtel")
+        ? "airtel"
+        : rawProvider.includes("glo")
+          ? "glo"
+          : rawProvider.includes("t2") || rawProvider.includes("9mobile")
+            ? "t2mobile"
+            : "mtn";
+    const providerInfo =
+      MOCK_BILLSPOT_PROVIDERS.find((p) => p.slug === slug) ??
+      MOCK_BILLSPOT_PROVIDERS[0]!;
+    return wrapSuccess({
+      message: "plans fetched",
+      provider: providerInfo,
+      plans: MOCK_BILLSPOT_PLANS[slug] ?? MOCK_BILLSPOT_PLANS.mtn ?? [],
+    } as unknown as T);
+  }
+
   // --- CATALOG & ORDERS ---
   if (method === "GET" && normalizedPath === "/catalog/products") {
     const mainCategory = searchParams.get("mainCategory");
@@ -1426,15 +1461,42 @@ export async function handleMockApiRequest<T>(
         db.products.find(
           (p) => p.slug === body.productSlug || p.id === body.productSlug
         ) ?? db.products[0]!;
-      const wrappingFeeKobo = body.wrapping ? 250_000 : (body.packagingKobo ?? 0);
+      const isVtuOrder = Boolean(body.vtuType) || Boolean(product.isDigital);
+      const wrappingFeeKobo = isVtuOrder
+        ? 0
+        : body.wrapping
+          ? 250_000
+          : (body.packagingKobo ?? 0);
+
+      let resolvedUnitKobo = body.customAmountKobo ?? product.priceKobo;
+      let resolvedTitle = product.name;
+      if (body.vtuType === "data" && body.billItemIdentifier) {
+        const providerSlug = (body.vtuProvider || "mtn").toLowerCase();
+        const plan = (MOCK_BILLSPOT_PLANS[providerSlug] ?? MOCK_BILLSPOT_PLANS.mtn ?? []).find(
+          (pl) => pl.bill_item_identifier === body.billItemIdentifier
+        );
+        if (plan) {
+          resolvedUnitKobo = plan.amount * 100;
+          resolvedTitle = `${providerSlug.toUpperCase()} ${plan.name}`;
+        }
+      } else if (body.vtuType === "airtime" && body.customAmountKobo) {
+        const providerSlug = (body.vtuProvider || "mtn").toUpperCase();
+        resolvedTitle = `${providerSlug} ₦${Math.round(body.customAmountKobo / 100).toLocaleString()} Airtime Top-Up`;
+      }
+
+      const phonesCount =
+        Array.isArray(body.recipientPhones) && body.recipientPhones.length > 0
+          ? body.recipientPhones.length
+          : 1;
+
       const itemsList =
         body.items && body.items.length > 0
           ? body.items
           : [
               {
-                name: product.name,
-                qty: 1,
-                unitPriceKobo: product.priceKobo,
+                name: resolvedTitle,
+                qty: isVtuOrder ? phonesCount : 1,
+                unitPriceKobo: resolvedUnitKobo,
               },
             ];
       const itemsTotalKobo = itemsList.reduce(
@@ -1449,11 +1511,17 @@ export async function handleMockApiRequest<T>(
         number: `GIV-2026-${String(Math.floor(1000 + Math.random() * 9000))}`,
         items: itemsList,
         totalKobo,
-        status: "CONFIRMED",
-        timeline: [
-          { status: "PENDING_PAYMENT", at: now },
-          { status: "CONFIRMED", at: now },
-        ],
+        status: isVtuOrder ? "DELIVERED" : "CONFIRMED",
+        timeline: isVtuOrder
+          ? [
+              { status: "PENDING_PAYMENT", at: now },
+              { status: "CONFIRMED", at: now },
+              { status: "DELIVERED", at: now },
+            ]
+          : [
+              { status: "PENDING_PAYMENT", at: now },
+              { status: "CONFIRMED", at: now },
+            ],
         recipientName: body.recipientName,
       };
       db.orders.unshift(created);
@@ -1462,6 +1530,20 @@ export async function handleMockApiRequest<T>(
       }
       return wrapSuccess(created as unknown as T);
     }
+  }
+
+  const orderVerifyMatch = /^\/orders\/([^/]+)\/verify$/.exec(normalizedPath);
+  if (method === "POST" && orderVerifyMatch) {
+    const id = decodeURIComponent(orderVerifyMatch[1]!);
+    const order = db.orders.find((o) => o.id === id || o.number === id);
+    if (!order) {
+      throwMockError(404, "NOT_FOUND", "Order not found");
+    }
+    return wrapSuccess({
+      order,
+      verified: true,
+      status: order.status,
+    } as unknown as T);
   }
 
   const orderPayMatch = /^\/orders\/([^/]+)\/pay$/.exec(normalizedPath);

@@ -5,11 +5,13 @@ import {
   ConflictException,
   ForbiddenException,
   Logger,
+  Optional,
 } from "@nestjs/common";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { PaymentGatewayRegistry } from "../../infra/payments/payment-gateway.registry";
 import { OrderStatus, PaymentStatus, DisputeStatus, Direction } from "@prisma/client";
 import { LedgerService } from "../ledger/ledger.service";
+import { DigitalGiftsService } from "../digital-gifts/digital-gifts.service";
 import { CreateOrderDto } from "./dto/create-order.dto";
 import { ReviewOrderDto, DisputeOrderDto } from "./dto/order-feedback.dto";
 import { canOrderTransition } from "./order-state-machine";
@@ -33,7 +35,8 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentGatewayRegistry: PaymentGatewayRegistry,
-    private readonly ledger: LedgerService
+    private readonly ledger: LedgerService,
+    @Optional() private readonly digitalGifts?: DigitalGiftsService
   ) {}
 
   /**
@@ -49,18 +52,45 @@ export class OrdersService {
       dto.recipient?.email ||
       "guest@givvly.ng";
 
+    const recipientPhones = Array.isArray(dto.recipientPhones)
+      ? dto.recipientPhones.map((p) => p.trim()).filter(Boolean).slice(0, 50)
+      : [];
+
     // Resolve items
     const rawItems: Array<{ productId: string; qty: number }> = [];
     if (dto.items && dto.items.length > 0) {
       rawItems.push(...dto.items);
     } else if (dto.productId) {
       rawItems.push({ productId: dto.productId, qty: dto.qty || 1 });
-    } else if (dto.productSlug) {
-      const prod = await this.prisma.product.findUnique({
-        where: { slug: dto.productSlug },
+    } else if (dto.productSlug || dto.vtuType) {
+      const slugToFind =
+        dto.productSlug ||
+        `billspot-vtu-${dto.vtuType || "airtime"}-${(dto.vtuProvider || "mtn").toLowerCase()}`;
+      let prod = await this.prisma.product.findUnique({
+        where: { slug: slugToFind },
       });
+
+      if (!prod && (dto.vtuType || slugToFind.includes("airtime") || slugToFind.includes("data"))) {
+        const isData = dto.vtuType === "data" || slugToFind.includes("data");
+        const providerUpper = (dto.vtuProvider || "MTN").toUpperCase();
+        prod = await this.prisma.product.create({
+          data: {
+            slug: slugToFind,
+            title: `${providerUpper} Instant ${isData ? "Data Bundle" : "Airtime Top-Up"}`,
+            description: `Instant ${providerUpper} ${isData ? "mobile data bundle" : "airtime top-up"} delivered via BillSpot VTU.`,
+            priceKobo: dto.customAmountKobo || 500_000,
+            images: [],
+            occasions: [dto.vtuProvider || "mtn", "Digital", "Instant"],
+            relationships: ["Anyone"],
+            isDigital: true,
+            digitalKind: isData ? "DATA" : "AIRTIME",
+            active: true,
+          },
+        });
+      }
+
       if (!prod) {
-        throw new NotFoundException(`Product '${dto.productSlug}' not found`);
+        throw new NotFoundException(`Product '${slugToFind}' not found`);
       }
       rawItems.push({ productId: prod.id, qty: dto.qty || 1 });
     } else {
@@ -92,27 +122,54 @@ export class OrdersService {
       }
     }
 
+    // Resolve optional BillSpot data plan or custom airtime pricing
+    let resolvedVtuPlanTitle: string | undefined;
+    let resolvedUnitVtuKobo: number | undefined = dto.customAmountKobo;
+
+    if (dto.vtuType === "data" && dto.billItemIdentifier && this.digitalGifts) {
+      const plansRes = await this.digitalGifts.getVtuPlans(dto.vtuProvider || "mtn");
+      const matched = plansRes.plans.find(
+        (pl) => pl.bill_item_identifier === dto.billItemIdentifier
+      );
+      if (matched) {
+        resolvedUnitVtuKobo = Math.round(matched.amount * 100);
+        resolvedVtuPlanTitle = `${plansRes.provider.name} ${matched.name}`;
+      }
+    } else if (dto.vtuType === "airtime" && dto.customAmountKobo) {
+      const providerLabel = (dto.vtuProvider || "MTN").toUpperCase();
+      resolvedVtuPlanTitle = `${providerLabel} ₦${Math.round(dto.customAmountKobo / 100).toLocaleString()} Airtime Top-Up`;
+    }
+
+    const phonesCount = Math.max(1, recipientPhones.length);
+
     // Calculate subtotal
     let subtotalKobo = 0;
     const orderItemsData = rawItems.map((item) => {
       const p = productMap.get(item.productId)!;
-      const unitPriceKobo = p.priceKobo;
-      subtotalKobo += unitPriceKobo * item.qty;
+      const isVtuItem =
+        Boolean(dto.vtuType) ||
+        p.digitalKind === "AIRTIME" ||
+        p.digitalKind === "DATA";
+      const baseUnitPriceKobo =
+        isVtuItem && resolvedUnitVtuKobo ? resolvedUnitVtuKobo : p.priceKobo;
+      const effectiveQty = isVtuItem && phonesCount > 1 ? phonesCount : item.qty;
+      subtotalKobo += baseUnitPriceKobo * effectiveQty;
       return {
         productId: p.id,
-        title: p.title,
-        unitPriceKobo,
-        qty: item.qty,
+        title: isVtuItem && resolvedVtuPlanTitle ? resolvedVtuPlanTitle : p.title,
+        unitPriceKobo: baseUnitPriceKobo,
+        qty: effectiveQty,
       };
     });
 
     // Calculate packaging fee
+    const allDigital = products.every((p) => p.isDigital) || Boolean(dto.vtuType);
     const packagingId = dto.packagingId || "blush-gold";
-    const packagingExtraKobo =
-      (PACKAGING_EXTRA_KOBO[packagingId] ?? 0) + (dto.wrapping ? 250_000 : 0);
+    const packagingExtraKobo = allDigital
+      ? 0
+      : (PACKAGING_EXTRA_KOBO[packagingId] ?? 0) + (dto.wrapping ? 250_000 : 0);
 
     // Calculate delivery fee (free if all products digital or subtotal exceeds threshold)
-    const allDigital = products.every((p) => p.isDigital);
     const deliveryFeeKobo =
       allDigital || subtotalKobo >= FREE_DELIVERY_THRESHOLD_KOBO
         ? 0
@@ -129,8 +186,21 @@ export class OrdersService {
     const paymentReference = `ord_${crypto.randomBytes(12).toString("hex")}`;
     const recipientName =
       dto.recipient?.name || dto.recipientName || "Valued Recipient";
-    const recipientPhone = dto.recipient?.phone || dto.recipientPhone;
+    const recipientPhone =
+      dto.recipient?.phone || dto.recipientPhone || recipientPhones[0];
     const recipientEmail = dto.recipient?.email;
+
+    const addressPayload =
+      dto.address || dto.vtuType || dto.vtuProvider || dto.billItemIdentifier || recipientPhones.length > 0
+        ? {
+            ...(dto.address ? (dto.address as any) : {}),
+            ...(dto.vtuType ? { vtuType: dto.vtuType } : {}),
+            ...(dto.vtuProvider ? { vtuProvider: dto.vtuProvider } : {}),
+            ...(dto.billItemIdentifier ? { billItemIdentifier: dto.billItemIdentifier } : {}),
+            ...(resolvedUnitVtuKobo ? { unitVtuAmountKobo: resolvedUnitVtuKobo } : {}),
+            ...(recipientPhones.length > 0 ? { recipientPhones } : {}),
+          }
+        : undefined;
 
     // Create Order, OrderItems, OrderStatusHistory and Payment record in a transaction
     const { order, payment } = await this.prisma.$transaction(async (tx) => {
@@ -143,7 +213,7 @@ export class OrdersService {
           recipientName,
           recipientPhone,
           recipientEmail,
-          address: dto.address ? (dto.address as any) : undefined,
+          address: addressPayload as any,
           giftNote: dto.giftNote,
           wrapStyle: dto.wrapStyle || packagingId,
           status: OrderStatus.PENDING_PAYMENT,
@@ -533,12 +603,26 @@ export class OrdersService {
         );
       });
 
+      if (this.digitalGifts) {
+        try {
+          await this.digitalGifts.fulfillDigitalOrder(order.id);
+        } catch (err: any) {
+          this.logger.warn(
+            `Digital fulfillment after verifyOrderPayment encountered an error for order ${order.number}: ${err.message}`
+          );
+        }
+      }
+
       const updated = await this.prisma.order.findUnique({
         where: { id: order.id },
         include: { items: true, history: true },
       });
 
-      return { order: updated, verified: true, status: OrderStatus.CONFIRMED };
+      return {
+        order: updated,
+        verified: true,
+        status: updated?.status || OrderStatus.CONFIRMED,
+      };
     }
 
     return { order, verified: false, status: order.status };

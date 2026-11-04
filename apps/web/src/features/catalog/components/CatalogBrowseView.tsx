@@ -1,14 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {  Gift } from "lucide-react";
+import { Gift, Smartphone, Wifi } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 import { useCartStore } from "@/stores/cart-store";
 import {
   useCatalogCollections,
   useCatalogProducts,
+  useVtuProviders,
 } from "../hooks/useCatalog";
 import type { CatalogFilters } from "../types";
 import { FilterBar } from "./FilterBar";
@@ -37,6 +40,8 @@ export function CatalogBrowseView() {
 
   const productsQuery = useCatalogProducts(filters);
   const collectionsQuery = useCatalogCollections();
+  const vtuProvidersQuery = useVtuProviders("airtime");
+  const vtuProviders = vtuProvidersQuery.data?.providers ?? [];
 
   const updateFilters = (next: CatalogFilters) => {
     const params = new URLSearchParams();
@@ -74,6 +79,26 @@ export function CatalogBrowseView() {
   const collections = collectionsQuery.data ?? [];
   const products = productsQuery.data ?? [];
   const boxItemCount = getBoxItemCount();
+
+  const PAGE_SIZE = 12;
+  const pageParam = Number(searchParams.get("page")) || 1;
+  const totalPages = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
+  const currentPage = Math.min(pageParam, totalPages);
+  const paginatedProducts = products.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  const handlePageChange = (nextPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextPage > 1) {
+      params.set("page", String(nextPage));
+    } else {
+      params.delete("page");
+    }
+    const qs = params.toString();
+    router.push(qs ? `/gifts?${qs}` : "/gifts", { scroll: true });
+  };
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-10 px-4 py-10 sm:px-6">
@@ -139,6 +164,56 @@ export function CatalogBrowseView() {
 
       <FilterBar filters={filters} onChange={updateFilters} />
 
+      {/* Instant Airtime & Data VTU Studio Banner */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-card to-accent/15 p-5 sm:flex-row sm:items-center">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full bg-primary/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+              Instant VTU
+            </span>
+            {vtuProviders.length > 0 && (
+              <div className="flex items-center -space-x-1.5">
+                {vtuProviders.map((prov) => (
+                  <img
+                    key={prov.id}
+                    src={prov.logo}
+                    alt={prov.name}
+                    title={prov.name}
+                    className="h-5 w-5 rounded-full border border-background bg-white object-cover"
+                  />
+                ))}
+              </div>
+            )}
+            <span className="text-xs text-muted-foreground">
+              MTN • Airtel • Glo • T2mobile
+            </span>
+          </div>
+          <h2 className="font-heading text-lg font-semibold text-foreground">
+            Gift Instant Airtime or Data Bundles (Single or up to 50 Numbers)
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Powered by BillSpot VTU — choose any data plan (110MB to 1.5TB) or custom airtime top-up with instant delivery.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <Link
+            href="/checkout/billspot-vtu-airtime-gift"
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-2xs transition-opacity hover:opacity-95"
+          >
+            <Smartphone className="h-3.5 w-3.5" />
+            Send Airtime
+          </Link>
+          <Link
+            href="/checkout/billspot-vtu-data-bundle-gift"
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-card px-4 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-primary/10"
+          >
+            <Wifi className="h-3.5 w-3.5 text-primary" />
+            Gift Data Bundle
+          </Link>
+        </div>
+      </div>
+
       {productsQuery.isLoading ? (
         <div
           className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
@@ -160,10 +235,21 @@ export function CatalogBrowseView() {
           description="Try adjusting your occasion, recipient, or category filter to discover more curated gifts."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {paginatedProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={products.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={handlePageChange}
+            itemName="curated gifts"
+          />
         </div>
       )}
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   RotateCw,
@@ -19,6 +20,7 @@ import { Money } from "@/components/shared/Money";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 import {
   useAdminDisputes,
   useAdminEvents,
@@ -83,6 +85,14 @@ export function AdminConsoleView({
   const usersQuery = useAdminUsers();
   const retryPayoutMutation = useRetryAdminPayout();
   const resolveDisputeMutation = useResolveAdminDispute();
+
+  const [eventsPage, setEventsPage] = useState(1);
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const [payoutsPage, setPayoutsPage] = useState(1);
+  const [disputesPage, setDisputesPage] = useState(1);
+  const [moderationPage, setModerationPage] = useState(1);
+
+  const PAGE_SIZE = 8;
 
   const handleRetryPayout = async (payoutId: string) => {
     try {
@@ -318,128 +328,194 @@ export function AdminConsoleView({
       {section === "users" && <UserManagementView />}
 
       {/* Section: Moderation */}
-      {section === "moderation" && (
-        <div className="space-y-4">
-          {(moderationQuery.data ?? []).map((item) => (
-            <ModerationCard key={item.id} item={item} />
-          ))}
-          {(moderationQuery.data ?? []).length === 0 && (
-            <div className="py-12 text-center text-xs text-muted-foreground">
-              All Wall of Love posts are approved.
-            </div>
-          )}
-        </div>
-      )}
+      {section === "moderation" && (() => {
+        const items = moderationQuery.data ?? [];
+        const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+        const curPage = Math.min(moderationPage, totalPages);
+        const paginated = items.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
+
+        return (
+          <div className="space-y-4">
+            {paginated.map((item) => (
+              <ModerationCard key={item.id} item={item} />
+            ))}
+            {items.length === 0 && (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                All Wall of Love posts are approved.
+              </div>
+            )}
+            <PaginationBar
+              currentPage={curPage}
+              totalPages={totalPages}
+              totalItems={items.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setModerationPage}
+              itemName="flagged posts"
+            />
+          </div>
+        );
+      })()}
 
       {/* Section: Events */}
-      {section === "events" && (
-        <div className="space-y-3">
-          {(eventsQuery.data ?? []).map((ev) => (
-            <Card key={ev.id} className="border border-border/80 bg-card">
-              <CardContent className="flex items-center justify-between p-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={ev.status} />
-                    <span className="font-mono text-xs text-muted-foreground">
-                      /e/{ev.slug}
-                    </span>
-                  </div>
-                  <p className="mt-1 font-heading text-base font-semibold text-foreground">
-                    {ev.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(ev.date)} • {ev.giftCount} gifts •{" "}
-                    {ev.rsvpYesCount} attending
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Received
-                  </span>
-                  <p className="font-heading text-base font-bold text-primary">
-                    <Money amountKobo={ev.totalReceivedKobo} />
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      {section === "events" && (() => {
+        const events = eventsQuery.data ?? [];
+        const totalPages = Math.max(1, Math.ceil(events.length / PAGE_SIZE));
+        const curPage = Math.min(eventsPage, totalPages);
+        const paginated = events.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
+
+        return (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              {paginated.map((ev) => (
+                <Card key={ev.id} className="border border-border/80 bg-card">
+                  <CardContent className="flex items-center justify-between p-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={ev.status} />
+                        <span className="font-mono text-xs text-muted-foreground">
+                          /e/{ev.slug}
+                        </span>
+                      </div>
+                      <p className="mt-1 font-heading text-base font-semibold text-foreground">
+                        {ev.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(ev.date)} • {ev.giftCount} gifts •{" "}
+                        {ev.rsvpYesCount} attending
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        Received
+                      </span>
+                      <p className="font-heading text-base font-bold text-primary">
+                        <Money amountKobo={ev.totalReceivedKobo} />
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <PaginationBar
+              currentPage={curPage}
+              totalPages={totalPages}
+              totalItems={events.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setEventsPage}
+              itemName="celebrations"
+            />
+          </div>
+        );
+      })()}
 
       {/* Section: Payments */}
-      {section === "payments" && (
-        <div className="space-y-3">
-          {(paymentsQuery.data ?? []).map((pay) => (
-            <Card key={pay.reference} className="border border-border/80 bg-card">
-              <CardContent className="flex items-center justify-between p-4">
-                <div>
-                  <span className="font-mono text-xs font-semibold text-foreground">
-                    {pay.reference}
-                  </span>
-                  <p className="text-xs text-muted-foreground">
-                    Service Fee: <Money amountKobo={pay.serviceFeeKobo} /> • Channel: Card/NUBAN
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Total Settled
-                  </span>
-                  <p className="font-heading text-base font-bold text-primary">
-                    <Money amountKobo={pay.totalKobo} />
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      {section === "payments" && (() => {
+        const payments = paymentsQuery.data ?? [];
+        const totalPages = Math.max(1, Math.ceil(payments.length / PAGE_SIZE));
+        const curPage = Math.min(paymentsPage, totalPages);
+        const paginated = payments.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
+
+        return (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              {paginated.map((pay) => (
+                <Card key={pay.reference} className="border border-border/80 bg-card">
+                  <CardContent className="flex items-center justify-between p-4">
+                    <div>
+                      <span className="font-mono text-xs font-semibold text-foreground">
+                        {pay.reference}
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        Service Fee: <Money amountKobo={pay.serviceFeeKobo} /> • Channel: Card/NUBAN
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        Total Settled
+                      </span>
+                      <p className="font-heading text-base font-bold text-primary">
+                        <Money amountKobo={pay.totalKobo} />
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <PaginationBar
+              currentPage={curPage}
+              totalPages={totalPages}
+              totalItems={payments.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPaymentsPage}
+              itemName="transactions"
+            />
+          </div>
+        );
+      })()}
 
       {/* Section: Payouts */}
-      {section === "payouts" && (
-        <div className="space-y-4">
-          {(payoutsQuery.data ?? []).map((payout) => (
-            <Card key={payout.id} className="border border-border/80 bg-card">
-              <CardContent className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={payout.status} />
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(payout.createdAt, "d MMM yyyy, h:mm a")}
-                    </span>
-                  </div>
-                  <p className="font-heading text-base font-semibold text-foreground">
-                    {payout.eventName}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Beneficiary: {payout.ownerName} • {payout.bankName} (••••{" "}
-                    {payout.accountNumberLast4})
-                  </p>
-                </div>
+      {section === "payouts" && (() => {
+        const payouts = payoutsQuery.data ?? [];
+        const totalPages = Math.max(1, Math.ceil(payouts.length / PAGE_SIZE));
+        const curPage = Math.min(payoutsPage, totalPages);
+        const paginated = payouts.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
 
-                <div className="flex items-center gap-3">
-                  <Money
-                    amountKobo={payout.amountKobo}
-                    className="font-heading text-lg font-bold text-primary"
-                  />
-                  {payout.status === "FAILED" && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleRetryPayout(payout.id)}
-                      disabled={retryPayoutMutation.isPending}
-                      className="gap-1.5"
-                    >
-                      <RotateCw className="h-3.5 w-3.5" />
-                      Retry Payout
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+        return (
+          <div className="space-y-4">
+            <div className="space-y-4">
+              {paginated.map((payout) => (
+                <Card key={payout.id} className="border border-border/80 bg-card">
+                  <CardContent className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={payout.status} />
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(payout.createdAt, "d MMM yyyy, h:mm a")}
+                        </span>
+                      </div>
+                      <p className="font-heading text-base font-semibold text-foreground">
+                        {payout.eventName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Beneficiary: {payout.ownerName} • {payout.bankName} (••••{" "}
+                        {payout.accountNumberLast4})
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Money
+                        amountKobo={payout.amountKobo}
+                        className="font-heading text-lg font-bold text-primary"
+                      />
+                      {payout.status === "FAILED" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRetryPayout(payout.id)}
+                          disabled={retryPayoutMutation.isPending}
+                          className="gap-1.5"
+                        >
+                          <RotateCw className="h-3.5 w-3.5" />
+                          Retry Payout
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <PaginationBar
+              currentPage={curPage}
+              totalPages={totalPages}
+              totalItems={payouts.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPayoutsPage}
+              itemName="payouts"
+            />
+          </div>
+        );
+      })()}
 
       {/* Section: Ledger */}
       {section === "ledger" && (
@@ -479,53 +555,75 @@ export function AdminConsoleView({
       )}
 
       {/* Section: Disputes */}
-      {section === "disputes" && (
-        <div className="space-y-4">
-          {(disputesQuery.data ?? []).map((disp) => (
-            <Card key={disp.id} className="border border-border/80 bg-card">
-              <CardContent className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={disp.status} />
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {disp.orderNumber}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      • {disp.type}
-                    </span>
-                  </div>
-                  <p className="text-sm text-foreground">{disp.description}</p>
-                </div>
+      {section === "disputes" && (() => {
+        const disputes = disputesQuery.data ?? [];
+        const totalPages = Math.max(1, Math.ceil(disputes.length / PAGE_SIZE));
+        const curPage = Math.min(disputesPage, totalPages);
+        const paginated = disputes.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
 
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={disp.status !== "OPEN"}
-                    onClick={() => handleResolveDispute(disp.id, "RESOLVED")}
-                    className="gap-1.5"
-                  >
-                    <CheckCircle className="h-3.5 w-3.5" />
-                    Resolve
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={disp.status !== "OPEN"}
-                    onClick={() => handleResolveDispute(disp.id, "REJECTED")}
-                    className="gap-1.5"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                    Reject
-                  </Button>
+        return (
+          <div className="space-y-4">
+            <div className="space-y-4">
+              {paginated.map((disp) => (
+                <Card key={disp.id} className="border border-border/80 bg-card">
+                  <CardContent className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={disp.status} />
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {disp.orderNumber}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          • {disp.type}
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground">{disp.description}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={disp.status !== "OPEN"}
+                        onClick={() => handleResolveDispute(disp.id, "RESOLVED")}
+                        className="gap-1.5"
+                      >
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        Resolve
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={disp.status !== "OPEN"}
+                        onClick={() => handleResolveDispute(disp.id, "REJECTED")}
+                        className="gap-1.5"
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        Reject
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {disputes.length === 0 && (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  No active customer disputes found.
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              )}
+            </div>
+            <PaginationBar
+              currentPage={curPage}
+              totalPages={totalPages}
+              totalItems={disputes.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setDisputesPage}
+              itemName="disputes"
+            />
+          </div>
+        );
+      })()}
     </div>
   );
 }

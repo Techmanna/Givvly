@@ -1,8 +1,11 @@
 import {
   Body,
   Controller,
+  Get,
+  Headers,
   Param,
   Post,
+  Query,
   UseGuards,
   UsePipes,
   ValidationPipe,
@@ -12,6 +15,7 @@ import {
   ApiOperation,
   ApiOkResponse,
   ApiParam,
+  ApiQuery,
   ApiBearerAuth,
   ApiCookieAuth,
 } from "@nestjs/swagger";
@@ -20,16 +24,64 @@ import {
   VerifyVoucherRequestDto,
   VerifyVoucherResponseDto,
   DigitalOrderFulfillmentResponseDto,
+  PurchaseVtuDto,
 } from "./dto/digital-gift.dto";
 import { Public, Roles } from "../../common/decorators/auth.decorator";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Role } from "@prisma/client";
+import { BillSpotVtuType } from "./digital-provider.interface";
 
 @ApiTags("Digital Gifts & Instant Vouchers")
 @Controller("digital-gifts")
 export class DigitalGiftsController {
   constructor(private readonly digitalGiftsService: DigitalGiftsService) {}
+
+  @Public()
+  @Get("vtu/providers")
+  @ApiOperation({
+    summary: "Fetch cached BillSpot VTU providers for airtime or data",
+  })
+  @ApiQuery({
+    name: "type",
+    required: false,
+    enum: ["airtime", "data"],
+    description: "VTU type (airtime or data, defaults to airtime)",
+  })
+  async getVtuProviders(@Query("type") type?: BillSpotVtuType) {
+    const normalizedType: BillSpotVtuType = type === "data" ? "data" : "airtime";
+    return this.digitalGiftsService.getVtuProviders(normalizedType);
+  }
+
+  @Public()
+  @Get("vtu/plans/:provider")
+  @ApiOperation({
+    summary: "Fetch cached BillSpot data plans for a specific telco provider",
+  })
+  @ApiParam({
+    name: "provider",
+    description: "Provider slug (mtn, airtel, glo, t2mobile)",
+    example: "mtn",
+  })
+  async getVtuPlans(@Param("provider") provider: string) {
+    return this.digitalGiftsService.getVtuPlans(provider);
+  }
+
+  @Post("vtu/purchase")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiCookieAuth("givvly_at")
+  @ApiOperation({
+    summary: "Execute a direct BillSpot VTU airtime or data purchase (Admin)",
+  })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async purchaseVtu(
+    @Body() dto: PurchaseVtuDto,
+    @Headers("idempotency-key") idempotencyKey?: string
+  ) {
+    return this.digitalGiftsService.purchaseVtu(dto, idempotencyKey);
+  }
 
   @Public()
   @Post("verify-voucher")

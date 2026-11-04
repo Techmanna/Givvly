@@ -1,5 +1,8 @@
 import { api } from "@/lib/api-client";
 import type {
+  BillSpotPlansResponse,
+  BillSpotProvidersResponse,
+  BillSpotVtuType,
   CatalogCollection,
   CatalogFilters,
   CatalogProduct,
@@ -58,3 +61,18 @@ export function fetchCatalogCollections(): Promise<CatalogCollection[]> {
   return api<CatalogCollection[]>("/catalog/collections");
 }
 
+export function fetchVtuProviders(
+  type: BillSpotVtuType = "airtime"
+): Promise<BillSpotProvidersResponse> {
+  return api<BillSpotProvidersResponse>(
+    `/digital-gifts/vtu/providers?type=${encodeURIComponent(type)}`
+  );
+}
+
+export function fetchVtuPlans(
+  provider: string
+): Promise<BillSpotPlansResponse> {
+  return api<BillSpotPlansResponse>(
+    `/digital-gifts/vtu/plans/${encodeURIComponent(provider.toLowerCase())}`
+  );
+}

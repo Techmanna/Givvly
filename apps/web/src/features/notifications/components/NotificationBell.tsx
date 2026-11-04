@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Bell, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 import { formatDate } from "@/lib/format";
 import {
   useMarkNotificationReadMutation,
@@ -16,6 +18,7 @@ import {
 import type { NotificationItem } from "../types";
 
 export function NotificationBell() {
+  const [page, setPage] = useState(1);
   const notificationsQuery = useNotifications();
   const markReadMutation = useMarkNotificationReadMutation();
 
@@ -29,6 +32,14 @@ export function NotificationBell() {
     ? (rawData as { notifications: NotificationItem[] }).notifications
     : [];
   const unreadCount = items.filter((n) => !n.read).length;
+
+  const PAGE_SIZE = 5;
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedItems = items.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   return (
     <Popover>
@@ -70,35 +81,46 @@ export function NotificationBell() {
             You are all caught up.
           </p>
         ) : (
-          <div className="max-h-72 space-y-2 overflow-y-auto">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className={`rounded-control border p-2.5 text-xs ${
-                  item.read
-                    ? "border-border bg-card text-muted-foreground"
-                    : "border-primary/30 bg-primary/5 text-foreground"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold text-foreground">{item.title}</p>
-                  {!item.read ? (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
-                      onClick={() => markReadMutation.mutate(item.id)}
-                    >
-                      <Check className="h-3 w-3" aria-hidden="true" />
-                      <span>Read</span>
-                    </button>
-                  ) : null}
+          <div className="space-y-3">
+            <div className="max-h-72 space-y-2 overflow-y-auto">
+              {paginatedItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={`rounded-control border p-2.5 text-xs ${
+                    item.read
+                      ? "border-border bg-card text-muted-foreground"
+                      : "border-primary/30 bg-primary/5 text-foreground"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-foreground">{item.title}</p>
+                    {!item.read ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                        onClick={() => markReadMutation.mutate(item.id)}
+                      >
+                        <Check className="h-3 w-3" aria-hidden="true" />
+                        <span>Read</span>
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="mt-1">{item.body}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {formatDate(item.createdAt, "d MMM, h:mm a")}
+                  </p>
                 </div>
-                <p className="mt-1">{item.body}</p>
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  {formatDate(item.createdAt, "d MMM, h:mm a")}
-                </p>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            <PaginationBar
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={items.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+              itemName="alerts"
+            />
           </div>
         )}
       </PopoverContent>

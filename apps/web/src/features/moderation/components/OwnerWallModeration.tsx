@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 import {
   useModerateWallPostMutation,
   useOwnerWall,
@@ -27,9 +28,17 @@ export function OwnerWallModeration({
 }: OwnerWallModerationProps) {
   const [filter, setFilter] = useState<FilterTab>("ALL");
   const [postToDelete, setPostToDelete] = useState<WallPost | null>(null);
+  const [page, setPage] = useState(1);
+
+  const PAGE_SIZE = 8;
 
   const wallQuery = useOwnerWall(eventId);
   const moderateMutation = useModerateWallPostMutation(eventId, eventSlug);
+
+  const handleFilterChange = (v: FilterTab) => {
+    setFilter(v);
+    setPage(1);
+  };
 
   const handleModerate = (
     postId: string,
@@ -80,6 +89,13 @@ export function OwnerWallModeration({
       ? allPosts
       : allPosts.filter((p) => p.status === filter);
 
+  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedPosts = filteredPosts.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -94,7 +110,7 @@ export function OwnerWallModeration({
 
         <Tabs
           value={filter}
-          onValueChange={(v) => setFilter(v as FilterTab)}
+          onValueChange={(v) => handleFilterChange(v as FilterTab)}
         >
           <TabsList>
             <TabsTrigger value="ALL">All ({allPosts.length})</TabsTrigger>
@@ -117,17 +133,28 @@ export function OwnerWallModeration({
           description="Share your event link so guests can leave their wishes."
         />
       ) : (
-        <div className="space-y-3">
-          {filteredPosts.map((post) => (
-            <WallPostCard
-              key={post.id}
-              post={post}
-              mode="owner"
-              isModerating={moderateMutation.isPending}
-              onModerate={handleModerate}
-              onRequestDelete={(target) => setPostToDelete(target)}
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="space-y-3">
+            {paginatedPosts.map((post) => (
+              <WallPostCard
+                key={post.id}
+                post={post}
+                mode="owner"
+                isModerating={moderateMutation.isPending}
+                onModerate={handleModerate}
+                onRequestDelete={(target) => setPostToDelete(target)}
+              />
+            ))}
+          </div>
+
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredPosts.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            itemName="messages"
+          />
         </div>
       )}
 

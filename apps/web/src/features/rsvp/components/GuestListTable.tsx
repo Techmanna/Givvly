@@ -18,6 +18,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 import { formatDate } from "@/lib/format";
 import {
   useEventRsvps,
@@ -33,8 +34,16 @@ type FilterTab = "ALL" | RsvpResponse;
 
 export function GuestListTable({ eventId }: GuestListTableProps) {
   const [filter, setFilter] = useState<FilterTab>("ALL");
+  const [page, setPage] = useState(1);
   const rsvpsQuery = useEventRsvps(eventId);
   const exportMutation = useExportRsvpsMutation(eventId);
+
+  const PAGE_SIZE = 10;
+
+  const handleFilterChange = (v: FilterTab) => {
+    setFilter(v);
+    setPage(1);
+  };
 
   const handleExportCsv = async () => {
     try {
@@ -85,6 +94,13 @@ export function GuestListTable({ eventId }: GuestListTableProps) {
     filter === "ALL"
       ? allRsvps
       : allRsvps.filter((r) => r.response === filter);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedRsvps = filtered.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   return (
     <div className="space-y-6">
@@ -147,7 +163,7 @@ export function GuestListTable({ eventId }: GuestListTableProps) {
         </Card>
       </div>
 
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterTab)}>
+      <Tabs value={filter} onValueChange={(v) => handleFilterChange(v as FilterTab)}>
         <TabsList>
           <TabsTrigger value="ALL">All ({allRsvps.length})</TabsTrigger>
           <TabsTrigger value="YES">Yes ({yesList.length})</TabsTrigger>
@@ -162,52 +178,63 @@ export function GuestListTable({ eventId }: GuestListTableProps) {
           description="Share your event link so guests can confirm their attendance."
         />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Guest</TableHead>
-                  <TableHead>Response</TableHead>
-                  <TableHead>Plus-one</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((rsvp) => (
-                  <TableRow key={rsvp.id}>
-                    <TableCell className="font-medium text-foreground">
-                      {rsvp.name}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          rsvp.response === "YES"
-                            ? "success"
-                            : rsvp.response === "MAYBE"
-                              ? "warning"
-                              : "secondary"
-                        }
-                      >
-                        {rsvp.response}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {rsvp.plusOneName || "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {rsvp.email || rsvp.phone || "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {formatDate(rsvp.createdAt, "d MMM yyyy")}
-                    </TableCell>
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Guest</TableHead>
+                    <TableHead>Response</TableHead>
+                    <TableHead>Plus-one</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Date</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {paginatedRsvps.map((rsvp) => (
+                    <TableRow key={rsvp.id}>
+                      <TableCell className="font-medium text-foreground">
+                        {rsvp.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            rsvp.response === "YES"
+                              ? "success"
+                              : rsvp.response === "MAYBE"
+                                ? "warning"
+                                : "secondary"
+                          }
+                        >
+                          {rsvp.response}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {rsvp.plusOneName || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {rsvp.email || rsvp.phone || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatDate(rsvp.createdAt, "d MMM yyyy")}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            itemName="guests"
+          />
+        </div>
       )}
     </div>
   );

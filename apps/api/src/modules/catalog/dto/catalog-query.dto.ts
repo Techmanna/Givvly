@@ -118,6 +118,12 @@ export class CatalogProductResponseDto {
 
   @ApiPropertyOptional({ type: [ComboItemDto] })
   comboItems?: ComboItemDto[];
+
+  @ApiPropertyOptional({ example: true })
+  isDigital?: boolean;
+
+  @ApiPropertyOptional({ example: "AIRTIME" })
+  digitalKind?: string;
 }
 
 export class CatalogCollectionResponseDto {

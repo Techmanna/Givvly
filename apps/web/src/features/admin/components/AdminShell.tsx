@@ -79,12 +79,12 @@ export function AdminShell({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      {/* Desktop Sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col justify-between border-r border-border bg-card/60 backdrop-blur-md lg:flex">
-        <div className="flex flex-col">
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Fixed Desktop Sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden h-screen w-64 flex-col justify-between border-r border-border bg-card/95 backdrop-blur-md lg:flex">
+        <div className="flex flex-1 flex-col overflow-hidden">
           {/* Logo & Brand Header */}
-          <div className="flex h-16 items-center justify-between border-b border-border/80 px-6">
+          <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/80 px-6">
             <Link href="/admin" className="flex items-center gap-2.5">
               <span className="font-heading text-xl font-bold tracking-tight text-primary">
                 Givvly
@@ -98,8 +98,8 @@ export function AdminShell({
             </Link>
           </div>
 
-          {/* Navigation Groups */}
-          <nav className="flex-1 space-y-6 px-4 py-6 overflow-y-auto">
+          {/* Navigation Groups (independent internal scroll) */}
+          <nav className="flex-1 space-y-6 overflow-y-auto px-4 py-6">
             {NAV_GROUPS.map((group) => (
               <div key={group.title} className="space-y-1.5">
                 <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
@@ -158,7 +158,7 @@ export function AdminShell({
         </div>
 
         {/* Sidebar Footer: User & Quick Switch */}
-        <div className="border-t border-border/80 p-4 space-y-3">
+        <div className="shrink-0 border-t border-border/80 bg-card/40 p-4 space-y-3">
           <div className="flex items-center justify-between rounded-lg bg-muted/40 p-2.5">
             <div className="min-w-0">
               <p className="truncate text-xs font-bold text-foreground">
@@ -261,10 +261,10 @@ export function AdminShell({
         </div>
       )}
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-x-hidden">
-        {/* Top Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card/80 px-4 backdrop-blur-md sm:px-6">
+      {/* Main Content Area (offset by fixed sidebar on lg screens) */}
+      <div className="flex min-h-screen flex-1 flex-col lg:pl-64">
+        {/* Fixed / Sticky Top Header */}
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-border bg-card/90 px-4 backdrop-blur-md sm:px-6">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"

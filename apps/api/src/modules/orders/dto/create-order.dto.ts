@@ -9,6 +9,9 @@ import {
   ValidateNested,
   IsArray,
   IsBoolean,
+  IsIn,
+  ArrayMaxSize,
+  Min,
 } from "class-validator";
 import { Type } from "class-transformer";
 import { z } from "zod";
@@ -41,6 +44,7 @@ export const createOrderSchema = z
     recipient: recipientSchema.optional(),
     recipientName: z.string().trim().min(2).max(60).optional(),
     recipientPhone: z.string().trim().min(7).max(20).optional(),
+    recipientPhones: z.array(z.string().trim().min(7).max(20)).max(50).optional(),
     address: deliveryAddressSchema.optional(),
     giftNote: z.string().trim().max(300).optional(),
     wrapStyle: z.string().trim().max(50).optional(),
@@ -49,11 +53,15 @@ export const createOrderSchema = z
     buyerEmail: z.string().email().optional().or(z.literal("")),
     eventId: z.string().uuid().optional(),
     currency: z.string().trim().length(3).default("NGN"),
+    vtuType: z.enum(["airtime", "data"]).optional(),
+    vtuProvider: z.string().trim().max(30).optional(),
+    billItemIdentifier: z.string().trim().max(80).optional(),
+    customAmountKobo: z.number().int().min(5000).optional(),
   })
   .transform((data) => {
     const recipient = data.recipient ?? {
       name: data.recipientName || "Valued Recipient",
-      phone: data.recipientPhone,
+      phone: data.recipientPhone || data.recipientPhones?.[0],
     };
     return {
       ...data,
@@ -147,6 +155,16 @@ export class CreateOrderDto {
   @IsString()
   recipientPhone?: string;
 
+  @ApiPropertyOptional({
+    example: ["08031234567", "08166551496"],
+    description: "Multiple recipient phone numbers for bulk VTU airtime/data gifting (max 50)",
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  recipientPhones?: string[];
+
   @ApiPropertyOptional({ type: DeliveryAddressDto, description: "Physical delivery address" })
   @IsOptional()
   @ValidateNested()
@@ -187,6 +205,27 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   currency?: string = "NGN";
+
+  @ApiPropertyOptional({ example: "airtime", enum: ["airtime", "data"] })
+  @IsOptional()
+  @IsIn(["airtime", "data"])
+  vtuType?: "airtime" | "data";
+
+  @ApiPropertyOptional({ example: "mtn", enum: ["mtn", "airtel", "glo", "t2mobile"] })
+  @IsOptional()
+  @IsString()
+  vtuProvider?: string;
+
+  @ApiPropertyOptional({ example: "KUD-DAT-MTND-008" })
+  @IsOptional()
+  @IsString()
+  billItemIdentifier?: string;
+
+  @ApiPropertyOptional({ example: 500000, description: "Custom VTU amount in kobo (min 5000 = ₦50)" })
+  @IsOptional()
+  @IsInt()
+  @Min(5000)
+  customAmountKobo?: number;
 }
 
 export class OrderItemResponseDto {

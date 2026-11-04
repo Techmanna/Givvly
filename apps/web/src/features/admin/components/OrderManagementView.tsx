@@ -20,6 +20,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Money } from "@/components/shared/Money";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 import { formatDate } from "@/lib/format";
 import type { OrderStatus } from "@givvly/contracts";
 import {
@@ -43,6 +44,9 @@ export function OrderManagementView() {
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | "ALL">("ALL");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+
+  const PAGE_SIZE = 8;
 
   const orders = ordersQuery.data ?? [];
 
@@ -56,6 +60,23 @@ export function OrderManagementView() {
 
     return matchesSearch && matchesStatus;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
+
+  const handleStatusChange = (st: OrderStatus | "ALL") => {
+    setSelectedStatus(st);
+    setPage(1);
+  };
 
   const handleUpdateStatus = async (
     orderId: string,
@@ -115,7 +136,7 @@ export function OrderManagementView() {
               placeholder="Search by order # or recipient name..."
               className="pl-9 text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
             />
           </div>
 
@@ -124,7 +145,7 @@ export function OrderManagementView() {
               <button
                 key={st}
                 type="button"
-                onClick={() => setSelectedStatus(st)}
+                onClick={() => handleStatusChange(st)}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                   selectedStatus === st
                     ? "bg-primary text-primary-foreground shadow-sm"
@@ -155,9 +176,10 @@ export function OrderManagementView() {
           description="No orders match your search or status filter."
         />
       ) : (
-        <div className="space-y-3">
-          {filteredOrders.map((ord) => {
-            const isCopied = copiedId === ord.id;
+        <div className="space-y-4">
+          <div className="space-y-3">
+            {paginatedOrders.map((ord) => {
+              const isCopied = copiedId === ord.id;
             const canPack = ord.status === "CONFIRMED";
             const canShip = ord.status === "PACKED";
             const canDeliver = ord.status === "SHIPPED";
@@ -287,6 +309,16 @@ export function OrderManagementView() {
               </Card>
             );
           })}
+          </div>
+
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredOrders.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            itemName="orders"
+          />
         </div>
       )}
     </div>

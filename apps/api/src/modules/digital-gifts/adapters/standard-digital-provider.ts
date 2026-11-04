@@ -1,30 +1,14 @@
 import { Injectable, Logger } from "@nestjs/common";
 import {
-  DigitalFulfillmentProvider,
-  DigitalTopUpParams,
-  DigitalTopUpResult,
   DigitalVoucherParams,
+  DigitalVoucherProvider,
   DigitalVoucherResult,
 } from "../digital-provider.interface";
 import * as crypto from "crypto";
 
 @Injectable()
-export class StandardDigitalProvider implements DigitalFulfillmentProvider {
+export class StandardDigitalProvider implements DigitalVoucherProvider {
   private readonly logger = new Logger(StandardDigitalProvider.name);
-
-  async fulfillTopUp(params: DigitalTopUpParams): Promise<DigitalTopUpResult> {
-    const operatorReference = `top_${crypto.randomBytes(8).toString("hex")}`;
-    this.logger.log(
-      `[DIGITAL TOP-UP] Successfully delivered ${params.amountSubunits} subunits to ${params.phoneNumber} via ${params.operator} (ref: ${operatorReference})`
-    );
-
-    return {
-      success: true,
-      operatorReference,
-      deliveredTo: params.phoneNumber,
-      deliveredAt: new Date(),
-    };
-  }
 
   async generateVoucher(params: DigitalVoucherParams): Promise<DigitalVoucherResult> {
     const part1 = crypto.randomBytes(2).toString("hex").toUpperCase();
@@ -48,4 +32,3 @@ export class StandardDigitalProvider implements DigitalFulfillmentProvider {
     };
   }
 }
-

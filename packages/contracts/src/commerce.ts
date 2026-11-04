@@ -23,6 +23,37 @@ export type CatalogProduct = {
   isCombo?: boolean;
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
   packagingIncluded?: string;
+  isDigital?: boolean;
+  digitalKind?: "AIRTIME" | "DATA" | "VOUCHER" | "GIFT_CARD";
+};
+
+export type BillSpotVtuType = "airtime" | "data";
+
+export type BillSpotProviderSlug = "mtn" | "airtel" | "glo" | "t2mobile";
+
+export type BillSpotProviderInfo = {
+  id: number;
+  name: string;
+  slug: BillSpotProviderSlug | string;
+  logo: string;
+};
+
+export type BillSpotProvidersResponse = {
+  message: string;
+  type: BillSpotVtuType;
+  providers: BillSpotProviderInfo[];
+};
+
+export type BillSpotDataPlan = {
+  name: string;
+  bill_item_identifier: string;
+  amount: number;
+};
+
+export type BillSpotPlansResponse = {
+  message: string;
+  provider: BillSpotProviderInfo;
+  plans: BillSpotDataPlan[];
 };
 
 export type CatalogCollection = {
@@ -185,17 +216,23 @@ export const directCheckoutSchema = z
 export type DirectCheckoutInput = z.infer<typeof directCheckoutSchema>;
 
 export type CreateDirectOrderRequest = {
-  productSlug: string;
+  productSlug?: string;
   recipientName: string;
   recipientPhone: string;
-  address: {
+  recipientPhones?: string[];
+  address?: {
     street: string;
     area: string;
     city: string;
     state: string;
   };
   giftNote?: string;
-  wrapping: boolean;
+  wrapping?: boolean;
+  buyerEmail?: string;
+  vtuType?: BillSpotVtuType;
+  vtuProvider?: string;
+  billItemIdentifier?: string;
+  customAmountKobo?: number;
 };
 
 // Dispute schema (Section 8.1)

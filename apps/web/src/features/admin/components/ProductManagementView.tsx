@@ -24,6 +24,7 @@ import {
 import { Money } from "@/components/shared/Money";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 import {
   useAdminProducts,
   useCreateAdminProduct,
@@ -53,6 +54,9 @@ export function ProductManagementView() {
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [combosOnly, setCombosOnly] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [page, setPage] = useState(1);
+
+  const PAGE_SIZE = 12;
 
   // Add Product form state
   const [formData, setFormData] = useState({
@@ -77,6 +81,28 @@ export function ProductManagementView() {
     const matchesCombo = !combosOnly || p.isCombo;
     return matchesSearch && matchesCategory && matchesCombo;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
+
+  const handleCategoryChange = (cat: string) => {
+    setSelectedCategory(cat);
+    setPage(1);
+  };
+
+  const handleCombosToggle = (checked: boolean) => {
+    setCombosOnly(checked);
+    setPage(1);
+  };
 
   const handleToggleStock = async (id: string, currentStock: boolean) => {
     try {
@@ -344,7 +370,7 @@ export function ProductManagementView() {
               placeholder="Search product name, items or description..."
               className="pl-9 text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
             />
           </div>
 
@@ -352,7 +378,7 @@ export function ProductManagementView() {
             <label className="inline-flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer">
               <Switch
                 checked={combosOnly}
-                onCheckedChange={setCombosOnly}
+                onCheckedChange={handleCombosToggle}
               />
               <span>Predefined Combos Only</span>
             </label>
@@ -365,7 +391,7 @@ export function ProductManagementView() {
             <button
               key={cat}
               type="button"
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => handleCategoryChange(cat)}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 selectedCategory === cat
                   ? "bg-primary text-primary-foreground shadow-sm"
@@ -395,16 +421,17 @@ export function ProductManagementView() {
           description="Try clearing search filters or add a new gift product to the catalog."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredProducts.map((product) => (
-            <Card
-              key={product.id}
-              className={`overflow-hidden border transition-all duration-200 hover:shadow-soft ${
-                product.inStock
-                  ? "border-border/80 bg-card"
-                  : "border-border/40 bg-muted/20 opacity-80"
-              }`}
-            >
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {paginatedProducts.map((product) => (
+              <Card
+                key={product.id}
+                className={`overflow-hidden border transition-all duration-200 hover:shadow-soft ${
+                  product.inStock
+                    ? "border-border/80 bg-card"
+                    : "border-border/40 bg-muted/20 opacity-80"
+                }`}
+              >
               <div className="flex h-full flex-col justify-between p-4">
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
@@ -481,6 +508,16 @@ export function ProductManagementView() {
               </div>
             </Card>
           ))}
+          </div>
+
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredProducts.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            itemName="gifts"
+          />
         </div>
       )}
     </div>

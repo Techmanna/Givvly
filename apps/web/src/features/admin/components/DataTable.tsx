@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 export type DataTableColumn<T> = {
   header: string;
@@ -25,6 +26,8 @@ export type DataTableProps<T> = {
   filterFn?: (row: T, query: string) => boolean;
   searchPlaceholder?: string;
   emptyMessage?: string;
+  pageSize?: number;
+  itemName?: string;
 };
 
 export function DataTable<T>({
@@ -34,28 +37,47 @@ export function DataTable<T>({
   filterFn,
   searchPlaceholder = "Filter records...",
   emptyMessage = "No matching records found.",
+  pageSize = 10,
+  itemName = "records",
 }: DataTableProps<T>) {
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const trimmed = query.trim().toLowerCase();
 
-  const filtered =
-    trimmed && filterFn ? data.filter((row) => filterFn(row, trimmed)) : data;
+  const handleQueryChange = (val: string) => {
+    setQuery(val);
+    setPage(1);
+  };
+
+  const filtered = useMemo(() => {
+    return trimmed && filterFn
+      ? data.filter((row) => filterFn(row, trimmed))
+      : data;
+  }, [data, trimmed, filterFn]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   return (
     <div className="space-y-3">
       {filterFn && (
         <div className="relative max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => handleQueryChange(e.target.value)}
             placeholder={searchPlaceholder}
             className="pl-9"
           />
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -71,13 +93,13 @@ export function DataTable<T>({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="py-8 text-center text-sm text-ink-muted"
+                  className="py-8 text-center text-sm text-muted-foreground"
                 >
                   {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((row) => (
+              paginatedRows.map((row) => (
                 <TableRow key={getRowKey(row)}>
                   {columns.map((col, idx) => (
                     <TableCell key={idx} className={col.className}>
@@ -90,7 +112,17 @@ export function DataTable<T>({
           </TableBody>
         </Table>
       </div>
+
+      <PaginationBar
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={filtered.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        itemName={itemName}
+      />
     </div>
   );
 }
+
 

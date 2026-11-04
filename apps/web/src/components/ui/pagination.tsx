@@ -8,7 +8,7 @@ function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
     <nav
       role="navigation"
       aria-label="pagination"
-      className={cn("mx-auto flex w-full justify-center", className)}
+      className={cn("mx-auto flex w-full items-center justify-center", className)}
       {...props}
     />
   );
@@ -20,7 +20,7 @@ const PaginationContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ul
     ref={ref}
-    className={cn("flex flex-row items-center gap-1", className)}
+    className={cn("flex flex-row items-center gap-1.5", className)}
     {...props}
   />
 ));
@@ -36,23 +36,32 @@ PaginationItem.displayName = "PaginationItem";
 
 type PaginationLinkProps = {
   isActive?: boolean;
+  disabled?: boolean;
 } & Pick<ButtonProps, "size"> &
-  React.ComponentProps<"a">;
+  React.ButtonHTMLAttributes<HTMLButtonElement>;
 
 function PaginationLink({
   className,
   isActive,
+  disabled,
   size = "icon",
   ...props
 }: PaginationLinkProps) {
   return (
-    <a
+    <button
+      type="button"
       aria-current={isActive ? "page" : undefined}
+      disabled={disabled}
       className={cn(
         buttonVariants({
           variant: isActive ? "outline" : "ghost",
           size,
         }),
+        "h-9 min-w-9 px-3 text-xs font-medium transition-colors cursor-pointer",
+        isActive &&
+          "border-primary bg-primary/10 text-primary font-bold shadow-2xs hover:bg-primary/15",
+        disabled &&
+          "pointer-events-none opacity-40 cursor-not-allowed",
         className
       )}
       {...props}
@@ -101,7 +110,7 @@ function PaginationEllipsis({
   return (
     <span
       aria-hidden
-      className={cn("flex h-9 w-9 items-center justify-center", className)}
+      className={cn("flex h-9 w-9 items-center justify-center text-muted-foreground", className)}
       {...props}
     >
       <MoreHorizontal className="h-4 w-4" />
@@ -119,4 +128,5 @@ export {
   PaginationNext,
   PaginationPrevious,
 };
+
 
