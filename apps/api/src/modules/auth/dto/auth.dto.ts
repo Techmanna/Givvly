@@ -32,9 +32,28 @@ export class RegisterRequestDto {
   @MinLength(8)
   password: string;
 
-  @ApiProperty({ example: true, description: "Terms and conditions acceptance" })
+  @ApiPropertyOptional({ example: true, description: "Terms and conditions acceptance" })
+  @IsOptional()
   @IsBoolean()
-  acceptTerms: boolean;
+  acceptTerms?: boolean;
+
+  @ApiPropertyOptional({ example: true, description: "Terms and conditions acceptance alias" })
+  @IsOptional()
+  @IsBoolean()
+  terms?: boolean;
+}
+
+export class ResendVerificationRequestDto {
+  @ApiProperty({ example: "tola@example.com", description: "Account email address" })
+  @IsEmail()
+  email: string;
+}
+
+export class VerifyEmailRequestDto {
+  @ApiProperty({ example: "tok_verify_xyz", description: "Email verification token" })
+  @IsString()
+  @IsNotEmpty()
+  token: string;
 }
 
 export class LoginRequestDto {

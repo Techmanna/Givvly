@@ -101,6 +101,29 @@ export async function openPaystackCheckout(
       },
     });
     handler.openIframe();
+
+    if (typeof document !== "undefined") {
+      document.body.style.pointerEvents = "auto";
+      const unlockPaystackIframes = () => {
+        if (typeof document === "undefined") return;
+        document.body.style.pointerEvents = "auto";
+        const iframes = document.querySelectorAll<HTMLIFrameElement>(
+          'iframe[name*="paystack"], iframe[src*="paystack"], iframe#paystack-iframe'
+        );
+        iframes.forEach((el) => {
+          el.style.pointerEvents = "auto";
+          el.style.zIndex = "2147483647";
+          el.removeAttribute("aria-hidden");
+          el.removeAttribute("inert");
+        });
+      };
+      unlockPaystackIframes();
+      requestAnimationFrame(unlockPaystackIframes);
+      setTimeout(unlockPaystackIframes, 100);
+      setTimeout(unlockPaystackIframes, 300);
+      setTimeout(unlockPaystackIframes, 600);
+    }
+
     return { opened: true };
   } catch {
     return { opened: false };

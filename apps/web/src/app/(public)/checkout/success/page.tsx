@@ -31,22 +31,25 @@ export default async function CheckoutSuccessPage({
           </div>
 
           <div className="flex flex-col gap-2.5 sm:flex-row sm:justify-center">
-            {/* only show if there is orderId and user is auth */}
-            {orderId && user && (
-              <>
-                <Button asChild className="gap-1.5">
-                  <Link href={`/track/${encodeURIComponent(orderId)}`}>
-                    <Package className="h-4 w-4" />
-                    Track Delivery
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="gap-1.5">
-                  <Link href="/orders">
-                    View My Orders
-                  </Link>
-                </Button>
-              </>
+            {/* Public delivery tracking for both guests and authenticated buyers */}
+            {orderId && (
+              <Button asChild className="gap-1.5">
+                <Link href={`/track/${encodeURIComponent(orderId)}`}>
+                  <Package className="h-4 w-4" />
+                  Track Delivery
+                </Link>
+              </Button>
             )}
+
+            {/* Authenticated users can view full orders list */}
+            {orderId && user && (
+              <Button asChild variant="outline" className="gap-1.5">
+                <Link href="/orders">
+                  View My Orders
+                </Link>
+              </Button>
+            )}
+
             <Button asChild variant="ghost" className="gap-1.5">
               <Link href="/gifts">
                 <Gift className="h-4 w-4" />

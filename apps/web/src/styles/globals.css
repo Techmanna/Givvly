@@ -279,10 +279,25 @@ body {
   }
 }
 
-/* Ensure Paystack inline payment iframe and overlay are always interactable */
-iframe[name="paystack-iframe"],
+/* Ensure Paystack inline payment iframe and overlay are always interactable and not blocked by any modals */
+iframe[name*="paystack"],
+iframe[src*="paystack"],
 iframe#paystack-iframe,
 div[id*="paystack"],
-.paystack-modal {
+div[class*="paystack"],
+.paystack-modal,
+.paystack-checkout {
+  pointer-events: auto !important;
+  z-index: 2147483647 !important;
+}
+
+body:has(iframe[name*="paystack"]),
+body:has(iframe[src*="paystack"]) {
   pointer-events: auto !important;
 }
+
+body:has(iframe[name*="paystack"]) > [data-radix-portal],
+body:has(iframe[src*="paystack"]) > [data-radix-portal] {
+  display: none !important;
+}
+

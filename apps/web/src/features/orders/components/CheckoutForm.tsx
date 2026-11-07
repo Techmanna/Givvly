@@ -8,6 +8,7 @@ import {
   Check,
   Clock,
   Gift,
+  Mail,
   Phone,
   Search,
   ShieldCheck,
@@ -38,6 +39,8 @@ import {
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { PaymentGatewayModal } from "./PaymentGatewayModal";
+import { openPaystackCheckout } from "@/features/gifts/paystack";
+import { verifyOrderPayment } from "../api";
 import { directCheckoutSchema } from "../schemas";
 import { useCreateDirectOrder, useOrdersList } from "../hooks/useOrders";
 import { createSingleProductWhatsAppLink } from "@/lib/whatsapp";
@@ -246,9 +249,15 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
       state: cartStore.draft.state || "Lagos",
       giftNote: cartStore.draft.giftNote || "",
       wrapping: cartStore.draft.wrapping ?? false,
-      buyerEmail: user?.email || "",
+      buyerEmail: user?.email || cartStore.draft.buyerEmail || "",
     },
   });
+
+  React.useEffect(() => {
+    if (user?.email && !form.getValues("buyerEmail")) {
+      form.setValue("buyerEmail", user.email);
+    }
+  }, [user?.email, form]);
 
   // For digital VTU products, populate default address fields so schema validation succeeds seamlessly
   React.useEffect(() => {
@@ -328,8 +337,17 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      const buyerEmail =
-        user?.email || (values as any).buyerEmail || "guest@givvly.ng";
+      const buyerEmail = (values.buyerEmail?.trim() || user?.email || "").trim();
+      if (!buyerEmail) {
+        form.setError("buyerEmail", {
+          message:
+            "Please enter your email address to receive your order receipt and tracking updates.",
+        });
+        toast.error(
+          "Please enter your email address to receive order confirmation & live tracking."
+        );
+        return;
+      }
 
       if (isVtuProduct && vtuType === "data" && !selectedPlan) {
         toast.error("Please select a data bundle plan.");
@@ -350,6 +368,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
 
       const result = await createOrderMutation.mutateAsync({
         productSlug,
+        buyerEmail,
         recipientName: resolvedRecipientName,
         recipientPhone: values.recipientPhone,
         ...(isVtuProduct && parsedAllPhones.length > 1
@@ -409,6 +428,39 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
         amountKobo: result.order.totalKobo,
         email: buyerEmail,
       });
+
+      if (paymentMethod === "paystack") {
+        const paystackRes = await openPaystackCheckout({
+          email: buyerEmail,
+          amountKobo: result.order.totalKobo,
+          reference: result.reference,
+          accessCode: result.accessCode,
+          onComplete: async (ref) => {
+            try {
+              await verifyOrderPayment(result.order.id);
+            } catch {
+              // Webhook or polling handles backend capture
+            }
+            handlePaymentSuccess(ref);
+          },
+          onDismiss: () => {
+            setIsPaymentModalOpen(true);
+            toast.info(
+              "Payment window dismissed. You can complete payment whenever you're ready."
+            );
+          },
+        });
+
+        if (!paystackRes.opened) {
+          if (result.authorizationUrl) {
+            window.location.href = result.authorizationUrl;
+          } else {
+            setIsPaymentModalOpen(true);
+          }
+        }
+        return;
+      }
+
       setIsPaymentModalOpen(true);
     } catch (err) {
       toast.error(
@@ -662,6 +714,50 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
             </CardContent>
           </Card>
         )}
+
+        {/* Buyer Information & Order Confirmation Email */}
+        <Card className="border-border/80 bg-card shadow-soft">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-primary" />
+              <CardTitle className="font-display text-xl">
+                Your Details & Receipt Email
+              </CardTitle>
+            </div>
+            <p className="text-xs text-ink-muted">
+              We will send your order confirmation, digital payment receipt, and live tracking link to this email address.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="buyerEmail">
+                Your email address <span className="text-danger">*</span>
+              </Label>
+              <Input
+                id="buyerEmail"
+                type="email"
+                autoComplete="email"
+                enterKeyHint="next"
+                placeholder="you@example.com"
+                {...form.register("buyerEmail")}
+              />
+              {form.formState.errors.buyerEmail && (
+                <p role="alert" className="text-xs text-danger">
+                  {form.formState.errors.buyerEmail.message}
+                </p>
+              )}
+              {user ? (
+                <p className="text-[11px] text-ink-muted">
+                  Signed in as <strong className="text-ink">{user.email}</strong>. Order confirmation and private delivery updates will be sent here.
+                </p>
+              ) : (
+                <p className="text-[11px] text-ink-muted">
+                  No account needed. Your digital receipt and live tracking link (<span className="font-mono text-primary">/track/&lt;token&gt;</span>) will be delivered to this email.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

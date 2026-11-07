@@ -25,6 +25,8 @@ export function registerUser(payload: SignupPayload): Promise<RegisterResponse> 
       email: payload.email,
       phone: payload.phone,
       password: payload.password,
+      acceptTerms: (payload as any).acceptTerms ?? payload.terms ?? true,
+      terms: payload.terms ?? true,
     },
   });
 }

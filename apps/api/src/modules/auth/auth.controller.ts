@@ -29,6 +29,11 @@ import {
   LoginRequestDto,
   AuthResponseDto,
   UserProfileResponseDto,
+  ResendVerificationRequestDto,
+  VerifyEmailRequestDto,
+  ForgotPasswordRequestDto,
+  ResetPasswordRequestDto,
+  MessageResponseDto,
 } from "./dto/auth.dto";
 import { Public, CurrentUser, RequestUser } from "@/common/decorators/auth.decorator";
 import { JwtAuthGuard } from "@/common/guards/jwt-auth.guard";
@@ -85,6 +90,65 @@ export class AuthController {
     this.setAuthCookies(res, result.tokens);
 
     return { user: result.user as UserProfileResponseDto };
+  }
+
+  @Public()
+  @Post("resend-verification")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Resend email verification token" })
+  @ApiOkResponse({
+    description: "Verification email triggered if account exists.",
+    type: MessageResponseDto,
+  })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async resendVerification(
+    @Body() dto: ResendVerificationRequestDto
+  ): Promise<MessageResponseDto> {
+    return this.authService.resendVerification(dto.email);
+  }
+
+  @Public()
+  @Post("verify-email")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Verify user email address using token" })
+  @ApiOkResponse({
+    description: "Email verified successfully.",
+  })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async verifyEmail(
+    @Body() dto: VerifyEmailRequestDto
+  ): Promise<{ success: boolean; message: string; user?: any }> {
+    return this.authService.verifyEmail(dto.token);
+  }
+
+  @Public()
+  @Post("forgot-password")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Request password reset email" })
+  @ApiOkResponse({
+    description: "Password reset email dispatched if account exists.",
+    type: MessageResponseDto,
+  })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async forgotPassword(
+    @Body() dto: ForgotPasswordRequestDto
+  ): Promise<MessageResponseDto> {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Post("reset-password")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Confirm password reset using token" })
+  @ApiOkResponse({
+    description: "Password reset completed successfully.",
+    type: MessageResponseDto,
+  })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async resetPassword(
+    @Body() dto: ResetPasswordRequestDto
+  ): Promise<MessageResponseDto> {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 
   @Public()

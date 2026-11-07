@@ -148,6 +148,8 @@ export type Order = {
   timeline: { status: OrderStatus; at: string }[];
   recipientName: string;
   recipientPhone?: string;
+  buyerEmail?: string;
+  trackingToken?: string;
   address?: string;
   createdAt?: string;
 };

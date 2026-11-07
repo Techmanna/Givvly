@@ -166,6 +166,12 @@ export const directCheckoutSchema = z
       .refine((v) => NIGERIAN_PHONE_REGEX.test(v.replace(/[\s-]/g, "")), {
         message: "Enter a valid Nigerian phone number (e.g. 08031234567)",
       }),
+    buyerEmail: z
+      .string()
+      .trim()
+      .email("Enter a valid email address to receive your order receipt and tracking link")
+      .optional()
+      .or(z.literal("")),
     street: z
       .string()
       .trim()
@@ -267,6 +273,45 @@ export const reviewFormSchema = z.object({
 });
 
 export type ReviewFormInput = z.infer<typeof reviewFormSchema>;
+
+export type ProductReview = {
+  id: string;
+  productId?: string;
+  productSlug?: string;
+  authorName: string;
+  verified: boolean;
+  rating: number;
+  title: string;
+  comment: string;
+  date: string;
+  timestamp: number;
+};
+
+export const createProductReviewSchema = z.object({
+  rating: z.coerce
+    .number()
+    .int()
+    .min(1, "Select a rating between 1 and 5 stars")
+    .max(5, "Maximum rating is 5 stars"),
+  authorName: z
+    .string()
+    .trim()
+    .min(2, "Author name must be at least 2 characters")
+    .max(60, "Author name must be 60 characters or fewer"),
+  title: z
+    .string()
+    .trim()
+    .min(3, "Review title must be at least 3 characters")
+    .max(100, "Review title must be 100 characters or fewer"),
+  comment: z
+    .string()
+    .trim()
+    .min(5, "Review details must be at least 5 characters")
+    .max(1000, "Review details must be 1,000 characters or fewer"),
+  verified: z.boolean().optional(),
+});
+
+export type CreateProductReviewInput = z.infer<typeof createProductReviewSchema>;
 
 // Vendor status transitions (Section 8.1 & 9.F11)
 export const NEXT_VALID_ORDER_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {

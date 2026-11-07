@@ -102,5 +102,30 @@ describe("CatalogService", () => {
       expect(collections[0].slug).toBe("anniversary-specials");
     });
   });
+
+  describe("getProductReviews & createProductReview", () => {
+    it("should return seeded reviews for a product", async () => {
+      const reviews = await service.getProductReviews("luxury-perfume-box");
+      expect(reviews.length).toBeGreaterThanOrEqual(3);
+      expect(reviews[0].authorName).toBe("Vanessa O.");
+    });
+
+    it("should add a new review and return it", async () => {
+      prisma.product.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      const newReview = await service.createProductReview("luxury-perfume-box", {
+        authorName: "Tunde O.",
+        rating: 5,
+        title: "Spectacular Presentation",
+        comment: "The packaging and promptness was outstanding.",
+      });
+
+      expect(newReview.id).toBeDefined();
+      expect(newReview.authorName).toBe("Tunde O.");
+      expect(newReview.rating).toBe(5);
+
+      const updated = await service.getProductReviews("luxury-perfume-box");
+      expect(updated[0].authorName).toBe("Tunde O.");
+    });
+  });
 });
 

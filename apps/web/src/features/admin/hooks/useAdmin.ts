@@ -5,6 +5,7 @@ import {
   fetchAdminEvents,
   fetchAdminLedger,
   fetchAdminModerationQueue,
+  fetchAdminOrderDetail,
   fetchAdminOrders,
   fetchAdminPayments,
   fetchAdminPayouts,
@@ -113,6 +114,14 @@ export function useAdminOrders() {
   });
 }
 
+export function useAdminOrderDetail(orderId: string) {
+  return useQuery({
+    queryKey: adminKeys.orderDetail(orderId),
+    queryFn: () => fetchAdminOrderDetail(orderId),
+    enabled: Boolean(orderId),
+  });
+}
+
 export function useAdminVendors() {
   return useQuery({
     queryKey: adminKeys.vendors(),
@@ -173,8 +182,13 @@ export function useUpdateAdminOrderStatus() {
       orderId: string;
       status: Parameters<typeof updateAdminOrderStatus>[1];
     }) => updateAdminOrderStatus(orderId, status),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: adminKeys.orders() });
+      if (variables?.orderId) {
+        queryClient.invalidateQueries({
+          queryKey: adminKeys.orderDetail(variables.orderId),
+        });
+      }
     },
   });
 }

@@ -7,6 +7,10 @@ export { ModerationCard, type ModerationCardProps } from "./components/Moderatio
 export { LedgerTable, type LedgerTableProps } from "./components/LedgerTable";
 export { ProductManagementView } from "./components/ProductManagementView";
 export { OrderManagementView } from "./components/OrderManagementView";
+export {
+  AdminOrderDetailView,
+  type AdminOrderDetailViewProps,
+} from "./components/AdminOrderDetailView";
 export { UserManagementView } from "./components/UserManagementView";
 export { AdminShell } from "./components/AdminShell";
 export {

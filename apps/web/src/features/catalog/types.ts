@@ -8,4 +8,6 @@ export type {
   CatalogCollection,
   CatalogFilters,
   CatalogProduct,
+  ProductReview,
+  CreateProductReviewInput,
 } from "@givvly/contracts";

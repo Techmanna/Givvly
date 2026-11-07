@@ -16,6 +16,8 @@ import {
   type PayoutAccount,
   type PoolItem,
   type PresignUploadResponse,
+  type ProductReview,
+  type CreateProductReviewInput,
   type RegistryItem,
   type ResolvedBankAccount,
   type Role,
@@ -74,7 +76,63 @@ type MockDatabase = {
   moderationQueue: MockAdminModerationItem[];
   ledger: MockLedgerEntry[];
   disputes: MockDispute[];
+  reviewsByProduct: Record<string, ProductReview[]>;
 };
+
+function createInitialProductReviews(): Record<string, ProductReview[]> {
+  const reviews: Record<string, ProductReview[]> = {};
+  for (const product of MOCK_CATALOG_PRODUCTS) {
+    const isHamper =
+      product.isCombo || product.name.toLowerCase().includes("hamper");
+    const isLuxury = product.priceKobo > 5_000_000;
+    reviews[product.slug] = [
+      {
+        id: `rev_${product.slug}_1`,
+        productId: product.id,
+        productSlug: product.slug,
+        authorName: "Vanessa O.",
+        verified: true,
+        rating: 5,
+        title: (product.name || "Curated Selection")
+          .split(" ")
+          .slice(0, 3)
+          .join(" "),
+        comment: `The ${product.name.toLowerCase()} was exquisitely packaged and arrived right on time for our celebration. Impeccable presentation and genuine attention to detail. Will definitely order again!`,
+        date: "2 days ago",
+        timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000,
+      },
+      {
+        id: `rev_${product.slug}_2`,
+        productId: product.id,
+        productSlug: product.slug,
+        authorName: "Chidi N.",
+        verified: true,
+        rating: 5,
+        title: isHamper
+          ? "Sensational Keepsake Box"
+          : "Top Quality Nigerian Delivery",
+        comment:
+          "Ordered directly via WhatsApp and our concierge responded in under 2 minutes. The satin ribbon and personalized gold card brought tears of joy to the bride.",
+        date: "1 week ago",
+        timestamp: Date.now() - 7 * 24 * 60 * 60 * 1000,
+      },
+      {
+        id: `rev_${product.slug}_3`,
+        productId: product.id,
+        productSlug: product.slug,
+        authorName: "Amina Bello",
+        verified: true,
+        rating: isLuxury ? 5 : 4,
+        title: "Recipient was deeply touched",
+        comment:
+          "Sent this as a surprise birthday celebration blessing. Everything from the wrapping to the authentic items exceeded our expectations.",
+        date: "2 weeks ago",
+        timestamp: Date.now() - 14 * 24 * 60 * 60 * 1000,
+      },
+    ];
+  }
+  return reviews;
+}
 
 function createInitialDb(): MockDatabase {
   return {
@@ -96,6 +154,7 @@ function createInitialDb(): MockDatabase {
     moderationQueue: structuredClone(INITIAL_MODERATION_QUEUE),
     ledger: structuredClone(INITIAL_LEDGER_ENTRIES),
     disputes: structuredClone(INITIAL_DISPUTES),
+    reviewsByProduct: createInitialProductReviews(),
   };
 }
 
@@ -1622,6 +1681,111 @@ export async function handleMockApiRequest<T>(
     return wrapSuccess(product as unknown as T);
   }
 
+  const productReviewsMatch = /^\/catalog\/products\/([^/]+)\/reviews$/.exec(
+    normalizedPath
+  );
+  if (productReviewsMatch) {
+    const slug = decodeURIComponent(productReviewsMatch[1]!);
+    const lower = slug.toLowerCase();
+
+    if (method === "GET") {
+      let list = db.reviewsByProduct[slug] || db.reviewsByProduct[lower];
+      if (!list) {
+        const prod = db.products.find(
+          (p) => p.slug === slug || p.id === slug || p.slug === lower
+        );
+        const isHamper =
+          prod?.isCombo || prod?.name.toLowerCase().includes("hamper");
+        const isLuxury = (prod?.priceKobo ?? 0) > 5_000_000;
+        list = [
+          {
+            id: `rev_${slug}_1`,
+            productId: prod?.id,
+            productSlug: slug,
+            authorName: "Vanessa O.",
+            verified: true,
+            rating: 5,
+            title: (prod?.name || "Curated Selection")
+              .split(" ")
+              .slice(0, 3)
+              .join(" "),
+            comment: `The ${(
+              prod?.name || "gift"
+            ).toLowerCase()} was exquisitely packaged and arrived right on time for our celebration. Impeccable presentation and genuine attention to detail. Will definitely order again!`,
+            date: "2 days ago",
+            timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000,
+          },
+          {
+            id: `rev_${slug}_2`,
+            productId: prod?.id,
+            productSlug: slug,
+            authorName: "Chidi N.",
+            verified: true,
+            rating: 5,
+            title: isHamper
+              ? "Sensational Keepsake Box"
+              : "Top Quality Nigerian Delivery",
+            comment:
+              "Ordered directly via WhatsApp and our concierge responded in under 2 minutes. The satin ribbon and personalized gold card brought tears of joy to the bride.",
+            date: "1 week ago",
+            timestamp: Date.now() - 7 * 24 * 60 * 60 * 1000,
+          },
+          {
+            id: `rev_${slug}_3`,
+            productId: prod?.id,
+            productSlug: slug,
+            authorName: "Amina Bello",
+            verified: true,
+            rating: isLuxury ? 5 : 4,
+            title: "Recipient was deeply touched",
+            comment:
+              "Sent this as a surprise birthday celebration blessing. Everything from the wrapping to the authentic items exceeded our expectations.",
+            date: "2 weeks ago",
+            timestamp: Date.now() - 14 * 24 * 60 * 60 * 1000,
+          },
+        ];
+        db.reviewsByProduct[slug] = list;
+      }
+      return wrapSuccess(list as unknown as T);
+    }
+
+    if (method === "POST") {
+      const body = (opts.body ?? {}) as CreateProductReviewInput;
+      const user = resolveUserFromCookie(opts.cookieHeader);
+      const prod = db.products.find(
+        (p) => p.slug === slug || p.id === slug || p.slug === lower
+      );
+
+      const newReview: ProductReview = {
+        id: `rev_${Date.now()}`,
+        productId: prod?.id,
+        productSlug: slug,
+        authorName: (body.authorName || user?.name || "Verified Customer").trim(),
+        verified: Boolean(user) || body.verified === true,
+        rating: Number(body.rating) || 5,
+        title: (body.title || "Wonderful Gift Selection").trim(),
+        comment: (body.comment || "Arrived in beautiful condition.").trim(),
+        date: "Just now",
+        timestamp: Date.now(),
+      };
+
+      if (!db.reviewsByProduct[slug]) {
+        db.reviewsByProduct[slug] = [];
+      }
+      db.reviewsByProduct[slug].unshift(newReview);
+
+      // Recalculate product rating & count if product found
+      if (prod) {
+        const allReviews = db.reviewsByProduct[slug];
+        const sum = allReviews.reduce((acc, r) => acc + r.rating, 0);
+        prod.rating = Number((sum / allReviews.length).toFixed(1));
+        prod.reviewCount = allReviews.length;
+      }
+
+      return wrapSuccess(newReview as unknown as T);
+    }
+  }
+
   if (normalizedPath === "/orders") {
     if (method === "GET") {
       return wrapSuccess(db.orders as unknown as T);
@@ -1701,6 +1865,11 @@ export async function handleMockApiRequest<T>(
           body.recipientPhone?.trim() ||
           "Valued Recipient",
         recipientPhone: body.recipientPhone,
+        buyerEmail:
+          body.buyerEmail ||
+          resolveUserFromCookie(opts.cookieHeader)?.email ||
+          "guest@givvly.ng",
+        trackingToken: `trk_${Math.random().toString(36).slice(2, 12)}`,
         address: body.address
           ? `${body.address.street}, ${body.address.area}, ${body.address.city}, ${body.address.state}`
           : undefined,
@@ -2086,6 +2255,66 @@ export async function handleMockApiRequest<T>(
 
   if (method === "GET" && normalizedPath === "/admin/orders") {
     return wrapSuccess(db.orders as unknown as T);
+  }
+
+  const adminOrderDetailMatch = /^\/admin\/orders\/([^/]+)$/.exec(normalizedPath);
+  if (method === "GET" && adminOrderDetailMatch) {
+    const id = decodeURIComponent(adminOrderDetailMatch[1]!);
+    const order = db.orders.find((o) => o.id === id || o.number === id);
+    if (!order) {
+      throwMockError(404, "NOT_FOUND", `Order '${id}' not found`);
+    }
+    const detail = {
+      ...order,
+      buyerEmail: "buyer@givvly.ng",
+      buyerUserId: "usr_buyer_01",
+      recipientEmail: "recipient@example.com",
+      recipientPhone: "08031234567",
+      wrapStyle: "Luxury Gift Box & Ribbon",
+      giftNote: "Wishing you a wonderful celebration! Warm regards from the Givvly team.",
+      subtotalKobo: order.totalKobo,
+      deliveryFeeKobo: 0,
+      feeKobo: 0,
+      trackingToken: order.number,
+      createdAt: order.timeline?.[0]?.at ?? new Date().toISOString(),
+      items: order.items.map((it, idx) => ({
+        id: `item_${idx + 1}`,
+        productId: `prod_${idx + 1}`,
+        title: it.name,
+        name: it.name,
+        quantity: it.qty,
+        qty: it.qty,
+        priceKobo: it.unitPriceKobo,
+        unitPriceKobo: it.unitPriceKobo,
+        totalPriceKobo: it.unitPriceKobo * it.qty,
+      })),
+      payment: {
+        id: `pay_${order.id}`,
+        reference: `REF-${order.number}`,
+        currency: "NGN",
+        amountKobo: order.totalKobo,
+        status: "SUCCESS",
+        provider: "paystack",
+        payerEmail: "buyer@givvly.ng",
+        createdAt: order.timeline?.[0]?.at ?? new Date().toISOString(),
+      },
+      history: (order.timeline ?? []).map((t, idx) => ({
+        id: `hist_${idx + 1}`,
+        status: t.status,
+        actorId: "admin_super",
+        note: `Order lifecycle progressed to ${t.status}`,
+        createdAt: t.at,
+      })),
+      address: {
+        street: "14 Adeola Odeku Street",
+        area: "Victoria Island",
+        city: "Lagos",
+        state: "Lagos State",
+      },
+      review: null,
+      disputes: [],
+    };
+    return wrapSuccess(detail as unknown as T);
   }
 
   if (method === "GET" && normalizedPath === "/admin/vendors") {

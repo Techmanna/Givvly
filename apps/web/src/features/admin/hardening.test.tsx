@@ -9,6 +9,9 @@ import {
   LiveCelebrationsDirectory,
 } from "@/features/events";
 import { AdminConsoleView } from "./components/AdminConsoleView";
+import { AdminOrderDetailView } from "./components/AdminOrderDetailView";
+import { OrderManagementView } from "./components/OrderManagementView";
+import { ProductManagementView } from "./components/ProductManagementView";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 
@@ -131,5 +134,70 @@ describe("Step 8 Hardening, Account, Admin & SEO", () => {
     expect(screen.getByText(/Adaobi & Chidi/i)).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: /Send-Forth/i }));
     expect(screen.getByText(/Prof\. Ngozi Nwosu/i)).toBeInTheDocument();
+  });
+
+  it("renders AdminOrderDetailView with full item, recipient, and transaction details", async () => {
+    render(<AdminOrderDetailView orderId="ord_01" />, {
+      wrapper: createTestWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("GIV-2026-8841").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Chidi Okafor").length).toBeGreaterThan(0);
+      expect(
+        screen.getByText(
+          "Royal Celebration Champagne & Artisan Chocolate Hamper"
+        )
+      ).toBeInTheDocument();
+      expect(screen.getByText("Recipient & Delivery Info")).toBeInTheDocument();
+      expect(screen.getByText("Tracking & Dispatch")).toBeInTheDocument();
+      expect(screen.getByText("Payment Transaction")).toBeInTheDocument();
+    });
+  });
+
+  it("renders OrderManagementView with link to order details", async () => {
+    render(<OrderManagementView />, {
+      wrapper: createTestWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("GIV-2026-8841")).toBeInTheDocument();
+      const detailsLinks = screen.getAllByRole("link", { name: /Details/i });
+      expect(detailsLinks.length).toBeGreaterThan(0);
+      expect(detailsLinks[0]).toHaveAttribute("href", "/admin/orders/ord_01");
+    });
+  });
+
+  it("renders ProductManagementView and opens product detail modal on click", async () => {
+    const user = userEvent.setup();
+    render(<ProductManagementView />, {
+      wrapper: createTestWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole("button", { name: /View Details/i }).length
+      ).toBeGreaterThan(0);
+    });
+
+    const viewDetailsButtons = screen.getAllByRole("button", {
+      name: /View Details/i,
+    });
+    expect(viewDetailsButtons[0]).toBeDefined();
+    await user.click(viewDetailsButtons[0]!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("tab", { name: /Specifications/i })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: /Orders & Activities/i })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: /Quick Edit/i })
+      ).toBeInTheDocument();
+      expect(screen.getByText(/^Units Sold$/i)).toBeInTheDocument();
+      expect(screen.getByText(/^Product Revenue$/i)).toBeInTheDocument();
+    });
   });
 });

@@ -1,18 +1,27 @@
 "use client";
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   fetchCatalogCollections,
   fetchCatalogProductBySlug,
   fetchCatalogProducts,
+  fetchProductReviews,
   fetchVtuPlans,
   fetchVtuProviders,
+  submitProductReview,
 } from "../api";
 import { catalogKeys } from "../keys";
 import type {
   BillSpotVtuType,
   CatalogFilters,
   CatalogProduct,
+  CreateProductReviewInput,
+  ProductReview,
 } from "../types";
 
 export function useCatalogProducts(filters: CatalogFilters = {}) {
@@ -31,6 +40,30 @@ export function useCatalogProduct(
     queryKey: catalogKeys.product(slug),
     queryFn: () => fetchCatalogProductBySlug(slug),
     initialData,
+  });
+}
+
+export function useProductReviews(
+  slug: string,
+  initialData?: ProductReview[]
+) {
+  return useQuery({
+    queryKey: catalogKeys.reviews(slug),
+    queryFn: () => fetchProductReviews(slug),
+    initialData,
+  });
+}
+
+export function useSubmitProductReview(slug: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateProductReviewInput) =>
+      submitProductReview(slug, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: catalogKeys.reviews(slug) });
+      queryClient.invalidateQueries({ queryKey: catalogKeys.product(slug) });
+      queryClient.invalidateQueries({ queryKey: catalogKeys.all });
+    },
   });
 }
 

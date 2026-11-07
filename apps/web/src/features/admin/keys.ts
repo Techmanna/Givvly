@@ -7,6 +7,7 @@ export const adminKeys = {
   events: () => ["admin", "events"] as const,
   payments: () => ["admin", "payments"] as const,
   orders: () => ["admin", "orders"] as const,
+  orderDetail: (id: string) => ["admin", "orders", id] as const,
   products: () => ["admin", "products"] as const,
   vendors: () => ["admin", "vendors"] as const,
   users: () => ["admin", "users"] as const,

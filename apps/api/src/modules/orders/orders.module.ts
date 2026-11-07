@@ -4,9 +4,15 @@ import { OrdersService } from "./orders.service";
 import { PrismaModule } from "../../infra/prisma/prisma.module";
 import { PaymentsInfraModule } from "../../infra/payments/payments-infra.module";
 import { DigitalGiftsModule } from "../digital-gifts/digital-gifts.module";
+import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
-  imports: [PrismaModule, PaymentsInfraModule, DigitalGiftsModule],
+  imports: [
+    PrismaModule,
+    PaymentsInfraModule,
+    DigitalGiftsModule,
+    NotificationsModule,
+  ],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [OrdersService],

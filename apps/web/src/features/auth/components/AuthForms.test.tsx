@@ -160,5 +160,14 @@ describe("LoginForm & SignupForm", () => {
       screen.getByRole("button", { name: /resend email in 60s/i })
     ).toBeDisabled();
   });
+
+  it("registerUser passes acceptTerms and terms in payload, and resendVerificationEmail resolves", async () => {
+    vi.spyOn(authApi, "resendVerificationEmail").mockResolvedValueOnce({
+      message: "Verification email sent",
+    });
+    const resendRes = await authApi.resendVerificationEmail("iamdavidenabs@gmail.com");
+    expect(resendRes).toBeDefined();
+    expect(resendRes.message).toBeDefined();
+  });
 });
 

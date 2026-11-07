@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Package,
   Search,
@@ -10,6 +11,7 @@ import {
   Check,
   Clock,
   Box,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -195,9 +197,12 @@ export function OrderManagementView() {
                     {/* Left: Info */}
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="font-mono text-sm font-bold text-foreground">
+                        <Link
+                          href={`/admin/orders/${ord.id}`}
+                          className="font-mono text-sm font-bold text-foreground hover:text-primary hover:underline transition-colors"
+                        >
                           {ord.number}
-                        </span>
+                        </Link>
                         <StatusBadge status={ord.status} />
                         {lastUpdated && (
                           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -281,6 +286,18 @@ export function OrderManagementView() {
                             <span>Confirm Delivery</span>
                           </Button>
                         )}
+
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                        >
+                          <Link href={`/admin/orders/${ord.id}`}>
+                            <Eye className="mr-1.5 h-3.5 w-3.5" />
+                            <span>Details</span>
+                          </Link>
+                        </Button>
 
                         <Button
                           size="sm"

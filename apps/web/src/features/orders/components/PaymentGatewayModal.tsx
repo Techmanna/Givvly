@@ -195,13 +195,22 @@ export function PaymentGatewayModal({
   return (
     <Dialog
       open={isOpen && !isPaystackActive}
+      modal={!isPaystackActive}
       onOpenChange={(open) => {
         if (!open && !isPaystackActive) {
           onClose();
         }
       }}
     >
-      <DialogContent className="max-w-md sm:max-w-lg p-6 sm:p-8">
+      <DialogContent
+        className="max-w-md sm:max-w-lg p-6 sm:p-8"
+        onPointerDownOutside={(e) => {
+          if (isPaystackActive) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (isPaystackActive) e.preventDefault();
+        }}
+      >
         <DialogHeader className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">

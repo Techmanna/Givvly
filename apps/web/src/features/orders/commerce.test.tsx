@@ -11,6 +11,7 @@ import { PoolCard, RegistryGrid } from "@/features/registry";
 import { StatusStepper } from "@/features/vendor";
 import { LedgerTable } from "@/features/admin";
 import { OrderTimeline } from "./components/OrderTimeline";
+import { CheckoutForm } from "./components/CheckoutForm";
 import { useCartStore } from "@/stores/cart-store";
 
 vi.mock("next/navigation", () => ({
@@ -63,6 +64,30 @@ describe("Phase 3 Commerce, Registry, Vendor & Admin", () => {
       state: "Lagos",
     });
     expect(invalidPhone.success).toBe(false);
+
+    const validWithEmail = directCheckoutSchema.safeParse({
+      recipientName: "Chidi Okafor",
+      recipientPhone: "08031234567",
+      buyerEmail: "buyer@example.com",
+      street: "14 Admiralty Way",
+      area: "Lekki Phase 1",
+      city: "Lagos",
+      state: "Lagos",
+      giftNote: "Congratulations!",
+      wrapping: true,
+    });
+    expect(validWithEmail.success).toBe(true);
+
+    const invalidEmail = directCheckoutSchema.safeParse({
+      recipientName: "Chidi Okafor",
+      recipientPhone: "08031234567",
+      buyerEmail: "not-an-email",
+      street: "14 Admiralty Way",
+      area: "Lekki Phase 1",
+      city: "Lagos",
+      state: "Lagos",
+    });
+    expect(invalidEmail.success).toBe(false);
   });
 
   it("enforces remaining goal cap in createPoolContributionSchema", () => {
@@ -191,5 +216,21 @@ describe("Phase 3 Commerce, Registry, Vendor & Admin", () => {
     expect(useCartStore.getState().draft.recipientPhone).toBe("08031234567");
     expect(useCartStore.getState().draft.recipientName).toBe("Chidi Nwosu");
     expect(useCartStore.getState().draft.wrapping).toBe(true);
+  });
+
+  it("renders CheckoutForm with buyer confirmation email section", async () => {
+    render(
+      <CheckoutForm productSlug="signature-oud-and-amber-gift-box" />,
+      {
+        wrapper: createTestWrapper(),
+      }
+    );
+
+    expect(
+      await screen.findByText(/Your Details & Receipt Email/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Your email address/i)
+    ).toBeInTheDocument();
   });
 });

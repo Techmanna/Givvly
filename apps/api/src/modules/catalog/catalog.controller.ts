@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
 import {
   ApiTags,
   ApiOperation,
@@ -43,6 +43,25 @@ export class CatalogController {
     @Param("slug") slug: string
   ): Promise<CatalogProductResponseDto> {
     return this.catalogService.getProductBySlug(slug) as any;
+  }
+
+  @Public()
+  @Get("products/:slug/reviews")
+  @ApiOperation({ summary: "Get customer reviews for a product" })
+  @ApiParam({ name: "slug", description: "Unique product slug" })
+  async getProductReviews(@Param("slug") slug: string) {
+    return this.catalogService.getProductReviews(slug);
+  }
+
+  @Public()
+  @Post("products/:slug/reviews")
+  @ApiOperation({ summary: "Submit a customer review for a product" })
+  @ApiParam({ name: "slug", description: "Unique product slug" })
+  async createProductReview(
+    @Param("slug") slug: string,
+    @Body() dto: any
+  ) {
+    return this.catalogService.createProductReview(slug, dto);
   }
 
   @Public()

@@ -12,6 +12,7 @@ import { PaymentGatewayRegistry } from "../../infra/payments/payment-gateway.reg
 import { OrderStatus, PaymentStatus, DisputeStatus, Direction } from "@prisma/client";
 import { LedgerService } from "../ledger/ledger.service";
 import { DigitalGiftsService } from "../digital-gifts/digital-gifts.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { CreateOrderDto } from "./dto/create-order.dto";
 import { ReviewOrderDto, DisputeOrderDto } from "./dto/order-feedback.dto";
 import { canOrderTransition } from "./order-state-machine";
@@ -29,7 +30,8 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly paymentGatewayRegistry: PaymentGatewayRegistry,
     private readonly ledger: LedgerService,
-    @Optional() private readonly digitalGifts?: DigitalGiftsService
+    @Optional() private readonly digitalGifts?: DigitalGiftsService,
+    @Optional() private readonly notifications?: NotificationsService
   ) {}
 
   /**
@@ -642,6 +644,25 @@ export class OrdersService {
         } catch (err: any) {
           this.logger.warn(
             `Digital fulfillment after verifyOrderPayment encountered an error for order ${order.number}: ${err.message}`
+          );
+        }
+      }
+
+      if (this.notifications && order.buyerEmail) {
+        try {
+          const trackingUrl = `https://givvly.ng/track/${order.trackingToken}`;
+          await this.notifications.sendOrderConfirmedEmail(
+            order.buyerEmail,
+            order.buyerUserId || undefined,
+            order.recipientName || "Valued Customer",
+            order.number,
+            order.totalKobo,
+            order.payment?.currency || "NGN",
+            trackingUrl
+          );
+        } catch (err: any) {
+          this.logger.warn(
+            `Could not dispatch order confirmation email for ${order.number}: ${err.message}`
           );
         }
       }

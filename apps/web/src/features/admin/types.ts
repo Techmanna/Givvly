@@ -5,8 +5,11 @@ export type {
   EventSummary,
   LedgerEntry,
   Order,
+  OrderStatus,
   User,
 } from "@givvly/contracts";
+
+import type { OrderStatus } from "@givvly/contracts";
 
 export type AdminPaymentRecord = {
   reference: string;
@@ -55,4 +58,82 @@ export type CreateProductInput = {
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
   packagingIncluded?: string;
   imageUrl?: string;
+};
+
+export type AdminOrderItem = {
+  id: string;
+  productId?: string | null;
+  title?: string;
+  name?: string;
+  qty: number;
+  unitPriceKobo: number;
+  totalPriceKobo?: number;
+  vtuMetadata?: {
+    type?: "airtime" | "data" | string;
+    network?: string;
+    provider?: string;
+    planName?: string;
+    recipients?: string[];
+    [key: string]: any;
+  } | null;
+};
+
+export type AdminOrderStatusHistory = {
+  id: string;
+  status: OrderStatus;
+  note?: string;
+  actorId?: string;
+  createdAt: string;
+};
+
+export type AdminOrderPayment = {
+  id: string;
+  reference: string;
+  currency: string;
+  amountKobo: number;
+  status: string;
+  provider: string;
+  payerEmail?: string;
+  authorizationUrl?: string;
+  createdAt: string;
+};
+
+export type AdminAddressPayload = {
+  street?: string;
+  area?: string;
+  city?: string;
+  state?: string;
+  vtuType?: "airtime" | "data";
+  vtuProvider?: string;
+  billItemIdentifier?: string;
+  unitVtuAmountKobo?: number;
+  recipientPhones?: string[];
+  [key: string]: any;
+};
+
+export type AdminOrderDetail = {
+  id: string;
+  number: string;
+  buyerUserId?: string | null;
+  buyerEmail: string;
+  recipientName: string;
+  recipientPhone?: string | null;
+  recipientEmail?: string | null;
+  address?: AdminAddressPayload | string | null;
+  giftNote?: string | null;
+  wrapStyle?: string | null;
+  status: OrderStatus;
+  subtotalKobo: number;
+  deliveryFeeKobo: number;
+  feeKobo?: number;
+  totalKobo: number;
+  trackingToken: string;
+  deliveredAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  items: AdminOrderItem[];
+  payment?: AdminOrderPayment | null;
+  history?: AdminOrderStatusHistory[];
+  review?: any;
+  disputes?: any[];
 };

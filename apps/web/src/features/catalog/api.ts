@@ -6,6 +6,8 @@ import type {
   CatalogCollection,
   CatalogFilters,
   CatalogProduct,
+  ProductReview,
+  CreateProductReviewInput,
 } from "./types";
 
 function toCatalogQuery(filters: CatalogFilters = {}): string {
@@ -54,6 +56,25 @@ export function fetchCatalogProductBySlug(
 ): Promise<CatalogProduct> {
   return api<CatalogProduct>(
     `/catalog/products/${encodeURIComponent(slug)}`
+  );
+}
+
+export function fetchProductReviews(slug: string): Promise<ProductReview[]> {
+  return api<ProductReview[]>(
+    `/catalog/products/${encodeURIComponent(slug)}/reviews`
+  );
+}
+
+export function submitProductReview(
+  slug: string,
+  payload: CreateProductReviewInput
+): Promise<ProductReview> {
+  return api<ProductReview>(
+    `/catalog/products/${encodeURIComponent(slug)}/reviews`,
+    {
+      method: "POST",
+      body: payload,
+    }
   );
 }
 

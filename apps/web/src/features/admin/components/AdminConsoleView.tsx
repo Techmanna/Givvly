@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Money } from "@/components/shared/Money";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, type StatusKind } from "@/components/shared/StatusBadge";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { PaginationBar } from "@/components/shared/PaginationBar";
@@ -250,13 +250,14 @@ export function AdminConsoleView({
               </CardHeader>
               <CardContent className="space-y-3">
                 {(ordersQuery.data ?? []).slice(0, 4).map((ord) => (
-                  <div
+                  <Link
                     key={ord.id}
-                    className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/20 p-3"
+                    href={`/admin/orders/${ord.id}`}
+                    className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/20 p-3 hover:bg-muted/50 hover:border-primary/40 transition-colors"
                   >
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold">
+                        <span className="font-mono text-xs font-bold hover:underline">
                           {ord.number}
                         </span>
                         <StatusBadge status={ord.status} />
@@ -269,7 +270,7 @@ export function AdminConsoleView({
                       amountKobo={ord.totalKobo}
                       className="font-semibold text-primary"
                     />
-                  </div>
+                  </Link>
                 ))}
               </CardContent>
             </Card>
@@ -428,6 +429,9 @@ export function AdminConsoleView({
                       <p className="text-xs text-muted-foreground">
                         Service Fee: <Money amountKobo={pay.serviceFeeKobo} /> • Channel: Card/NUBAN
                       </p>
+                       <p className="text-xs text-muted-foreground">
+                        Status: <StatusBadge status={pay.status as StatusKind} />
+                       </p>
                     </div>
                     <div className="text-right">
                       <span className="text-[10px] uppercase tracking-wider text-muted-foreground">

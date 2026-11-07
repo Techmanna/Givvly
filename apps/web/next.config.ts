@@ -29,6 +29,20 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  async redirects() {
+    return [
+      {
+        source: "/auth/verify-email",
+        destination: "/verify-email",
+        permanent: false,
+      },
+      {
+        source: "/auth/reset-password",
+        destination: "/reset-password",
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

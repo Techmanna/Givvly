@@ -5,6 +5,7 @@ import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
 import { JwtAuthGuard } from "@/common/guards/jwt-auth.guard";
 import { RolesGuard } from "@/common/guards/roles.guard";
+import { EmailService } from "../notifications/email.service";
 
 @Global()
 @Module({
@@ -18,9 +19,9 @@ import { RolesGuard } from "@/common/guards/roles.guard";
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, JwtAuthGuard, RolesGuard],
+  providers: [AuthService, JwtAuthGuard, RolesGuard, EmailService],
   controllers: [AuthController],
-  exports: [AuthService, JwtModule, JwtAuthGuard, RolesGuard],
+  exports: [AuthService, JwtModule, JwtAuthGuard, RolesGuard, EmailService],
 })
 export class AuthModule {}
 

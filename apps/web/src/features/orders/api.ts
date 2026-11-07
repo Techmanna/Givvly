@@ -44,6 +44,8 @@ function normalizeOrder(raw: any): Order {
     timeline,
     recipientName: raw.recipientName || raw.recipientPhone || "Recipient",
     recipientPhone: raw.recipientPhone || undefined,
+    buyerEmail: raw.buyerEmail || undefined,
+    trackingToken: raw.trackingToken || raw.number || undefined,
     address:
       typeof raw.address === "string"
         ? raw.address

@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
@@ -11,13 +12,15 @@ import * as argon2 from "argon2";
 import * as crypto from "crypto";
 import { PrismaService } from "@/infra/prisma/prisma.service";
 import { hashString } from "@/common/utils/crypto";
+import { EmailService } from "../notifications/email.service";
 
 export interface RegisterDto {
   name: string;
   email: string;
   phone?: string;
   password?: string;
-  acceptTerms: boolean;
+  acceptTerms?: boolean;
+  terms?: boolean;
 }
 
 export interface LoginDto {
@@ -33,14 +36,18 @@ export interface AuthTokens {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly emailService: EmailService
   ) {}
 
   async register(dto: RegisterDto, ip?: string, userAgent?: string) {
-    if (!dto.acceptTerms) {
+    const accepted = dto.acceptTerms ?? dto.terms ?? true;
+    if (accepted !== true) {
       throw new BadRequestException("You must accept the terms of service");
     }
 
@@ -85,6 +92,13 @@ export class AuthService {
 
     // Create session and issue token pair
     const tokens = await this.createSession(user.id, user.role, user.email, ip, userAgent);
+
+    // Trigger initial verification email asynchronously
+    this.createVerificationToken(user.id, "EMAIL_VERIFY")
+      .then((rawToken) => this.sendVerificationEmail(user.email, user.name, rawToken))
+      .catch((err) => {
+        this.logger.warn(`Could not dispatch welcome verification email to ${user.email}: ${err.message}`);
+      });
 
     return { user, tokens };
   }
@@ -246,6 +260,233 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async resendVerification(email: string) {
+    const normalized = email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalized },
+      select: { id: true, email: true, name: true, emailVerifiedAt: true },
+    });
+
+    if (user && !user.emailVerifiedAt) {
+      const rawToken = await this.createVerificationToken(
+        user.id,
+        "EMAIL_VERIFY"
+      );
+      await this.sendVerificationEmail(
+        user.email,
+        user.name || "there",
+        rawToken
+      );
+    }
+
+    return {
+      success: true,
+      message: "Verification email sent. Please check your inbox.",
+    };
+  }
+
+  async verifyEmail(token: string) {
+    const tokenHash = hashString(token);
+    const record = await this.prisma.verificationToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (
+      !record ||
+      record.usedAt ||
+      record.expiresAt < new Date() ||
+      record.type !== "EMAIL_VERIFY"
+    ) {
+      throw new BadRequestException("Invalid or expired verification token");
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.verificationToken.update({
+        where: { id: record.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.user.update({
+        where: { id: record.userId },
+        data: { emailVerifiedAt: new Date() },
+      }),
+    ]);
+
+    return {
+      success: true,
+      message: "Email verified successfully.",
+      user: {
+        id: record.user.id,
+        email: record.user.email,
+        name: record.user.name,
+        role: record.user.role,
+        emailVerified: true,
+      },
+    };
+  }
+
+  async forgotPassword(email: string) {
+    const normalized = email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalized },
+      select: { id: true, email: true, name: true },
+    });
+
+    if (user) {
+      const rawToken = await this.createVerificationToken(
+        user.id,
+        "PASSWORD_RESET"
+      );
+      await this.sendPasswordResetEmail(
+        user.email,
+        user.name || "there",
+        rawToken
+      );
+    }
+
+    return {
+      success: true,
+      message:
+        "If an account with this email exists, a password reset link has been sent.",
+    };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const tokenHash = hashString(token);
+    const record = await this.prisma.verificationToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (
+      !record ||
+      record.usedAt ||
+      record.expiresAt < new Date() ||
+      record.type !== "PASSWORD_RESET"
+    ) {
+      throw new BadRequestException("Invalid or expired password reset token");
+    }
+
+    const passwordHash = await argon2.hash(newPassword, {
+      type: argon2.argon2id,
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.verificationToken.update({
+        where: { id: record.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.user.update({
+        where: { id: record.userId },
+        data: { passwordHash, failedLogins: 0 },
+      }),
+    ]);
+
+    return {
+      success: true,
+      message:
+        "Password reset successfully. You can now sign in with your new password.",
+    };
+  }
+
+  private async createVerificationToken(
+    userId: string,
+    type: "EMAIL_VERIFY" | "PASSWORD_RESET"
+  ): Promise<string> {
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashString(rawToken);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await this.prisma.verificationToken.create({
+      data: {
+        userId,
+        type,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    return rawToken;
+  }
+
+  private async sendVerificationEmail(
+    to: string,
+    name: string,
+    token: string
+  ): Promise<void> {
+    const appUrl =
+      this.configService.get<string>("APP_URL") || "http://localhost:3000";
+    const verifyUrl = `${appUrl}/verify-email?token=${token}`;
+
+    const html = this.emailService.renderTemplate(
+      "Verify your Givvly account",
+      `
+      <h2 style="font-size: 20px; font-weight: 700; margin: 0 0 12px; color: #0c0a09;">Verify your email address</h2>
+      <p>Hello ${name || "there"},</p>
+      <p>Welcome to Givvly! Please verify your email address to activate your account and start receiving and sending celebration gifts.</p>
+      <p style="text-align: center; margin: 28px 0;">
+        <a href="${verifyUrl}" class="btn">Verify My Email</a>
+      </p>
+      <p style="font-size: 13px; color: #78716c;">Or copy and paste this link in your browser:<br/><a href="${verifyUrl}" style="color: #d97706; word-break: break-all;">${verifyUrl}</a></p>
+      <p style="font-size: 12px; color: #a8a29e; margin-top: 24px;">This link expires in 24 hours. If you did not create an account on Givvly, you can safely ignore this email.</p>
+      `
+    );
+
+    try {
+      await this.emailService.send({
+        to,
+        subject: "Verify your Givvly account",
+        html,
+        text: `Hello ${name || "there"},\n\nPlease verify your email address by visiting:\n${verifyUrl}\n\nThis link expires in 24 hours.`,
+      });
+      this.logger.log(`Verification email sent to ${to}`);
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to send verification email to ${to}: ${err.message}`,
+        err.stack
+      );
+    }
+  }
+
+  private async sendPasswordResetEmail(
+    to: string,
+    name: string,
+    token: string
+  ): Promise<void> {
+    const appUrl =
+      this.configService.get<string>("APP_URL") || "http://localhost:3000";
+    const resetUrl = `${appUrl}/reset-password?token=${token}`;
+
+    const html = this.emailService.renderTemplate(
+      "Reset your Givvly password",
+      `
+      <h2 style="font-size: 20px; font-weight: 700; margin: 0 0 12px; color: #0c0a09;">Reset your password</h2>
+      <p>Hello ${name || "there"},</p>
+      <p>We received a request to reset your Givvly account password. Click the button below to choose a new password:</p>
+      <p style="text-align: center; margin: 28px 0;">
+        <a href="${resetUrl}" class="btn">Reset Password</a>
+      </p>
+      <p style="font-size: 13px; color: #78716c;">Or copy and paste this link in your browser:<br/><a href="${resetUrl}" style="color: #d97706; word-break: break-all;">${resetUrl}</a></p>
+      <p style="font-size: 12px; color: #a8a29e; margin-top: 24px;">This link expires in 24 hours. If you did not request a password reset, you can safely ignore this email.</p>
+      `
+    );
+
+    try {
+      await this.emailService.send({
+        to,
+        subject: "Reset your Givvly password",
+        html,
+        text: `Hello ${name || "there"},\n\nReset your password by visiting:\n${resetUrl}\n\nThis link expires in 24 hours.`,
+      });
+      this.logger.log(`Password reset email sent to ${to}`);
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to send password reset email to ${to}: ${err.message}`,
+        err.stack
+      );
+    }
   }
 
   private async createSession(

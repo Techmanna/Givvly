@@ -5,6 +5,7 @@ const CART_STORAGE_VERSION = 1;
 
 export type DirectGiftDraft = {
   productSlug: string;
+  buyerEmail?: string;
   recipientName: string;
   recipientPhone: string;
   street: string;
@@ -31,6 +32,7 @@ function generateIdempotencyKey(): string {
 export function createDefaultCartDraft(productSlug = ""): DirectGiftDraft {
   return {
     productSlug,
+    buyerEmail: "",
     recipientName: "",
     recipientPhone: "",
     street: "",

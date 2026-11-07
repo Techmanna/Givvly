@@ -1,6 +1,7 @@
 import { api } from "@/lib/api-client";
 import type {
   AdminModerationItem,
+  AdminOrderDetail,
   AdminPaymentRecord,
   AdminPayoutRecord,
   AdminProduct,
@@ -105,6 +106,79 @@ export async function fetchAdminOrders(): Promise<Order[]> {
     })),
     recipientName: o.recipientName ?? "Celebration Recipient",
   }));
+}
+
+export async function fetchAdminOrderDetail(id: string): Promise<AdminOrderDetail> {
+  const res = await api<any>(`/admin/orders/${encodeURIComponent(id)}`);
+  const o = res?.data ?? res;
+  return {
+    id: o.id,
+    number: o.number,
+    buyerUserId: o.buyerUserId ?? null,
+    buyerEmail: o.buyerEmail ?? "",
+    recipientName: o.recipientName ?? "Celebration Recipient",
+    recipientPhone: o.recipientPhone ?? null,
+    recipientEmail: o.recipientEmail ?? null,
+    address: o.address ?? null,
+    giftNote: o.giftNote ?? null,
+    wrapStyle: o.wrapStyle ?? null,
+    status: o.status,
+    subtotalKobo: o.subtotalKobo ?? o.totalKobo ?? 0,
+    deliveryFeeKobo: o.deliveryFeeKobo ?? 0,
+    feeKobo: o.feeKobo ?? 0,
+    totalKobo: o.totalKobo ?? 0,
+    trackingToken: o.trackingToken ?? o.number,
+    deliveredAt: o.deliveredAt ?? null,
+    createdAt:
+      typeof o.createdAt === "string"
+        ? o.createdAt
+        : o.createdAt?.toISOString?.() ?? new Date().toISOString(),
+    updatedAt:
+      typeof o.updatedAt === "string"
+        ? o.updatedAt
+        : o.updatedAt?.toISOString?.() ?? undefined,
+    items: (o.items ?? []).map((it: any) => {
+      const price = it.unitPriceKobo ?? it.priceKobo ?? 0;
+      const qty = it.qty ?? it.quantity ?? 1;
+      return {
+        id: it.id ?? String(Math.random()),
+        productId: it.productId ?? null,
+        name: it.name ?? it.title ?? "Gift Item",
+        qty,
+        unitPriceKobo: price,
+        totalPriceKobo: it.totalPriceKobo ?? price * qty,
+        vtuMetadata: it.vtuMetadata ?? null,
+      };
+    }),
+    payment: o.payment
+      ? {
+          id: o.payment.id,
+          reference: o.payment.reference,
+          currency: o.payment.currency ?? "NGN",
+          amountKobo: o.payment.amountKobo,
+          status: o.payment.status,
+          provider: o.payment.provider,
+          payerEmail: o.payment.payerEmail,
+          authorizationUrl: o.payment.authorizationUrl,
+          createdAt:
+            typeof o.payment.createdAt === "string"
+              ? o.payment.createdAt
+              : o.payment.createdAt?.toISOString?.() ?? new Date().toISOString(),
+        }
+      : null,
+    history: (o.history ?? o.timeline ?? []).map((h: any) => ({
+      id: h.id ?? String(Math.random()),
+      status: h.status,
+      actorId: h.actorId ?? null,
+      note: h.note ?? null,
+      createdAt:
+        typeof h.createdAt === "string"
+          ? h.createdAt
+          : h.at ?? new Date().toISOString(),
+    })),
+    review: o.review ?? null,
+    disputes: o.disputes ?? [],
+  };
 }
 
 export async function fetchAdminVendors(): Promise<AdminVendorSummary[]> {

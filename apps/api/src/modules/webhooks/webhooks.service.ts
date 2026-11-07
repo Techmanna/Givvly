@@ -192,6 +192,15 @@ export class WebhooksService {
       owner?: { id: string; email: string; name: string };
     } | null = null;
     let pendingDigitalOrderId: string | null = null;
+    let pendingOrderNotification: {
+      buyerEmail: string;
+      buyerUserId?: string;
+      recipientName: string;
+      orderNumber: string;
+      totalKobo: number;
+      currency: string;
+      trackingToken: string;
+    } | null = null;
 
     await this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({
@@ -686,6 +695,18 @@ export class WebhooksService {
 
         this.logger.log(`Direct order '${order.number}' confirmed and captured`);
 
+        if (order.buyerEmail) {
+          pendingOrderNotification = {
+            buyerEmail: order.buyerEmail,
+            buyerUserId: order.buyerUserId || undefined,
+            recipientName: order.recipientName || "Valued Customer",
+            orderNumber: order.number,
+            totalKobo: order.totalKobo,
+            currency,
+            trackingToken: order.trackingToken,
+          };
+        }
+
         // 4. Mark digital order for post-commit fulfillment
         if (this.digitalGifts) {
           pendingDigitalOrderId = order.id;
@@ -772,6 +793,35 @@ export class WebhooksService {
         ]);
       } catch (err: any) {
         this.logger.warn(`Could not dispatch gift notifications: ${err.message}`);
+      }
+    }
+
+    const orderNotifTask = pendingOrderNotification as {
+      buyerEmail: string;
+      buyerUserId?: string;
+      recipientName: string;
+      orderNumber: string;
+      totalKobo: number;
+      currency: string;
+      trackingToken: string;
+    } | null;
+
+    if (this.notifications && orderNotifTask) {
+      try {
+        const trackingUrl = `https://givvly.ng/track/${orderNotifTask.trackingToken}`;
+        await this.notifications.sendOrderConfirmedEmail(
+          orderNotifTask.buyerEmail,
+          orderNotifTask.buyerUserId,
+          orderNotifTask.recipientName,
+          orderNotifTask.orderNumber,
+          orderNotifTask.totalKobo,
+          orderNotifTask.currency,
+          trackingUrl
+        );
+      } catch (err: any) {
+        this.logger.warn(
+          `Could not dispatch direct order confirmation email for ${orderNotifTask.orderNumber}: ${err.message}`
+        );
       }
     }
 
