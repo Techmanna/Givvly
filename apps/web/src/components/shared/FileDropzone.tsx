@@ -148,25 +148,32 @@ export function FileDropzone({
   return (
     <div className={cn("space-y-2", className)}>
       {previewUrl ? (
-        <div className="relative overflow-hidden rounded-card border border-border bg-muted">
+        <div className="relative aspect-[4/3] sm:aspect-[16/9] max-h-[420px] w-full overflow-hidden rounded-card border border-border bg-[#1E1617]">
+          {!isPreviewVideo ? (
+            <div
+              aria-hidden="true"
+              style={{ backgroundImage: `url("${previewUrl}")` }}
+              className="pointer-events-none absolute inset-0 scale-110 bg-cover bg-center opacity-55 blur-2xl saturate-125"
+            />
+          ) : null}
           {isPreviewVideo ? (
             <video
               src={previewUrl}
               controls
               preload="metadata"
               playsInline
-              className="aspect-[2/1] w-full object-cover"
+              className="relative z-10 h-full w-full object-contain"
             />
           ) : (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={previewUrl}
-              alt="Media preview"
-              className="aspect-[2/1] w-full object-cover"
+              alt={"Media preview " + previewUrl}
+              className="relative z-10 h-full w-full object-contain drop-shadow-md"
             />
           )}
           {onRemove && !isUploading ? (
-            <div className="absolute right-3 top-3">
+            <div className="absolute right-3 top-3 z-20">
               <Button
                 type="button"
                 variant="destructive"

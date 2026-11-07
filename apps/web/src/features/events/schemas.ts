@@ -1,5 +1,6 @@
 export {
   ACCESS_CODE_REGEX,
+  buildUniqueEventSlug,
   EVENT_TYPES,
   EVENT_VISIBILITIES,
   eventSettingsSchema,
@@ -7,10 +8,12 @@ export {
   eventStep2Schema,
   eventStep3Schema,
   eventStep4Schema,
+  generateSlugSuffix,
   getLagosDateBounds,
   INVITE_TEMPLATE_IDS,
   inviteEditorSchema,
   payoutSetupSchema,
+  slugifyEventName,
   unlockEventSchema,
   wizardRegistryItemSchema,
 } from "@givvly/contracts";

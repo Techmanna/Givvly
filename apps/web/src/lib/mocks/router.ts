@@ -477,6 +477,7 @@ export async function handleMockApiRequest<T>(
       id: e.id,
       slug: e.slug,
       name: e.name,
+      hostName: e.hostName,
       type: e.type,
       date: e.date,
       coverUrl: e.coverUrl,
@@ -493,13 +494,35 @@ export async function handleMockApiRequest<T>(
   if (method === "POST" && normalizedPath === "/events") {
     const body = opts.body as CreateEventRequest;
     const id = `evt_${Date.now()}`;
-    const slug = `${slugify(body.name)}-${String(Date.now()).slice(-4)}`;
+    const existingSlugs = new Set(db.events.map((e) => e.slug.toLowerCase()));
+    const requestedSlug = body.slug
+      ? body.slug
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, "")
+          .replace(/[\s_-]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 60)
+      : "";
+    let slug =
+      requestedSlug.length >= 4
+        ? requestedSlug
+        : `${slugify(body.name)}-${String(Date.now()).slice(-4)}`;
+    let counter = 2;
+    const baseCandidate = slug;
+    while (existingSlugs.has(slug.toLowerCase())) {
+      slug = `${baseCandidate}-${counter}`;
+      counter += 1;
+    }
     const payoutReady = db.payoutAccount?.status === "VERIFIED";
+    const defaultHost =
+      db.currentUser?.name?.trim().split(" ")[0] || "Adaobi";
 
     const created: EventDetail = {
       id,
       slug,
       name: body.name,
+      hostName: body.hostName?.trim() || defaultHost,
       type: body.type,
       date: body.date,
       coverUrl:

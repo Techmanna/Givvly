@@ -16,6 +16,16 @@ export class CreateEventRequestDto {
   @IsNotEmpty()
   name: string;
 
+  @ApiPropertyOptional({ example: "tola-emekas-wedding-k8m2", description: "Optional client-previewed unique slug" })
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
+  @ApiPropertyOptional({ example: "Tola & Emeka", description: "Host or celebrant name displayed on the event page" })
+  @IsOptional()
+  @IsString()
+  hostName?: string;
+
   @ApiProperty({ enum: EventType, example: EventType.WEDDING, description: "Event type or occasion category" })
   @IsEnum(EventType)
   type: EventType;
@@ -80,6 +90,11 @@ export class UpdateEventRequestDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @ApiPropertyOptional({ example: "Tola & Emeka" })
+  @IsOptional()
+  @IsString()
+  hostName?: string;
 
   @ApiPropertyOptional({ enum: EventType })
   @IsOptional()

@@ -51,6 +51,12 @@ export const eventStep1Schema = z
       .trim()
       .min(3, "Enter an event name (at least 3 characters)")
       .max(80, "Event name must be 80 characters or fewer"),
+    hostName: z
+      .string()
+      .trim()
+      .max(80, "Host name must be 80 characters or fewer")
+      .optional()
+      .or(z.literal("")),
     date: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid event date (YYYY-MM-DD)"),
@@ -124,6 +130,9 @@ export type EventStep3Input = z.infer<typeof eventStep3Schema>;
 export const wizardRegistryItemSchema = z.object({
   id: z.string().min(1),
   productId: z.string().optional(),
+  category: z
+    .enum(["CATALOG", "AIRTIME_DATA", "CASH_FUND", "CUSTOM"])
+    .optional(),
   title: z
     .string()
     .trim()
@@ -132,8 +141,12 @@ export const wizardRegistryItemSchema = z.object({
   targetPriceNaira: z.coerce
     .number()
     .int("Enter a whole Naira amount")
-    .min(500, "Minimum target price is ₦500")
-    .max(5_000_000, "Maximum target price is ₦5,000,000"),
+    .min(0, "Target price cannot be negative")
+    .max(5_000_000, "Maximum target price is ₦5,000,000")
+    .refine((val) => val === 0 || val >= 500, {
+      message:
+        "Minimum target price is ₦500 (or leave blank so guests choose any amount)",
+    }),
 });
 
 export type WizardRegistryItemInput = z.infer<typeof wizardRegistryItemSchema>;
@@ -230,9 +243,57 @@ export type CompleteUploadResponse = {
   kind: "IMAGE" | "VIDEO";
 };
 
+export function slugifyEventName(name: string): string {
+  const base = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48)
+    .replace(/-+$/g, "");
+  return base || "celebration";
+}
+
+export function generateSlugSuffix(length = 4): string {
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  let suffix = "";
+  for (let i = 0; i < length; i++) {
+    suffix += chars[Math.floor(Math.random() * chars.length)] ?? "a";
+  }
+  return suffix;
+}
+
+export function buildUniqueEventSlug(
+  name: string,
+  suffix: string,
+  existingSlugs: Iterable<string> = []
+): string {
+  const base = slugifyEventName(name);
+  const cleanSuffix =
+    suffix
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "")
+      .slice(0, 8) || generateSlugSuffix(4);
+  const taken = new Set(
+    Array.from(existingSlugs, (s) => s.trim().toLowerCase())
+  );
+  const primary = `${base}-${cleanSuffix}`;
+  if (!taken.has(primary)) {
+    return primary;
+  }
+  let counter = 2;
+  while (taken.has(`${primary}-${counter}`)) {
+    counter += 1;
+  }
+  return `${primary}-${counter}`;
+}
+
 export type CreateEventRequest = {
   type: EventType;
   name: string;
+  slug?: string;
+  hostName?: string;
   date: string;
   coverKey?: string;
   coverUrl?: string;
@@ -302,6 +363,12 @@ export const eventSettingsSchema = z
       .trim()
       .min(3, "Event name must be at least 3 characters")
       .max(80, "Event name must be 80 characters or fewer"),
+    hostName: z
+      .string()
+      .trim()
+      .max(80, "Host name must be 80 characters or fewer")
+      .optional()
+      .or(z.literal("")),
     story: z
       .string()
       .max(1500, "Story must be 1,500 characters or fewer")
@@ -327,6 +394,7 @@ export type EventSettingsInput = z.infer<typeof eventSettingsSchema>;
 
 export type UpdateEventRequest = {
   name?: string;
+  hostName?: string;
   story?: string;
   visibility?: EventVisibility;
   accessCode?: string;

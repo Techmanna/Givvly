@@ -270,11 +270,22 @@ export function EventSettingsForm({ initialEvent }: EventSettingsFormProps) {
         <CardHeader>
           <CardTitle className="text-base">Close or archive event</CardTitle>
           <CardDescription>
-            Closing stops new gifts and RSVPs. Archiving hides the event from
-            your active dashboard.
+            What you keep: All settled cash payouts, guest RSVP records, Wall of
+            Love wishes, and your Printable Keepsake Book remain 100% preserved.
+            You can reopen your event at any time with one tap.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
+          {event.status === "CLOSED" || event.status === "ARCHIVED" ? (
+            <Button
+              type="button"
+              variant="default"
+              onClick={() => void handleStatusChange("PUBLISHED")}
+              disabled={updateMutation.isPending}
+            >
+              <span>Reopen event (Set Live)</span>
+            </Button>
+          ) : null}
           {event.status !== "CLOSED" ? (
             <Button
               type="button"
@@ -305,13 +316,13 @@ export function EventSettingsForm({ initialEvent }: EventSettingsFormProps) {
         }}
         title={
           confirmAction === "CLOSED"
-            ? "Close this event?"
-            : "Archive this event?"
+            ? "Pause new gifts and close this event?"
+            : "Move this event to your archive?"
         }
         description={
           confirmAction === "CLOSED"
-            ? "Guests will still see the page, but new gifts and RSVPs will be disabled."
-            : "This event will be moved to your archived state."
+            ? "Guests will still see your celebration story and Wall of Love, while new gifts and RSVPs are paused. Your settled payouts and keepsake summary stay safe, and you can reopen anytime."
+            : "This hides the event from your active dashboard list while preserving 100% of your payouts, guest list, and keepsake memories. You can restore it anytime."
         }
         confirmLabel={
           confirmAction === "CLOSED" ? "Close event" : "Archive event"

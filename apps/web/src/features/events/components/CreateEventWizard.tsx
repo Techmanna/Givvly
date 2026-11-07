@@ -4,16 +4,26 @@ import * as React from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  Calendar as CalendarIcon,
   CheckCircle2,
   Loader2,
   Plus,
   RefreshCw,
+  ShieldCheck,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/cn";
 import {
   Card,
   CardContent,
@@ -32,18 +42,27 @@ import { toast } from "@/components/ui/sonner";
 import { env } from "@/lib/env";
 import { formatDate, nairaToKobo } from "@/lib/format";
 import { ApiClientError } from "@/lib/api-client";
+import { trackEvent } from "@/lib/analytics";
 import {
+  buildPastHostSuggestions,
   generateAccessCodeSuggestion,
+  readPastHosts,
+  savePastHost,
   useEventWizardStore,
   type WizardStep,
 } from "@/stores/event-wizard-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { uploadFileToPresignedUrl } from "../api";
 import {
   useCreateAndPublishEventMutation,
+  useMyEvents,
   usePayoutAccountQuery,
   usePresignUploadMutation,
+  usePublicEventsList,
 } from "../hooks/useEvents";
+import { useCatalogProducts, type CatalogProduct } from "@/features/catalog";
 import {
+  buildUniqueEventSlug,
   EVENT_TYPES,
   eventStep1Schema,
   eventStep2Schema,
@@ -70,7 +89,551 @@ const EVENT_TYPE_LABELS: Record<EventType, string> = {
   OTHER: "Other celebration",
 };
 
+const STORY_TEMPLATES_BY_TYPE: Record<
+  EventType,
+  Array<{ label: string; text: string }>
+> = {
+  WEDDING: [
+    {
+      label: "Traditional & White Wedding",
+      text: "From a chance meeting in Lagos to forever together! Your prayers, presence, and blessings mean the world to our families as we begin our new home.",
+    },
+    {
+      label: "Warm & Grateful",
+      text: "We are overjoyed to celebrate our union surrounded by the people who shaped our journey. Thank you for celebrating love, family, and new beginnings with us.",
+    },
+  ],
+  BIRTHDAY: [
+    {
+      label: "Milestone Thanksgiving",
+      text: "Another year of grace, good health, and unforgettable memories! Thank you for celebrating this new chapter with me—your love and wishes make it truly special.",
+    },
+    {
+      label: "Jollof & Joy",
+      text: "Grateful for life, growth, and the best circle of family and friends. Come ready to dance, celebrate, and share in the joy!",
+    },
+  ],
+  BABY_SHOWER: [
+    {
+      label: "Welcome Little Blessing",
+      text: "Our hearts are full as we prepare to welcome our little bundle of joy. Thank you for showering our growing family with prayers, love, and thoughtful gifts.",
+    },
+  ],
+  GRADUATION: [
+    {
+      label: "Next Chapter Ahead",
+      text: "Sleepless nights, dedication, and God's grace brought us to this milestone! Thank you for supporting my journey and cheering me into the next chapter.",
+    },
+  ],
+  OTHER: [
+    {
+      label: "Housewarming & Thanksgiving",
+      text: "We are gathering our favourite people to give thanks and celebrate this special milestone together. Your presence and warm wishes mean everything to us!",
+    },
+  ],
+};
+
+const POPULAR_REGISTRY_PRESETS: ReadonlyArray<{
+  title: string;
+  targetPriceNaira: number;
+  tag: string;
+}> = [
+  {
+    title: "Honeymoon & Getaway Fund",
+    targetPriceNaira: 250_000,
+    tag: "Most popular",
+  },
+  {
+    title: "New Home Appliances Pool",
+    targetPriceNaira: 150_000,
+    tag: "Group gift",
+  },
+  {
+    title: "Aso-Ebi & Celebration Purse",
+    targetPriceNaira: 100_000,
+    tag: "Traditional",
+  },
+  {
+    title: "Baby Nursery & Essentials Fund",
+    targetPriceNaira: 120_000,
+    tag: "Family favourite",
+  },
+];
+
+const FLEXIBLE_GIFT_PREFERENCES: ReadonlyArray<{
+  title: string;
+  subtitle: string;
+  category: "AIRTIME_DATA" | "CUSTOM";
+}> = [
+  {
+    title: "Airtime Top-Up (Any Network)",
+    subtitle: "Guest chooses network & amount",
+    category: "AIRTIME_DATA",
+  },
+  {
+    title: "Mobile Data Bundles (MTN, Airtel, Glo, 9mobile)",
+    subtitle: "Guest chooses data plan & bundle",
+    category: "AIRTIME_DATA",
+  },
+  {
+    title: "Airtime & Data Gift Wish",
+    subtitle: "Guest chooses airtime or data",
+    category: "AIRTIME_DATA",
+  },
+  {
+    title: "Surprise Gift from Givvly Catalog",
+    subtitle: "Guest picks any gift they love for you",
+    category: "CUSTOM",
+  },
+];
+
+function computeQuickDate(offsetType: "next_saturday" | "one_month" | "three_months"): string {
+  const now = new Date();
+  const target = new Date(now);
+  if (offsetType === "next_saturday") {
+    const day = target.getDay();
+    const daysUntilSaturday = (6 - day + 7) % 7 || 7;
+    target.setDate(target.getDate() + daysUntilSaturday);
+  } else if (offsetType === "one_month") {
+    target.setDate(target.getDate() + 30);
+  } else {
+    target.setDate(target.getDate() + 90);
+  }
+  return target.toISOString().slice(0, 10);
+}
+
+function parseYmdToLocalDate(ymd: string): Date | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  if (!match) return undefined;
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const date = new Date(year, month, day, 12, 0, 0);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function formatLocalDateToYmd(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export interface WizardRecommendationContext {
+  type: EventType;
+  name: string;
+  date: string;
+  story: string;
+}
+
+export interface RecommendedRegistryProduct {
+  product: CatalogProduct;
+  score: number;
+  matchReason: string;
+}
+
+const STOP_WORDS = new Set([
+  "with",
+  "from",
+  "that",
+  "this",
+  "your",
+  "ours",
+  "have",
+  "will",
+  "thank",
+  "thanks",
+  "celebrate",
+  "celebrating",
+  "celebration",
+  "event",
+  "party",
+  "lagos",
+  "abuja",
+  "nigeria",
+  "come",
+  "join",
+  "together",
+  "family",
+  "friends",
+  "love",
+  "special",
+  "milestone",
+  "into",
+  "they",
+  "them",
+  "their",
+  "what",
+  "when",
+  "where",
+]);
+
+function extractContextKeywords(text: string): string[] {
+  return Array.from(
+    new Set(
+      text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((word) => word.length >= 4 && !STOP_WORDS.has(word))
+    )
+  );
+}
+
+/**
+ * Intelligently ranks backend catalog products for Step 4 Registry suggestions
+ * using the host's pre-provided Event type, Event name, Event date, and Our story.
+ */
+export function getIntelligentRegistrySuggestions(
+  products: CatalogProduct[],
+  context: WizardRecommendationContext,
+  limit = 6
+): {
+  recommendations: RecommendedRegistryProduct[];
+  activeSignals: string[];
+} {
+  const eligible = products.filter((p) => p.inStock);
+  if (eligible.length === 0) {
+    return { recommendations: [], activeSignals: [] };
+  }
+
+  const nameLower = context.name.trim().toLowerCase();
+  const storyLower = context.story.trim().toLowerCase();
+  const combinedText = `${nameLower} ${storyLower}`.trim();
+  const nameKeywords = extractContextKeywords(nameLower);
+  const storyKeywords = extractContextKeywords(storyLower);
+
+  const activeSignals: string[] = [
+    `Event: ${EVENT_TYPE_LABELS[context.type] ?? context.type}`,
+  ];
+
+  // Detect theme cues from Event Name + Our Story
+  const hasHomeKitchenCue =
+    /\b(housewarming|new home|apartment|kitchen|cook|cooking|baking|chef|move-in|home|appliances)\b/i.test(
+      combinedText
+    );
+  const hasBridalOrFemaleCue =
+    /\b(bridal|bride|bachelorette|mrs|wife|queen|sister|sis|lady|madam|mom|mother|mama|iya)\b/i.test(
+      combinedText
+    );
+  const hasGroomOrMaleCue =
+    /\b(groom|bachelor|husband|chief|king|bro|brother|gentleman|dad|father|papa|baba)\b/i.test(
+      combinedText
+    );
+  const hasBabyCue =
+    /\b(baby|naming|dedication|christening|newborn|nursery|bundle|little|twins|maternity)\b/i.test(
+      combinedText
+    );
+  const hasMilestoneSeniorCue =
+    /\b(40th|50th|60th|70th|80th|90th|jubilee|golden|diamond|retirement|retire|send-forth|sendforth|elder|prof|honour|thanksgiving)\b/i.test(
+      combinedText
+    );
+  const hasYouthGradTechCue =
+    /\b(18th|20th|21st|25th|30th|convocation|induction|mbbs|bar|degree|masters|phd|nysc|tech|gadget|music|work|office|startup)\b/i.test(
+      combinedText
+    );
+  const hasWellnessSpaCue =
+    /\b(spa|relax|wellness|self-care|pamper|honeymoon|getaway|retreat|peace|calm|scent|candle)\b/i.test(
+      combinedText
+    );
+  const hasToastPartyCue =
+    /\b(champagne|toast|wine|drinks|rooftop|turnup|soiree|dinner|chocolate|sweet|cake|treats|jollof)\b/i.test(
+      combinedText
+    );
+
+  if (context.name.trim().length >= 3) {
+    activeSignals.push(`Name: "${context.name.trim().slice(0, 28)}"`);
+  }
+
+  // Detect seasonal cues from Event Date
+  let dateMonth: number | null = null;
+  let dateDay: number | null = null;
+  if (context.date) {
+    const parsedDate = new Date(`${context.date}T00:00:00+01:00`);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      dateMonth = parsedDate.getMonth() + 1;
+      dateDay = parsedDate.getDate();
+    }
+  }
+
+  const isFestiveSeason =
+    dateMonth === 12 || (dateMonth === 11 && (dateDay ?? 0) >= 20);
+  const isValentineSeason = dateMonth === 2 && (dateDay ?? 0) <= 16;
+  const isMothersSeason = dateMonth === 3 || dateMonth === 5;
+  const isFathersSeason = dateMonth === 6;
+
+  if (isFestiveSeason) {
+    activeSignals.push("Date: Festive Season (Dec)");
+  } else if (isValentineSeason) {
+    activeSignals.push("Date: Valentine's Season (Feb)");
+  } else if (context.date) {
+    activeSignals.push(`Date: ${formatDate(context.date)}`);
+  }
+
+  if (context.story.trim().length > 0) {
+    activeSignals.push("Story: Personalized cues active");
+  }
+
+  const scored: RecommendedRegistryProduct[] = eligible.map((product) => {
+    let score = 0;
+    const reasons: Array<{ weight: number; label: string }> = [];
+
+    const occasions = product.occasions ?? [];
+    const mainCats = product.mainCategories ?? [];
+    const relationships = product.relationships ?? [];
+    const productSearchText = [
+      product.name,
+      product.description,
+      product.category,
+      ...(product.comboItems ?? []),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    // 1. Event Type alignment
+    if (context.type === "WEDDING") {
+      if (
+        occasions.includes("WEDDING") ||
+        mainCats.includes("WEDDING") ||
+        occasions.includes("ANNIVERSARY") ||
+        occasions.includes("BRIDAL_SHOWER") ||
+        occasions.includes("ENGAGEMENT")
+      ) {
+        score += 42;
+        reasons.push({ weight: 42, label: "Matched to your Wedding" });
+      } else if (
+        occasions.includes("HOUSEWARMING") ||
+        product.giftType === "HOME_KITCHEN" ||
+        relationships.includes("COUPLE")
+      ) {
+        score += 34;
+        reasons.push({ weight: 34, label: "New Home & Couple pick" });
+      }
+    } else if (context.type === "BIRTHDAY") {
+      if (occasions.includes("BIRTHDAY") || mainCats.includes("BIRTHDAY")) {
+        score += 40;
+        reasons.push({ weight: 40, label: "Matched to Birthday" });
+      } else if (occasions.includes("THANKSGIVING")) {
+        score += 24;
+        reasons.push({ weight: 24, label: "Birthday Thanksgiving pick" });
+      }
+    } else if (context.type === "BABY_SHOWER") {
+      if (
+        occasions.includes("BABY_SHOWER") ||
+        occasions.includes("NAMING_CEREMONY") ||
+        occasions.includes("CHILD_DEDICATION") ||
+        mainCats.includes("BABY_SHOWER") ||
+        product.giftType === "BABY_ITEMS" ||
+        product.ageGroup === "BABY"
+      ) {
+        score += 48;
+        reasons.push({ weight: 48, label: "Matched to Baby Shower" });
+      }
+    } else if (context.type === "GRADUATION") {
+      if (
+        occasions.includes("GRADUATION") ||
+        occasions.includes("PROMOTION") ||
+        occasions.includes("NEW_JOB")
+      ) {
+        score += 44;
+        reasons.push({ weight: 44, label: "Matched to Graduation" });
+      } else if (
+        product.giftType === "TECH" ||
+        mainCats.includes("CORPORATE") ||
+        product.ageGroup === "YOUNG_ADULT"
+      ) {
+        score += 28;
+        reasons.push({ weight: 28, label: "Graduate & Career essential" });
+      }
+    } else if (context.type === "OTHER") {
+      if (
+        occasions.includes("HOUSEWARMING") ||
+        occasions.includes("RETIREMENT") ||
+        occasions.includes("THANKSGIVING") ||
+        occasions.includes("APPRECIATION") ||
+        occasions.includes("PROMOTION")
+      ) {
+        score += 35;
+        reasons.push({ weight: 35, label: "Celebration & Thanksgiving pick" });
+      }
+    }
+
+    // 2. Event Name & Our Story semantic theme cues
+    if (
+      hasHomeKitchenCue &&
+      (product.giftType === "HOME_KITCHEN" ||
+        occasions.includes("HOUSEWARMING"))
+    ) {
+      score += 32;
+      reasons.push({ weight: 32, label: "Matched to Home & Kitchen cues" });
+    }
+
+    if (
+      hasBridalOrFemaleCue &&
+      (occasions.includes("BRIDAL_SHOWER") ||
+        mainCats.includes("FOR_HER") ||
+        product.gender === "FEMALE" ||
+        product.giftType === "BEAUTY" ||
+        product.giftType === "WELLNESS")
+    ) {
+      score += 28;
+      reasons.push({ weight: 28, label: "Tailored for Her / Bridal" });
+    }
+
+    if (
+      hasGroomOrMaleCue &&
+      (mainCats.includes("FOR_HIM") ||
+        product.gender === "MALE" ||
+        product.giftType === "LUXURY" ||
+        product.giftType === "TECH")
+    ) {
+      score += 28;
+      reasons.push({ weight: 28, label: "Tailored for Him" });
+    }
+
+    if (
+      hasBabyCue &&
+      (product.giftType === "BABY_ITEMS" ||
+        product.ageGroup === "BABY" ||
+        occasions.includes("BABY_SHOWER") ||
+        occasions.includes("NAMING_CEREMONY"))
+    ) {
+      score += 34;
+      reasons.push({ weight: 34, label: "Matched to Baby & Nursery cues" });
+    }
+
+    if (
+      hasMilestoneSeniorCue &&
+      (occasions.includes("RETIREMENT") ||
+        occasions.includes("THANKSGIVING") ||
+        product.ageGroup === "SENIOR" ||
+        product.giftType === "LUXURY" ||
+        product.giftType === "DRINKS")
+    ) {
+      score += 30;
+      reasons.push({ weight: 30, label: "Milestone & Jubilee pick" });
+    }
+
+    if (
+      hasYouthGradTechCue &&
+      (product.giftType === "TECH" ||
+        occasions.includes("GRADUATION") ||
+        occasions.includes("NEW_JOB") ||
+        product.ageGroup === "YOUNG_ADULT")
+    ) {
+      score += 28;
+      reasons.push({ weight: 28, label: "Next-Chapter & Tech match" });
+    }
+
+    if (
+      hasWellnessSpaCue &&
+      (product.giftType === "WELLNESS" || product.giftType === "BEAUTY")
+    ) {
+      score += 26;
+      reasons.push({ weight: 26, label: "Matched to Relaxation & Spa cues" });
+    }
+
+    if (
+      hasToastPartyCue &&
+      (product.giftType === "DRINKS" ||
+        product.giftType === "CHOCOLATES" ||
+        product.giftType === "FOOD")
+    ) {
+      score += 26;
+      reasons.push({ weight: 26, label: "Celebration Toast & Treats" });
+    }
+
+    // Direct keyword overlap from Event Name
+    for (const kw of nameKeywords) {
+      if (productSearchText.includes(kw)) {
+        score += 22;
+        reasons.push({
+          weight: 22,
+          label: `Matches "${kw}" in event name`,
+        });
+      }
+    }
+
+    // Direct keyword overlap from Our Story
+    for (const kw of storyKeywords) {
+      if (productSearchText.includes(kw)) {
+        score += 20;
+        reasons.push({
+          weight: 20,
+          label: `Matches "${kw}" in your story`,
+        });
+      }
+    }
+
+    // 3. Event Date seasonal intelligence
+    if (
+      isFestiveSeason &&
+      (occasions.includes("CHRISTMAS") ||
+        occasions.includes("END_OF_YEAR") ||
+        occasions.includes("THANKSGIVING") ||
+        product.isCombo)
+    ) {
+      score += 20;
+      reasons.push({ weight: 20, label: "December Festive pick" });
+    }
+
+    if (
+      isValentineSeason &&
+      (occasions.includes("VALENTINES_DAY") ||
+        product.giftType === "FLOWERS" ||
+        product.giftType === "CHOCOLATES")
+    ) {
+      score += 20;
+      reasons.push({ weight: 20, label: "February Valentine's pick" });
+    }
+
+    if (isMothersSeason && occasions.includes("MOTHERS_DAY")) {
+      score += 16;
+      reasons.push({ weight: 16, label: "Mother's Season pick" });
+    }
+
+    if (isFathersSeason && occasions.includes("FATHERS_DAY")) {
+      score += 16;
+      reasons.push({ weight: 16, label: "Father's Season pick" });
+    }
+
+    // 4. Quality & Curated Gift Box boost
+    if (product.isCombo) {
+      score += 8;
+      reasons.push({ weight: 8, label: "Curated Gift Box" });
+    }
+    if (product.rating >= 4.9) {
+      score += 5;
+    }
+
+    reasons.sort((a, b) => b.weight - a.weight);
+    const topReason =
+      reasons[0]?.label ??
+      `Popular in ${product.category}`;
+
+    return {
+      product,
+      score,
+      matchReason: topReason,
+    };
+  });
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.product.rating !== a.product.rating) {
+      return b.product.rating - a.product.rating;
+    }
+    return b.product.reviewCount - a.product.reviewCount;
+  });
+
+  return {
+    recommendations: scored.slice(0, limit),
+    activeSignals,
+  };
+}
+
 export function CreateEventWizard() {
+  const user = useAuthStore((s) => s.user);
   const step = useEventWizardStore((s) => s.step);
   const draft = useEventWizardStore((s) => s.draft);
   const setStep = useEventWizardStore((s) => s.setStep);
@@ -81,8 +644,70 @@ export function CreateEventWizard() {
   const clearWizard = useEventWizardStore((s) => s.clearWizard);
 
   const payoutQuery = usePayoutAccountQuery();
+  const myEventsQuery = useMyEvents();
+  const publicEventsQuery = usePublicEventsList();
+  const catalogQuery = useCatalogProducts();
   const presignMutation = usePresignUploadMutation();
   const publishMutation = useCreateAndPublishEventMutation();
+
+  const [storedPastHosts, setStoredPastHosts] = React.useState<string[]>([]);
+
+  const existingEventSlugs = React.useMemo(() => {
+    const slugs = new Set<string>();
+    for (const ev of myEventsQuery.data ?? []) {
+      if (ev.slug) slugs.add(ev.slug.toLowerCase());
+    }
+    for (const ev of publicEventsQuery.data ?? []) {
+      if (ev.slug) slugs.add(ev.slug.toLowerCase());
+    }
+    return slugs;
+  }, [myEventsQuery.data, publicEventsQuery.data]);
+
+  const previewSlug = React.useMemo(
+    () =>
+      buildUniqueEventSlug(
+        draft.name.trim() || "your-celebration-2026",
+        draft.slugSuffix,
+        existingEventSlugs
+      ),
+    [draft.name, draft.slugSuffix, existingEventSlugs]
+  );
+
+  const creatorDefaultHost = React.useMemo(
+    () => user?.name?.trim().split(" ")[0] || "Adaobi",
+    [user?.name]
+  );
+
+  const pastHostSuggestions = React.useMemo(
+    () =>
+      buildPastHostSuggestions(
+        myEventsQuery.data ?? [],
+        storedPastHosts,
+        creatorDefaultHost
+      ),
+    [myEventsQuery.data, storedPastHosts, creatorDefaultHost]
+  );
+
+  const effectiveHostName = draft.hostName.trim() || creatorDefaultHost;
+
+  const { recommendations: intelligentProducts, activeSignals } =
+    React.useMemo(
+      () =>
+        getIntelligentRegistrySuggestions(catalogQuery.data ?? [], {
+          type: draft.type,
+          name: `${draft.name} ${draft.hostName}`.trim(),
+          date: draft.date,
+          story: draft.story,
+        }),
+      [
+        catalogQuery.data,
+        draft.type,
+        draft.name,
+        draft.hostName,
+        draft.date,
+        draft.story,
+      ]
+    );
 
   const [stepErrors, setStepErrors] = React.useState<Record<string, string>>(
     {}
@@ -91,14 +716,35 @@ export function CreateEventWizard() {
   const [isUploading, setIsUploading] = React.useState(false);
   const [newItemTitle, setNewItemTitle] = React.useState("");
   const [newItemPrice, setNewItemPrice] = React.useState("");
+  const [datePickerOpen, setDatePickerOpen] = React.useState(false);
   const [publishedEvent, setPublishedEvent] =
     React.useState<EventDetail | null>(null);
 
   React.useEffect(() => {
     hydrateFromStorage();
+    setStoredPastHosts(readPastHosts());
   }, [hydrateFromStorage]);
 
+  React.useEffect(() => {
+    trackEvent("wizard_step_viewed", {
+      step,
+      eventType: draft.type,
+    });
+  }, [step, draft.type]);
+
   const { minDate, maxDate } = React.useMemo(() => getLagosDateBounds(), []);
+  const selectedDateObj = React.useMemo(
+    () => parseYmdToLocalDate(draft.date),
+    [draft.date]
+  );
+  const minDateObj = React.useMemo(
+    () => parseYmdToLocalDate(minDate),
+    [minDate]
+  );
+  const maxDateObj = React.useMemo(
+    () => parseYmdToLocalDate(maxDate),
+    [maxDate]
+  );
 
   const validateCurrentStep = (targetStep: WizardStep): boolean => {
     setStepErrors({});
@@ -106,6 +752,7 @@ export function CreateEventWizard() {
       const parsed = eventStep1Schema.safeParse({
         type: draft.type,
         name: draft.name,
+        hostName: draft.hostName,
         date: draft.date,
       });
       if (!parsed.success) {
@@ -171,6 +818,11 @@ export function CreateEventWizard() {
 
   const handleNext = () => {
     if (!validateCurrentStep(step)) return;
+    trackEvent("wizard_step_completed", {
+      step,
+      eventType: draft.type,
+      registryCount: draft.registryItems.length,
+    });
     if (step < 5) {
       setStep((step + 1) as WizardStep);
     }
@@ -228,10 +880,17 @@ export function CreateEventWizard() {
 
   const handleAddRegistryItem = () => {
     setStepErrors({});
+    const isAirtimeOrData = /\b(airtime|data|vtu|bundle|mtn|airtel|glo|9mobile)\b/i.test(
+      newItemTitle
+    );
+    const resolvedPrice =
+      newItemPrice.trim() === "" ? 0 : Number(newItemPrice.trim());
+
     const parsed = wizardRegistryItemSchema.safeParse({
       id: crypto.randomUUID(),
+      category: isAirtimeOrData ? "AIRTIME_DATA" : "CUSTOM",
       title: newItemTitle,
-      targetPriceNaira: newItemPrice,
+      targetPriceNaira: resolvedPrice,
     });
 
     if (!parsed.success) {
@@ -245,8 +904,80 @@ export function CreateEventWizard() {
     }
 
     addRegistryItem(parsed.data);
+    trackEvent("wizard_registry_preset_added", {
+      title: parsed.data.title,
+      targetPriceNaira: parsed.data.targetPriceNaira,
+      category: parsed.data.category ?? "CUSTOM",
+      source: "custom",
+    });
     setNewItemTitle("");
     setNewItemPrice("");
+  };
+
+  const handleAddPresetItem = (
+    title: string,
+    targetPriceNaira: number,
+    category: "AIRTIME_DATA" | "CASH_FUND" | "CUSTOM" = "CASH_FUND"
+  ) => {
+    if (draft.registryItems.length >= 50) return;
+    if (draft.registryItems.some((item) => item.title === title)) {
+      toast.info(`"${title}" is already in your registry`);
+      return;
+    }
+    setStepErrors({});
+    addRegistryItem({
+      id: crypto.randomUUID(),
+      category,
+      title,
+      targetPriceNaira,
+    });
+    trackEvent("wizard_registry_preset_added", {
+      title,
+      targetPriceNaira,
+      category,
+      source: "preset",
+    });
+  };
+
+  const handleAddCatalogProduct = (
+    product: CatalogProduct,
+    matchReason: string
+  ) => {
+    if (draft.registryItems.length >= 50) return;
+    const normalizedTitle = product.name.trim().slice(0, 80);
+    if (
+      draft.registryItems.some(
+        (item) =>
+          item.productId === product.id || item.title === normalizedTitle
+      )
+    ) {
+      toast.info(`"${normalizedTitle}" is already in your registry`);
+      return;
+    }
+    const isDigitalOrVtu =
+      Boolean(product.isDigital) ||
+      /\b(airtime|data|vtu)\b/i.test(`${product.name} ${product.category}`);
+    const targetPriceNaira = isDigitalOrVtu
+      ? 0
+      : Math.max(
+          500,
+          Math.min(5_000_000, Math.round(product.priceKobo / 100))
+        );
+    setStepErrors({});
+    addRegistryItem({
+      id: crypto.randomUUID(),
+      productId: product.id,
+      category: isDigitalOrVtu ? "AIRTIME_DATA" : "CATALOG",
+      title: normalizedTitle,
+      targetPriceNaira,
+    });
+    trackEvent("wizard_registry_preset_added", {
+      productId: product.id,
+      title: normalizedTitle,
+      targetPriceNaira,
+      matchReason,
+      source: "catalog_intelligent",
+    });
   };
 
   const handlePublish = async () => {
@@ -259,9 +990,20 @@ export function CreateEventWizard() {
 
     setStepErrors({});
     try {
+      const resolvedHostName = draft.hostName.trim() || creatorDefaultHost;
+      if (
+        draft.hostName.trim() &&
+        draft.hostName.trim().toLowerCase() !==
+          creatorDefaultHost.toLowerCase()
+      ) {
+        setStoredPastHosts(savePastHost(draft.hostName.trim()));
+      }
+
       const published = await publishMutation.mutateAsync({
         type: draft.type,
         name: draft.name.trim(),
+        slug: previewSlug,
+        hostName: resolvedHostName,
         date: draft.date,
         coverKey: draft.coverKey,
         coverUrl:
@@ -279,6 +1021,13 @@ export function CreateEventWizard() {
         })),
       });
 
+      trackEvent("event_published", {
+        eventId: published.id,
+        slug: published.slug,
+        eventType: published.type,
+        visibility: published.visibility,
+        registryCount: draft.registryItems.length,
+      });
       clearWizard();
       setPublishedEvent(published);
       toast.success("Event published");
@@ -292,6 +1041,7 @@ export function CreateEventWizard() {
   };
 
   const payoutVerified = payoutQuery.data?.status === "VERIFIED";
+  const storyTemplates = STORY_TEMPLATES_BY_TYPE[draft.type] ?? STORY_TEMPLATES_BY_TYPE.OTHER;
 
   if (publishedEvent) {
     const publicUrl = `${env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/e/${publishedEvent.slug}`;
@@ -305,8 +1055,8 @@ export function CreateEventWizard() {
             </div>
             <CardTitle className="text-2xl">Your event is live</CardTitle>
             <CardDescription>
-              Share your link with family and friends so they can RSVP and send
-              gifts.
+              Share your link on WhatsApp with family and friends so they can
+              RSVP, post blessings, and send gifts.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -322,8 +1072,8 @@ export function CreateEventWizard() {
                       Money gifts are currently off
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Add and verify your bank account to enable cash gifts on
-                      your event page.
+                      Verify your Nigerian bank account (takes 30 seconds) so
+                      guests can send cash blessings directly to your purse.
                     </p>
                   </div>
                 </div>
@@ -339,7 +1089,7 @@ export function CreateEventWizard() {
                   <p className="text-xs font-medium text-muted-foreground">
                     Public event link
                   </p>
-                  <p className="mt-1 break-all font-mono text-sm font-medium text-foreground">
+                  <p className="mt-1 break-all font-mono text-sm font-medium text-foreground border">
                     {publicUrl}
                   </p>
                 </div>
@@ -373,6 +1123,32 @@ export function CreateEventWizard() {
         onSelectStep={(s) => setStep(s as WizardStep)}
       />
 
+      {/* Live Ownership Preview & Auto-Save Assurance (Endowment + Loss Aversion) */}
+      <div className="flex flex-col justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center">
+        <div className="space-y-0.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+              {EVENT_TYPE_LABELS[draft.type]}
+            </span>
+            <p className="font-heading text-sm font-semibold text-foreground">
+              {draft.name.trim() || "Your Celebration Title"}
+            </p>
+            {draft.date ? (
+              <span className="text-xs text-muted-foreground">
+                • {formatDate(draft.date)}
+              </span>
+            ) : null}
+          </div>
+          <p className="font-mono text-[11px] text-muted-foreground">
+            Link preview: givvly.ng/e/{previewSlug}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>Draft auto-saved on this device</span>
+        </div>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>
@@ -383,11 +1159,11 @@ export function CreateEventWizard() {
             {step === 5 && "Review and publish"}
           </CardTitle>
           <CardDescription>
-            {step === 1 && "Choose the occasion, title, and date."}
-            {step === 2 && "Add a cover photo and tell guests what you are celebrating."}
-            {step === 3 && "Choose who can view your event page."}
-            {step === 4 && "Add up to 50 items you would love to receive."}
-            {step === 5 && "Confirm everything looks right before publishing."}
+            {step === 1 && "Choose the occasion, celebration title, and date. You can edit everything later."}
+            {step === 2 && "Add a cover photo or pick a 1-tap story starter to welcome your guests."}
+            {step === 3 && "Choose whether anyone with your link can view or require a private guest code."}
+            {step === 4 && "Tap a popular Nigerian gift fund below or add custom items you would love to receive."}
+            {step === 5 && "Confirm everything looks right before publishing your celebration link."}
           </CardDescription>
         </CardHeader>
 
@@ -424,6 +1200,8 @@ export function CreateEventWizard() {
                 <Label htmlFor="wizard-event-name">Event name</Label>
                 <Input
                   id="wizard-event-name"
+                  placeholder="e.g. Adaobi & Chidi's Forever 2026"
+                  enterKeyHint="next"
                   value={draft.name}
                   maxLength={80}
                   onChange={(e) => updateDraft({ name: e.target.value })}
@@ -435,16 +1213,156 @@ export function CreateEventWizard() {
                 ) : null}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="wizard-event-date">Event date</Label>
+              <div className="space-y-2 rounded-xl border border-border/80 bg-muted/25 p-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
+                  <Label htmlFor="wizard-host-name" className="text-xs font-semibold">
+                    Hosted by / Celebrant
+                  </Label>
+                  <span className="text-[11px] text-muted-foreground">
+                    Defaults to{" "}
+                    <strong className="font-semibold text-foreground">
+                      {creatorDefaultHost}
+                    </strong>{" "}
+                    (You)
+                  </span>
+                </div>
+
+                {/* 1-Tap Host Chips: Creator (Default) + Past Hosts Created For */}
+                <div
+                  className="flex flex-wrap items-center gap-1.5"
+                  role="group"
+                  aria-label="Choose event host or reuse a past host"
+                >
+                  <button
+                    type="button"
+                    onClick={() => updateDraft({ hostName: "" })}
+                    aria-pressed={
+                      !draft.hostName.trim() ||
+                      draft.hostName.trim().toLowerCase() ===
+                        creatorDefaultHost.toLowerCase()
+                    }
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      !draft.hostName.trim() ||
+                      draft.hostName.trim().toLowerCase() ===
+                        creatorDefaultHost.toLowerCase()
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/5"
+                    }`}
+                  >
+                    {creatorDefaultHost} (You • Default)
+                  </button>
+
+                  {pastHostSuggestions.map((pastHost) => {
+                    const isSelected =
+                      draft.hostName.trim().toLowerCase() ===
+                      pastHost.toLowerCase();
+                    return (
+                      <button
+                        key={pastHost}
+                        type="button"
+                        onClick={() => updateDraft({ hostName: pastHost })}
+                        aria-pressed={isSelected}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                          isSelected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/5"
+                        }`}
+                      >
+                        {pastHost}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <Input
-                  id="wizard-event-date"
-                  type="date"
-                  min={minDate}
-                  max={maxDate}
-                  value={draft.date}
-                  onChange={(e) => updateDraft({ date: e.target.value })}
+                  id="wizard-host-name"
+                  placeholder={`Default: ${creatorDefaultHost} — or enter another host (e.g. Chidi & Amaka, Mum & Dad)`}
+                  enterKeyHint="next"
+                  value={draft.hostName}
+                  maxLength={80}
+                  onChange={(e) => updateDraft({ hostName: e.target.value })}
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Creating for a client, couple, or family member? Tap a host you created for in the past above or type a new name.
+                </p>
+                {stepErrors.hostName ? (
+                  <p role="alert" className="text-xs font-medium text-destructive">
+                    {stepErrors.hostName}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor="wizard-event-date">Event date</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(
+                      [
+                        { id: "next_saturday", label: "Next Saturday" },
+                        { id: "one_month", label: "In 1 Month" },
+                        { id: "three_months", label: "In 3 Months" },
+                      ] as const
+                    ).map((chip) => (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => {
+                          const nextDate = computeQuickDate(chip.id);
+                          updateDraft({ date: nextDate });
+                          trackEvent("wizard_quick_date_selected", {
+                            preset: chip.id,
+                            date: nextDate,
+                          });
+                        }}
+                        className="rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="wizard-event-date"
+                      type="button"
+                      variant="outline"
+                      aria-expanded={datePickerOpen}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !draft.date && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon
+                        className="mr-2 h-4 w-4 text-primary"
+                        aria-hidden="true"
+                      />
+                      {draft.date ? (
+                        <span>{formatDate(draft.date, "EEEE, d MMMM yyyy")}</span>
+                      ) : (
+                        <span>Pick an event date</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDateObj}
+                      defaultMonth={selectedDateObj ?? minDateObj}
+                      onSelect={(day) => {
+                        if (!day) return;
+                        updateDraft({ date: formatLocalDateToYmd(day) });
+                        setDatePickerOpen(false);
+                      }}
+                      disabled={(day) => {
+                        const dayStr = formatLocalDateToYmd(day);
+                        return dayStr < minDate || dayStr > maxDate;
+                      }}
+                      startMonth={minDateObj}
+                      endMonth={maxDateObj}
+                    />
+                  </PopoverContent>
+                </Popover>
                 {stepErrors.date ? (
                   <p role="alert" className="text-xs font-medium text-destructive">
                     {stepErrors.date}
@@ -481,10 +1399,38 @@ export function CreateEventWizard() {
                     {draft.story.length}/1500
                   </span>
                 </div>
+
+                {/* 1-Tap Nigerian Ceremony Story Starters (Reciprocity + Friction Reduction) */}
+                <div className="space-y-1.5">
+                  <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                    <span>Need inspiration? Tap a starter note and make it yours:</span>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {storyTemplates.map((tpl) => (
+                      <button
+                        key={tpl.label}
+                        type="button"
+                        onClick={() => {
+                          updateDraft({ story: tpl.text });
+                          trackEvent("wizard_story_template_applied", {
+                            eventType: draft.type,
+                            templateLabel: tpl.label,
+                          });
+                        }}
+                        className="rounded-full border border-primary/25 bg-primary/5 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
+                      >
+                        + {tpl.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <Textarea
                   id="wizard-event-story"
                   maxLength={1500}
                   rows={5}
+                  placeholder="Share how you met, what you're celebrating, or a warm welcome note for family and friends..."
                   value={draft.story}
                   onChange={(e) => updateDraft({ story: e.target.value })}
                 />
@@ -510,11 +1456,16 @@ export function CreateEventWizard() {
                       : "border-border bg-card hover:bg-muted"
                   }`}
                 >
-                  <p className="font-heading text-base font-semibold text-foreground">
-                    Public
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-heading text-base font-semibold text-foreground">
+                      Public
+                    </p>
+                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      Recommended for WhatsApp
+                    </span>
+                  </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Anyone with the link can view your event page and send gifts.
+                    Anyone with your link can view your event page, RSVP, and send gifts immediately.
                   </p>
                 </button>
 
@@ -551,6 +1502,8 @@ export function CreateEventWizard() {
                       id="wizard-access-code"
                       value={draft.accessCode}
                       maxLength={12}
+                      spellCheck={false}
+                      autoCapitalize="characters"
                       onChange={(e) =>
                         updateDraft({
                           accessCode: e.target.value.replace(/[^A-Za-z0-9]/g, ""),
@@ -585,11 +1538,151 @@ export function CreateEventWizard() {
 
           {step === 4 ? (
             <div className="space-y-4">
+              {/* Intelligent Backend Catalog Recommendations (tailored by Event type, Name, Date & Story) */}
+              <div className="space-y-3 rounded-xl border border-primary/25 bg-primary/5 p-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles
+                      className="h-4 w-4 text-primary"
+                      aria-hidden="true"
+                    />
+                    <p className="text-xs font-semibold text-foreground">
+                      Tailored catalog gifts for your celebration (1 tap):
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    Live from Givvly Catalog
+                  </span>
+                </div>
+
+                {activeSignals.length > 0 ? (
+                  <div
+                    className="flex flex-wrap items-center gap-1.5"
+                    aria-label="Personalization signals"
+                  >
+                    <span className="text-[11px] text-muted-foreground">
+                      Matched using:
+                    </span>
+                    {activeSignals.map((signal) => (
+                      <span
+                        key={signal}
+                        className="rounded-full border border-border/80 bg-background px-2 py-0.5 text-[10px] font-medium text-foreground"
+                      >
+                        {signal}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                {catalogQuery.isLoading ? (
+                  <div
+                    className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                    aria-busy="true"
+                    aria-label="Loading tailored catalog suggestions"
+                  >
+                    {[1, 2, 3, 4].map((n) => (
+                      <div
+                        key={n}
+                        className="h-16 animate-pulse rounded-lg border border-border/60 bg-card/60 p-3"
+                      />
+                    ))}
+                  </div>
+                ) : intelligentProducts.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {intelligentProducts.map(({ product, matchReason }) => {
+                      const normalizedTitle = product.name.trim().slice(0, 80);
+                      const alreadyAdded = draft.registryItems.some(
+                        (i) =>
+                          i.productId === product.id ||
+                          i.title === normalizedTitle
+                      );
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          disabled={
+                            alreadyAdded || draft.registryItems.length >= 50
+                          }
+                          onClick={() =>
+                            handleAddCatalogProduct(product, matchReason)
+                          }
+                          className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2.5 text-left text-xs transition-colors hover:border-primary/40 hover:bg-primary/5 disabled:opacity-50"
+                        >
+                          <div className="min-w-0 flex-1 pr-2">
+                            <span className="block truncate font-semibold text-foreground">
+                              {product.name}
+                            </span>
+                            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                              <Money amountKobo={product.priceKobo} /> •{" "}
+                              {product.category}
+                            </span>
+                            <span className="mt-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                              {matchReason}
+                            </span>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary">
+                            {alreadyAdded ? "Added ✓" : "+ Add"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+                {/* 1-Tap Group Cash Fund Presets */}
+                <div className="border-t border-border/60 pt-2.5">
+                  <p className="mb-2 text-[11px] font-medium text-muted-foreground">
+                    Or quick-add a group cash fund pool:
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {POPULAR_REGISTRY_PRESETS.map((preset) => {
+                      const alreadyAdded = draft.registryItems.some(
+                        (i) => i.title === preset.title
+                      );
+                      return (
+                        <button
+                          key={preset.title}
+                          type="button"
+                          disabled={
+                            alreadyAdded || draft.registryItems.length >= 50
+                          }
+                          onClick={() =>
+                            handleAddPresetItem(
+                              preset.title,
+                              preset.targetPriceNaira
+                            )
+                          }
+                          className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-left text-xs transition-colors hover:border-primary/40 hover:bg-primary/5 disabled:opacity-50"
+                        >
+                          <div>
+                            <span className="font-semibold text-foreground">
+                              {preset.title}
+                            </span>
+                            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                              <Money
+                                amountKobo={nairaToKobo(
+                                  preset.targetPriceNaira
+                                )}
+                              />{" "}
+                              • {preset.tag}
+                            </span>
+                          </div>
+                          <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                            {alreadyAdded ? "Added ✓" : "+ Add"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
                 <div className="space-y-1.5 sm:col-span-6">
                   <Label htmlFor="registry-item-title">Item title</Label>
                   <Input
                     id="registry-item-title"
+                    placeholder="e.g. Deep Freezer or Honeymoon Flights"
                     value={newItemTitle}
                     maxLength={80}
                     onChange={(e) => setNewItemTitle(e.target.value)}
@@ -605,6 +1698,7 @@ export function CreateEventWizard() {
                   <Input
                     id="registry-item-price"
                     inputMode="numeric"
+                    placeholder="150000"
                     value={newItemPrice}
                     onChange={(e) =>
                       setNewItemPrice(e.target.value.replace(/\D/g, ""))
@@ -638,9 +1732,16 @@ export function CreateEventWizard() {
                       className="flex items-center justify-between px-4 py-3 text-sm"
                     >
                       <div>
-                        <p className="font-medium text-foreground">
-                          {item.title}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="font-medium text-foreground">
+                            {item.title}
+                          </p>
+                          {item.productId ? (
+                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                              Catalog Gift
+                            </span>
+                          ) : null}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           <Money
                             amountKobo={nairaToKobo(item.targetPriceNaira)}
@@ -661,7 +1762,7 @@ export function CreateEventWizard() {
                 </ul>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  No registry items added yet. You can also manage registry items after publishing.
+                  No registry items added yet. Tap a tailored catalog gift or cash fund above, or continue—you can add or edit items anytime after publishing.
                 </p>
               )}
             </div>
@@ -688,6 +1789,23 @@ export function CreateEventWizard() {
                 <div className="flex justify-between py-2">
                   <dt className="text-muted-foreground">Event name</dt>
                   <dd className="font-medium text-foreground">{draft.name}</dd>
+                </div>
+                <div className="flex justify-between gap-3 py-2">
+                  <dt className="text-muted-foreground">Public link</dt>
+                  <dd className="truncate font-mono text-xs font-medium text-foreground">
+                    givvly.ng/e/{previewSlug}
+                  </dd>
+                </div>
+                <div className="flex justify-between py-2">
+                  <dt className="text-muted-foreground">Hosted by</dt>
+                  <dd className="font-medium text-foreground">
+                    {effectiveHostName}
+                    {!draft.hostName.trim() ||
+                    draft.hostName.trim().toLowerCase() ===
+                      creatorDefaultHost.toLowerCase()
+                      ? " (You)"
+                      : ""}
+                  </dd>
                 </div>
                 <div className="flex justify-between py-2">
                   <dt className="text-muted-foreground">Date</dt>
@@ -727,9 +1845,9 @@ export function CreateEventWizard() {
                       aria-hidden="true"
                     />
                     <span>
-                      Payout details are not verified yet. You can publish now,
-                      and money gifts will turn on once you save your bank
-                      account.
+                      Payout details are not verified yet. You can publish now
+                      to start collecting RSVPs and wishes, and money gifts will
+                      turn on automatically once you verify your bank account.
                     </span>
                   </div>
                   <Button asChild size="sm" variant="outline">

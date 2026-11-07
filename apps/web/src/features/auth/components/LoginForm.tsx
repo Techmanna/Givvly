@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/form";
 import { PasswordField } from "@/components/shared/PasswordField";
 import { sanitizeNextPath } from "@/lib/format";
+import { trackEvent } from "@/lib/analytics";
 import { useLoginMutation } from "../hooks/useAuth";
 import { loginSchema } from "../schemas";
 import type { LoginInput } from "../types";
@@ -69,6 +70,11 @@ export function LoginForm({ nextPath }: LoginFormProps) {
         destination = "/dashboard";
       }
 
+      trackEvent("login_completed", {
+        role: role ?? "USER",
+        destination,
+      });
+
       router.replace(destination);
       router.refresh();
     } catch (error) {
@@ -85,6 +91,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
   };
 
   const handleQuickLogin = (email: string) => {
+    trackEvent("demo_login_used", { email });
     form.setValue("email", email, { shouldValidate: true });
     form.setValue("password", "Password123!", { shouldValidate: true });
     form.handleSubmit(onSubmit)();
@@ -157,7 +164,15 @@ export function LoginForm({ nextPath }: LoginFormProps) {
               <FormItem>
                 <FormLabel>Email address</FormLabel>
                 <FormControl>
-                  <Input type="email" autoComplete="email" {...field} />
+                  <Input
+                    type="email"
+                    autoComplete="username"
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    enterKeyHint="next"
+                    placeholder="you@example.com"
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

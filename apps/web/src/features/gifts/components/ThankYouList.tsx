@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, Send } from "lucide-react";
+import { Check, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { Money } from "@/components/shared/Money";
+import { trackEvent } from "@/lib/analytics";
 import { formatDate } from "@/lib/format";
 import {
   useBulkThankYouMutation,
@@ -29,6 +30,21 @@ import {
 } from "../hooks/useGifts";
 import { bulkThankYouSchema } from "../schemas";
 import type { BulkThankYouInput } from "../types";
+
+const THANK_YOU_TEMPLATES = [
+  {
+    label: "Warm & Grateful",
+    text: "Thank you so much for celebrating with us and for your generous gift! May joy and abundance never depart from your home.",
+  },
+  {
+    label: "Traditional Prayer",
+    text: "We are deeply grateful for your love, presence, and generous blessing. May God replenish your pocket a hundredfold!",
+  },
+  {
+    label: "Short & Sweet",
+    text: "Thank you for making our celebration unforgettable with your thoughtful gift and warm wishes!",
+  },
+] as const;
 
 export type ThankYouListProps = {
   eventId: string;
@@ -72,6 +88,9 @@ export function ThankYouList({ eventId }: ThankYouListProps) {
 
   const gifts = thankYouQuery.data ?? [];
   const unthankedIds = gifts.filter((g) => !g.thanked).map((g) => g.id);
+  const thankedCount = gifts.length - unthankedIds.length;
+  const thankedPercent =
+    gifts.length > 0 ? Math.round((thankedCount / gifts.length) * 100) : 0;
 
   const syncSelectedIds = (nextIds: string[]) => {
     setSelectedIds(nextIds);
@@ -89,6 +108,11 @@ export function ThankYouList({ eventId }: ThankYouListProps) {
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       const res = await bulkMutation.mutateAsync(values);
+      trackEvent("thank_you_marked", {
+        eventId,
+        count: res.updatedCount,
+        mode: "bulk",
+      });
       toast.success(
         `Sent thank-you note to ${res.updatedCount} ${res.updatedCount === 1 ? "giver" : "givers"}.`
       );
@@ -130,6 +154,31 @@ export function ThankYouList({ eventId }: ThankYouListProps) {
         />
       ) : (
         <>
+          {/* Goal Gradient Gratitude Progress Bar */}
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-semibold text-foreground">
+                Gratitude progress: {thankedCount} of {gifts.length} guests thanked
+              </span>
+              <span className="font-bold text-primary">
+                {thankedPercent}% complete
+              </span>
+            </div>
+            <div
+              role="progressbar"
+              aria-label={`Gratitude progress: ${thankedPercent}% complete`}
+              aria-valuenow={thankedPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className="h-2 w-full overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${thankedPercent}%` }}
+              />
+            </div>
+          </div>
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">
@@ -149,6 +198,34 @@ export function ThankYouList({ eventId }: ThankYouListProps) {
                       {(watchedMessage ?? "").length}/500
                     </span>
                   </div>
+
+                  <div className="space-y-1">
+                    <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                      <Sparkles className="h-3 w-3 text-primary" aria-hidden="true" />
+                      <span>Tap a gratitude template:</span>
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {THANK_YOU_TEMPLATES.map((tpl) => (
+                        <button
+                          key={tpl.label}
+                          type="button"
+                          onClick={() => {
+                            form.setValue("message", tpl.text, {
+                              shouldValidate: true,
+                            });
+                            trackEvent("thank_you_template_copied", {
+                              eventId,
+                              template: tpl.label,
+                            });
+                          }}
+                          className="rounded-full border border-primary/25 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/15"
+                        >
+                          + {tpl.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <Textarea
                     id="bulk-thank-you-msg"
                     rows={3}

@@ -56,6 +56,7 @@ export type EventSummary = {
   id: string;
   slug: string;
   name: string;
+  hostName?: string;
   type: EventType;
   date: string;
   coverUrl?: string;

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiClientError } from "@/lib/api-client";
+import { trackEvent } from "@/lib/analytics";
 import { useSubmitRsvpMutation } from "../hooks/useRsvp";
 import { rsvpFormSchema } from "../schemas";
 import type { RsvpFormInput, RsvpRecord, RsvpResponse } from "../types";
@@ -66,6 +67,11 @@ export function RsvpForm({
             : undefined,
         email: values.email?.trim() || undefined,
         phone: values.phone?.trim() || undefined,
+      });
+      trackEvent("rsvp_submitted", {
+        slug,
+        response: values.response,
+        hasPlusOne: Boolean(values.plusOneName?.trim()),
       });
       setConfirmedRsvp(saved);
       toast.success("Your RSVP has been saved.");
@@ -145,6 +151,9 @@ export function RsvpForm({
         <Label htmlFor="rsvp-guest-name">Your full name</Label>
         <Input
           id="rsvp-guest-name"
+          autoComplete="name"
+          enterKeyHint="next"
+          placeholder="e.g. Kemi Adesanya"
           maxLength={60}
           {...form.register("name")}
           aria-describedby={
@@ -179,11 +188,15 @@ export function RsvpForm({
                 variant={isSelected ? "default" : "outline"}
                 role="radio"
                 aria-checked={isSelected}
-                onClick={() =>
+                onClick={() => {
                   form.setValue("response", opt.value, {
                     shouldValidate: true,
-                  })
-                }
+                  });
+                  trackEvent("rsvp_response_selected", {
+                    slug,
+                    response: opt.value,
+                  });
+                }}
               >
                 {opt.label}
               </Button>
@@ -197,6 +210,8 @@ export function RsvpForm({
           <Label htmlFor="rsvp-plus-one">Plus-one name (optional)</Label>
           <Input
             id="rsvp-plus-one"
+            enterKeyHint="next"
+            placeholder="Guest accompanying you"
             maxLength={60}
             {...form.register("plusOneName")}
             aria-describedby={
@@ -217,32 +232,44 @@ export function RsvpForm({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="rsvp-email">Email address</Label>
-          <Input
-            id="rsvp-email"
-            type="email"
-            autoComplete="email"
-            maxLength={254}
-            {...form.register("email")}
-            aria-describedby={
-              form.formState.errors.email ? "rsvp-email-error" : undefined
-            }
-          />
-        </div>
+      <div className="space-y-1.5">
+        <p className="text-xs text-muted-foreground">
+          Provide either your email or phone number so {ownerFirstName} can share event updates:
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="rsvp-email">Email address</Label>
+            <Input
+              id="rsvp-email"
+              type="email"
+              autoComplete="email"
+              spellCheck={false}
+              autoCapitalize="none"
+              enterKeyHint="next"
+              placeholder="you@example.com"
+              maxLength={254}
+              {...form.register("email")}
+              aria-describedby={
+                form.formState.errors.email ? "rsvp-email-error" : undefined
+              }
+            />
+          </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="rsvp-phone">Phone number</Label>
-          <Input
-            id="rsvp-phone"
-            type="tel"
-            autoComplete="tel"
-            {...form.register("phone")}
-            aria-describedby={
-              form.formState.errors.phone ? "rsvp-phone-error" : undefined
-            }
-          />
+          <div className="space-y-1.5">
+            <Label htmlFor="rsvp-phone">Phone number</Label>
+            <Input
+              id="rsvp-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              enterKeyHint="send"
+              placeholder="08031234567"
+              {...form.register("phone")}
+              aria-describedby={
+                form.formState.errors.phone ? "rsvp-phone-error" : undefined
+              }
+            />
+          </div>
         </div>
       </div>
 

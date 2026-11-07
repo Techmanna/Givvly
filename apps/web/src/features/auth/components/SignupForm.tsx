@@ -21,6 +21,7 @@ import {
 import { PasswordField } from "@/components/shared/PasswordField";
 import { toast } from "@/components/ui/sonner";
 import { sanitizeNextPath } from "@/lib/format";
+import { trackEvent } from "@/lib/analytics";
 import {
   useResendVerificationMutation,
   useSignupMutation,
@@ -44,6 +45,7 @@ export function SignupForm({ nextPath }: SignupFormProps) {
   const [emailTaken, setEmailTaken] = React.useState(false);
   const [submittedEmail, setSubmittedEmail] = React.useState<string | null>(null);
   const [cooldown, setCooldown] = React.useState(0);
+  const [showOptionalPhone, setShowOptionalPhone] = React.useState(false);
 
   const form = useForm<SignupInput, unknown, SignupPayload>({
     resolver: zodResolver(signupSchema),
@@ -56,6 +58,10 @@ export function SignupForm({ nextPath }: SignupFormProps) {
       terms: false,
     },
   });
+
+  React.useEffect(() => {
+    trackEvent("signup_started", { nextPath: safeNext });
+  }, [safeNext]);
 
   React.useEffect(() => {
     if (cooldown <= 0) return;
@@ -77,6 +83,10 @@ export function SignupForm({ nextPath }: SignupFormProps) {
 
     try {
       const res = await signupMutation.mutateAsync(values);
+      trackEvent("signup_completed", {
+        hasPhone: Boolean(values.phone?.trim()),
+        requiresVerification: Boolean(res.requiresVerification),
+      });
       if (res.user && res.user.emailVerified && !res.requiresVerification) {
         router.push(safeNext);
         return;
@@ -147,6 +157,11 @@ export function SignupForm({ nextPath }: SignupFormProps) {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-center text-xs text-muted-foreground">
+        <span className="font-semibold text-foreground">Free forever for hosts</span>{" "}
+        • Takes 30 seconds • Direct Nigerian bank payouts
+      </div>
+
       <GoogleAuthButton nextPath={safeNext} label="Sign up with Google" />
 
       <div className="relative">
@@ -178,7 +193,12 @@ export function SignupForm({ nextPath }: SignupFormProps) {
               <FormItem>
                 <FormLabel>Full name</FormLabel>
                 <FormControl>
-                  <Input autoComplete="name" {...field} />
+                  <Input
+                    autoComplete="name"
+                    enterKeyHint="next"
+                    placeholder="e.g. Adaobi Okafor"
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -192,7 +212,15 @@ export function SignupForm({ nextPath }: SignupFormProps) {
               <FormItem>
                 <FormLabel>Email address</FormLabel>
                 <FormControl>
-                  <Input type="email" autoComplete="email" {...field} />
+                  <Input
+                    type="email"
+                    autoComplete="email"
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    enterKeyHint="next"
+                    placeholder="you@example.com"
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
                 {emailTaken ? (
@@ -210,27 +238,45 @@ export function SignupForm({ nextPath }: SignupFormProps) {
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phone number (optional)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="tel"
-                    autoComplete="tel"
-                    {...field}
-                    value={field.value ?? ""}
-                  />
-                </FormControl>
-                <FormDescription>
-                  Nigerian format (e.g. 08012345678) for event notifications.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {!showOptionalPhone ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOptionalPhone(true);
+                  trackEvent("signup_optional_phone_toggled", { expanded: true });
+                }}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                + Add Nigerian phone number for WhatsApp/SMS alerts (optional)
+              </button>
+            </div>
+          ) : (
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone number (optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      enterKeyHint="next"
+                      placeholder="08031234567"
+                      {...field}
+                      value={field.value ?? ""}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Nigerian format (e.g. 08012345678) for instant gift alerts.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           <FormField
             control={form.control}

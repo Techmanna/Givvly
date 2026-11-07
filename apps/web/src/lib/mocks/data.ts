@@ -550,10 +550,13 @@ const EVENT_HOST_NAMES: Record<string, string> = {
 };
 
 export function buildPublicEventFromDetail(detail: EventDetail): PublicEvent {
+  const resolvedHost =
+    detail.hostName?.trim() || EVENT_HOST_NAMES[detail.id] || "Adaobi";
   return {
     id: detail.id,
     slug: detail.slug,
     name: detail.name,
+    hostName: resolvedHost,
     type: detail.type,
     date: detail.date,
     coverUrl: detail.coverUrl,
@@ -564,7 +567,7 @@ export function buildPublicEventFromDetail(detail: EventDetail): PublicEvent {
     giftCount: detail.giftCount,
     rsvpYesCount: detail.rsvpYesCount,
     story: detail.story,
-    ownerFirstName: EVENT_HOST_NAMES[detail.id] ?? "Adaobi",
+    ownerFirstName: resolvedHost,
     allowPlusOne: detail.allowPlusOne,
     registry: MOCK_REGISTRY_BY_EVENT[detail.id] ?? [],
     pools: MOCK_POOLS_BY_EVENT[detail.id] ?? [],

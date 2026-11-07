@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildUniqueEventSlug,
   eventStep1Schema,
   eventStep3Schema,
   eventStep4Schema,
   getLagosDateBounds,
   payoutSetupSchema,
+  slugifyEventName,
   unlockEventSchema,
 } from "./schemas";
 import { eventKeys } from "./keys";
 import { isVideoMediaUrl, validateClientMediaFile } from "./api";
 
-describe("eventKeys", () => {
+describe("eventKeys & buildUniqueEventSlug", () => {
   it("constructs deterministic keys", () => {
     expect(eventKeys.all).toEqual(["events"]);
     expect(eventKeys.mine()).toEqual(["events", "mine"]);
@@ -20,6 +22,23 @@ describe("eventKeys", () => {
       "public",
       "chidi-wedding",
     ]);
+  });
+
+  it("normalizes event names identically to backend and guarantees unique slugs", () => {
+    expect(slugifyEventName("  Adaobi & Chidi's Forever 2026! ")).toBe(
+      "adaobi-chidis-forever-2026"
+    );
+    expect(
+      buildUniqueEventSlug("Adaobi & Chidi's Forever 2026", "k8m2", [])
+    ).toBe("adaobi-chidis-forever-2026-k8m2");
+
+    // Collision disambiguation when existing events already use the slug
+    expect(
+      buildUniqueEventSlug("Adaobi & Chidi's Forever 2026", "k8m2", [
+        "adaobi-chidis-forever-2026-k8m2",
+        "adaobi-chidis-forever-2026-k8m2-2",
+      ])
+    ).toBe("adaobi-chidis-forever-2026-k8m2-3");
   });
 });
 
@@ -78,11 +97,17 @@ describe("eventStep3Schema & unlockEventSchema", () => {
 });
 
 describe("eventStep4Schema & payoutSetupSchema", () => {
-  it("validates registry item price range (500 to 5,000,000 naira)", () => {
+  it("validates registry item price range (0 for flexible/airtime wishes, or 500 to 5,000,000 naira)", () => {
     expect(
       eventStep4Schema.safeParse({
         registryItems: [
           { id: "1", title: "Blender", targetPriceNaira: 45_000 },
+          {
+            id: "2",
+            title: "Airtime Top-Up (Any Network)",
+            category: "AIRTIME_DATA",
+            targetPriceNaira: 0,
+          },
         ],
       }).success
     ).toBe(true);

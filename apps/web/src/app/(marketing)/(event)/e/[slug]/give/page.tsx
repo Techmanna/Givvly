@@ -51,6 +51,9 @@ export default async function PublicGivePage({
           eventName={event.name}
           ownerFirstName={event.ownerFirstName}
           moneyGiftsEnabled={event.moneyGiftsEnabled}
+          eventType={event.type}
+          eventDate={event.date}
+          eventStory={event.story}
         />
       </div>
     </main>

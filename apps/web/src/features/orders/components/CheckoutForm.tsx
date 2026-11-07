@@ -41,6 +41,7 @@ import { PaymentGatewayModal } from "./PaymentGatewayModal";
 import { directCheckoutSchema } from "../schemas";
 import { useCreateDirectOrder, useOrdersList } from "../hooks/useOrders";
 import { createSingleProductWhatsAppLink } from "@/lib/whatsapp";
+import { trackEvent } from "@/lib/analytics";
 import { WhatsAppOrderSection } from "@/components/shared/WhatsAppOrderSection";
 import type { DirectCheckoutInput, Order } from "../types";
 
@@ -339,6 +340,13 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
         values.recipientName?.trim() || values.recipientPhone.trim();
 
       rememberRecipientPhone(values.recipientPhone, values.recipientName);
+      trackEvent("checkout_initiated", {
+        productSlug,
+        isVtuProduct,
+        totalKobo,
+        wrapping: Boolean(values.wrapping),
+        paymentMethod,
+      });
 
       const result = await createOrderMutation.mutateAsync({
         productSlug,
@@ -729,6 +737,8 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                 </Label>
                 <Input
                   id="recipientName"
+                  autoComplete="name"
+                  enterKeyHint="next"
                   placeholder="e.g. Chidinma Eze (Optional)"
                   {...form.register("recipientName")}
                 />
@@ -789,6 +799,8 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                   <Label htmlFor="street">Street address</Label>
                   <Input
                     id="street"
+                    autoComplete="street-address"
+                    enterKeyHint="next"
                     placeholder="14 Admiralty Way"
                     {...form.register("street")}
                   />
@@ -804,6 +816,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                     <Label htmlFor="area">Area / Neighbourhood</Label>
                     <Input
                       id="area"
+                      enterKeyHint="next"
                       placeholder="Lekki Phase 1"
                       {...form.register("area")}
                     />
@@ -818,6 +831,8 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                     <Label htmlFor="city">City</Label>
                     <Input
                       id="city"
+                      autoComplete="address-level2"
+                      enterKeyHint="next"
                       placeholder="Lagos"
                       {...form.register("city")}
                     />
@@ -832,6 +847,8 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                     <Label htmlFor="state">State</Label>
                     <Input
                       id="state"
+                      autoComplete="address-level1"
+                      enterKeyHint="next"
                       placeholder="Lagos"
                       {...form.register("state")}
                     />
@@ -879,21 +896,31 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
             </div>
 
             {!isVtuProduct && (
-              <div className="flex items-start gap-3 rounded-xl border border-border bg-surface-subtle p-3.5">
+              <div className="flex items-start gap-3 rounded-xl border border-primary/25 bg-primary/5 p-3.5">
                 <Checkbox
                   id="wrapping"
                   checked={wrapping}
-                  onCheckedChange={(checked) =>
-                    form.setValue("wrapping", Boolean(checked))
-                  }
+                  onCheckedChange={(checked) => {
+                    const nextVal = Boolean(checked);
+                    form.setValue("wrapping", nextVal);
+                    trackEvent("checkout_wrapping_toggled", {
+                      productSlug,
+                      wrapping: nextVal,
+                    });
+                  }}
                 />
                 <div className="space-y-0.5">
-                  <Label htmlFor="wrapping" className="cursor-pointer font-medium">
-                    Add Blush & Gold luxury gift wrapping (+
-                    <Money amountKobo={WRAPPING_FEE_KOBO} />)
-                  </Label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Label htmlFor="wrapping" className="cursor-pointer font-medium">
+                      Add Blush & Gold luxury gift wrapping (+
+                      <Money amountKobo={WRAPPING_FEE_KOBO} />)
+                    </Label>
+                    <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      Celebration Ready
+                    </span>
+                  </div>
                   <p className="text-xs text-ink-muted">
-                    Includes satin ribbon, wax seal, and keepsake card.
+                    Hand-wrapped in Lagos with satin ribbon, gold wax seal, and your printed keepsake card.
                   </p>
                 </div>
               </div>

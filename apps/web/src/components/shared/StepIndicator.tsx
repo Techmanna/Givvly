@@ -10,6 +10,7 @@ export type StepIndicatorProps = {
   steps: readonly StepItem[];
   currentStep: number;
   onSelectStep?: (step: number) => void;
+  endowedLabel?: string;
   className?: string;
 };
 
@@ -17,11 +18,56 @@ export function StepIndicator({
   steps,
   currentStep,
   onSelectStep,
+  endowedLabel = "Host workspace ready",
   className,
 }: StepIndicatorProps) {
+  const totalSteps = Math.max(steps.length, 1);
+  // Endowed progress: Step 1 begins at 1/totalSteps (e.g. 20% for 5 steps) so the bar never starts at zero
+  const progressPercent = Math.min(
+    100,
+    Math.max(15, Math.round((currentStep / totalSteps) * 100))
+  );
+  const currentStepItem =
+    steps.find((s) => s.step === currentStep) ?? steps[0];
+  const stepsRemaining = Math.max(0, totalSteps - currentStep);
+
   return (
-    <nav aria-label="Progress" className={cn("w-full", className)}>
-      <ol className="flex items-center justify-between gap-2">
+    <nav aria-label="Progress" className={cn("w-full space-y-3", className)}>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+            <Check className="h-3 w-3" aria-hidden="true" />
+            {endowedLabel}
+          </span>
+          <span className="font-medium text-muted-foreground">
+            Step {currentStep} of {totalSteps}
+            {currentStepItem ? `: ${currentStepItem.label}` : ""}
+          </span>
+        </div>
+        <span className="font-semibold text-primary">
+          {stepsRemaining === 0
+            ? `${progressPercent}% • Ready to publish!`
+            : stepsRemaining === 1
+              ? `${progressPercent}% • Final step next`
+              : `${progressPercent}% complete`}
+        </span>
+      </div>
+
+      <div
+        role="progressbar"
+        aria-label={`Setup progress: ${progressPercent}% complete`}
+        aria-valuenow={progressPercent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        className="h-2 w-full overflow-hidden rounded-full bg-muted"
+      >
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+
+      <ol className="flex items-center justify-between gap-2 pt-1">
         {steps.map((item) => {
           const isCompleted = item.step < currentStep;
           const isCurrent = item.step === currentStep;

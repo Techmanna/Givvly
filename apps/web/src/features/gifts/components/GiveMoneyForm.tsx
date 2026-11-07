@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
@@ -10,7 +10,7 @@ import {
   ExternalLink,
   Gift,
   Lock,
-  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,14 +20,190 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Money } from "@/components/shared/Money";
 import { ApiClientError } from "@/lib/api-client";
+import { trackEvent } from "@/lib/analytics";
 import { formatNaira, nairaToKobo } from "@/lib/format";
 import { useGiveDraftStore } from "@/stores/give-draft-store";
+import type { EventType } from "@givvly/contracts";
 import { useInitiateMoneyGiftMutation } from "../hooks/useGifts";
 import { loadPaystackScript, openPaystackCheckout } from "../paystack";
 import { giveMoneySchema, hasProfanityWarning } from "../schemas";
 import type { GiveMoneyInput, PaymentInitResponse } from "../types";
 
 const PRESET_AMOUNTS_NAIRA = [5_000, 10_000, 25_000, 50_000, 100_000] as const;
+const POPULAR_ANCHOR_NAIRA = 25_000;
+
+export interface BlessingChipContext {
+  eventType?: EventType;
+  eventName: string;
+  ownerFirstName: string;
+  eventDate?: string;
+  eventStory?: string;
+}
+
+/**
+ * Generates context-aware celebratory blessing chips tailored to the event's
+ * type, title, host name, seasonal date, and story.
+ */
+export function getDynamicBlessingChips({
+  eventType,
+  eventName,
+  ownerFirstName,
+  eventDate,
+  eventStory,
+}: BlessingChipContext): {
+  contextLabel: string;
+  chips: string[];
+} {
+  const host = ownerFirstName.trim() || "you";
+  const combined = `${eventName} ${eventStory ?? ""}`.toLowerCase();
+
+  // Detect seasonal cue from eventDate
+  let dateMonth: number | null = null;
+  if (eventDate) {
+    const parsed = new Date(`${eventDate}T00:00:00+01:00`);
+    if (!Number.isNaN(parsed.getTime())) {
+      dateMonth = parsed.getMonth() + 1;
+    }
+  }
+  const isDecember = dateMonth === 12;
+
+  // Detect milestone age (e.g. "30th", "40th", "50th", "60th")
+  const milestoneMatch = eventName.match(/\b(\d{1,2}(?:st|nd|rd|th))\b/i);
+  const milestoneLabel = milestoneMatch?.[1];
+
+  // Infer effective occasion from explicit eventType OR eventName/eventStory cues
+  const isBabyContext =
+    eventType === "BABY_SHOWER" ||
+    /\b(baby|shower|naming|dedication|christening|newborn|nursery|bundle of joy)\b/i.test(
+      combined
+    );
+  const isGradContext =
+    eventType === "GRADUATION" ||
+    /\b(graduation|convocation|induction|mbbs|call to bar|degree|masters|phd)\b/i.test(
+      combined
+    );
+  const isHousewarmingContext =
+    /\b(housewarming|new home|new apartment|blessing of home|move-in)\b/i.test(
+      combined
+    );
+  const isRetirementContext =
+    /\b(retirement|retire|send-forth|sendforth|meritorious)\b/i.test(combined);
+  const isBirthdayContext =
+    eventType === "BIRTHDAY" ||
+    /\b(birthday|bday|jubilee|turns)\b/i.test(combined) ||
+    Boolean(milestoneLabel);
+  const isWeddingContext =
+    eventType === "WEDDING" ||
+    /\b(wedding|marriage|matrimony|union|trad|bridal|engagement|forever|mr\s*&\s*mrs)\b/i.test(
+      combined
+    ) ||
+    (!isBabyContext &&
+      !isGradContext &&
+      !isBirthdayContext &&
+      eventName.includes("&"));
+
+  if (isBabyContext) {
+    const isNamingOrDedication = /\b(naming|dedication|christening)\b/i.test(
+      combined
+    );
+    return {
+      contextLabel: isNamingOrDedication
+        ? "Naming & Dedication"
+        : "Baby Shower",
+      chips: [
+        `Congratulations, ${host}! Welcome to the world, little bundle of joy—may you grow in wisdom and grace. 🍼✨`,
+        `May God protect, bless, and surround your growing family with peace and abundant provision! 🙏💛`,
+        isNamingOrDedication
+          ? `Rejoicing with your family on this joyful naming and dedication! May this child bring endless pride. 🎉👶`
+          : `So excited for your growing family, ${host}! Wishing you restful nights and the sweetest memories ahead. 🌸🧸`,
+      ],
+    };
+  }
+
+  if (isGradContext) {
+    const isInduction = /\b(induction|mbbs|doctor|call to bar|barrister)\b/i.test(
+      combined
+    );
+    return {
+      contextLabel: isInduction ? "Induction" : "Graduation",
+      chips: [
+        `Congratulations on this huge milestone, ${host}! Hard work and grace paid off—so proud of you! 🎓✨`,
+        `May this achievement open doors to global opportunities, favour, and greater heights ahead! 🙏🚀`,
+        isInduction
+          ? `Congratulations on your professional induction, ${host}! Wishing you a distinguished and impactful career ahead. 🌟🥂`
+          : `Cheers to your next chapter, ${host}! The sky is only the starting point for you. 🥂🎉`,
+      ],
+    };
+  }
+
+  if (isHousewarmingContext && eventType !== "WEDDING") {
+    return {
+      contextLabel: "Housewarming",
+      chips: [
+        `Congratulations on your beautiful new home, ${host}! May it always be filled with peace, laughter, and abundance. 🏡✨`,
+        `May God bless your new abode and make it a haven of joy, warmth, and hospitality! 🙏🥂`,
+        `Here's to making unforgettable memories with family and friends in your new space! 🎉🪴`,
+      ],
+    };
+  }
+
+  if (isRetirementContext) {
+    return {
+      contextLabel: "Retirement",
+      chips: [
+        `Happy retirement, ${host}! Thank you for your inspiring legacy—wishing you a restful, joyful new chapter. 🌟🥂`,
+        `May God reward your years of dedication with sound health, peace, and long life to enjoy the fruits of your labour! 🙏✨`,
+        `Cheers to a well-earned new season of family, travel, and relaxation! 🎉🌴`,
+      ],
+    };
+  }
+
+  if (isBirthdayContext) {
+    const hasThanksgivingCue = /\b(thanksgiving|grace|grateful)\b/i.test(
+      combined
+    );
+    return {
+      contextLabel: milestoneLabel
+        ? `${milestoneLabel} Birthday`
+        : "Birthday",
+      chips: [
+        milestoneLabel
+          ? `Happy ${milestoneLabel} birthday, ${host}! Wishing you long life, sound health, and greater heights. 🎂🥂`
+          : `Happy birthday, ${host}! Wishing you long life, sound health, and unending prosperity. 🎂✨`,
+        `May this new year of your life bring open doors, divine favour, and abundant joy! 🙏🎉`,
+        hasThanksgivingCue
+          ? `Joining you to give thanks for another year of grace, growth, and overflowing blessings, ${host}! 🙌✨`
+          : `Cheers to more life, more wins, and unforgettable memories ahead, ${host}! 🥂🔥`,
+      ],
+    };
+  }
+
+  if (isWeddingContext) {
+    const hasHoneymoonOrHomeCue =
+      /\b(honeymoon|getaway|travel|new home|kitchen)\b/i.test(combined);
+    return {
+      contextLabel: "Wedding",
+      chips: [
+        `Happy married life, ${host}! Wishing your union a lifetime of love, laughter, and abundance. 💍✨`,
+        `May God bless your new home with peace, fruitfulness, and unending joy! 🙏❤️`,
+        hasHoneymoonOrHomeCue
+          ? `Here's to building a warm new home and making unforgettable honeymoon memories together! 🥂🌴`
+          : isDecember
+            ? `May your December wedding usher your family into a new year of endless marital bliss! 🎄🥂`
+            : `Cheers to forever! May your love grow stronger and sweeter with every passing year. 🥂🎉`,
+      ],
+    };
+  }
+
+  return {
+    contextLabel: "Celebration",
+    chips: [
+      `Celebrating with you, ${host}! Wishing you a lifetime of love, joy, and abundance. 🎉`,
+      `May God bless this special milestone richly and fill your home with peace and favour! 🙏✨`,
+      `Cheers to long life, good health, and unending prosperity for you and yours! 🥂`,
+    ],
+  };
+}
 
 type DisplayCurrency = "NGN" | "USD" | "GBP" | "EUR";
 
@@ -50,6 +226,9 @@ export type GiveMoneyFormProps = {
   eventName: string;
   ownerFirstName: string;
   moneyGiftsEnabled: boolean;
+  eventType?: EventType;
+  eventDate?: string;
+  eventStory?: string;
   onSuccessNavigate?: (reference: string) => void;
 };
 
@@ -58,6 +237,9 @@ export function GiveMoneyForm({
   eventName,
   ownerFirstName,
   moneyGiftsEnabled,
+  eventType,
+  eventDate,
+  eventStory,
   onSuccessNavigate,
 }: GiveMoneyFormProps) {
   const router = useRouter();
@@ -65,6 +247,19 @@ export function GiveMoneyForm({
   const hydrateForSlug = useGiveDraftStore((s) => s.hydrateForSlug);
   const updateDraft = useGiveDraftStore((s) => s.updateDraft);
   const rotateIdempotencyKey = useGiveDraftStore((s) => s.rotateIdempotencyKey);
+
+  const { contextLabel: blessingContextLabel, chips: dynamicBlessingChips } =
+    useMemo(
+      () =>
+        getDynamicBlessingChips({
+          eventType,
+          eventName,
+          ownerFirstName,
+          eventDate,
+          eventStory,
+        }),
+      [eventType, eventName, ownerFirstName, eventDate, eventStory]
+    );
 
   const [pendingPayment, setPendingPayment] =
     useState<PaymentInitResponse | null>(null);
@@ -174,6 +369,13 @@ export function GiveMoneyForm({
       anonymous: values.anonymous,
     });
 
+    trackEvent("give_initiated", {
+      slug,
+      amountNaira: values.amountNaira,
+      anonymous: Boolean(values.anonymous),
+      hasMessage: Boolean(values.message?.trim()),
+    });
+
     try {
       const payment = await initMutation.mutateAsync({
         payload: {
@@ -194,6 +396,11 @@ export function GiveMoneyForm({
         reference: payment.reference,
         accessCode: payment.accessCode,
         onComplete: (ref) => {
+          trackEvent("give_completed", {
+            slug,
+            reference: ref,
+            amountNaira: values.amountNaira,
+          });
           goToReceipt(ref);
         },
         onDismiss: () => {
@@ -280,21 +487,42 @@ export function GiveMoneyForm({
         >
           {PRESET_AMOUNTS_NAIRA.map((preset) => {
             const isSelected = safeAmountNaira === preset;
+            const isPopularAnchor = preset === POPULAR_ANCHOR_NAIRA;
             return (
               <Button
                 key={preset}
                 type="button"
                 variant={isSelected ? "default" : "outline"}
                 size="sm"
+                className={`relative ${
+                  isPopularAnchor && !isSelected
+                    ? "border-primary/50 bg-primary/5 font-semibold"
+                    : ""
+                }`}
                 onClick={() => {
                   setPendingPayment(null);
                   form.setValue("amountNaira", preset, {
                     shouldValidate: true,
                   });
                   updateDraft({ amountKobo: nairaToKobo(preset) });
+                  trackEvent("give_preset_selected", {
+                    slug,
+                    presetNaira: preset,
+                  });
                 }}
               >
-                {formatNaira(nairaToKobo(preset))}
+                <span className="flex flex-col items-center leading-tight">
+                  <span>{formatNaira(nairaToKobo(preset))}</span>
+                  {isPopularAnchor ? (
+                    <span
+                      className={`text-[9px] font-bold uppercase tracking-wider ${
+                        isSelected ? "text-primary-foreground/90" : "text-primary"
+                      }`}
+                    >
+                      Popular
+                    </span>
+                  ) : null}
+                </span>
               </Button>
             );
           })}
@@ -368,6 +596,8 @@ export function GiveMoneyForm({
             <Label htmlFor="give-name">Your name</Label>
             <Input
               id="give-name"
+              autoComplete="name"
+              enterKeyHint="next"
               maxLength={60}
               {...form.register("name", {
                 onChange: (e) => updateDraft({ name: e.target.value }),
@@ -394,6 +624,9 @@ export function GiveMoneyForm({
             id="give-email"
             type="email"
             autoComplete="email"
+            spellCheck={false}
+            autoCapitalize="none"
+            enterKeyHint="next"
             maxLength={254}
             {...form.register("email", {
               onChange: (e) => updateDraft({ email: e.target.value }),
@@ -422,10 +655,43 @@ export function GiveMoneyForm({
               {(watchedMessage ?? "").length}/500
             </span>
           </div>
+
+          {/* 1-Tap Context-Aware Celebratory Blessing Chips (Reciprocity + Friction Reduction) */}
+          <div className="space-y-1">
+            <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+              <Sparkles className="h-3 w-3 text-primary" aria-hidden="true" />
+              <span>
+                Tap a tailored {blessingContextLabel.toLowerCase()} wish for{" "}
+                {ownerFirstName}:
+              </span>
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {dynamicBlessingChips.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => {
+                    form.setValue("message", chip, { shouldValidate: true });
+                    updateDraft({ message: chip });
+                    trackEvent("give_wish_chip_selected", {
+                      slug,
+                      contextLabel: blessingContextLabel,
+                      chipLength: chip.length,
+                    });
+                  }}
+                  className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-left text-[11px] text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <Textarea
             id="give-message"
             rows={3}
             maxLength={500}
+            placeholder={`Write a warm blessing or prayer for ${ownerFirstName}...`}
             {...form.register("message", {
               onChange: (e) => updateDraft({ message: e.target.value }),
             })}
@@ -544,7 +810,7 @@ export function GiveMoneyForm({
           </span>
         </Button>
 
-        <div className="flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
             Secured by Paystack. By continuing you agree to our{" "}
@@ -557,7 +823,6 @@ export function GiveMoneyForm({
             </Link>
             .
           </span>
-          <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         </div>
       </div>
     </form>

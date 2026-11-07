@@ -8,6 +8,8 @@ import {
   Gift,
   Heart,
   MapPin,
+  ShoppingBag,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GiveDialog } from "@/features/gifts";
@@ -128,14 +130,16 @@ export function PublicEventView({ event }: PublicEventViewProps) {
             <div className="flex items-end justify-between border-b border-border/70 pb-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
-                  Keepsakes for Their Home
+                  Host&apos;s Wishlist &amp; Open Gifting
                 </p>
                 <h2 className="font-heading text-2xl font-semibold text-foreground">
                   Gift Registry
                 </h2>
               </div>
               <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-                {event.registry.length} items
+                {event.registry.length > 0
+                  ? `${event.registry.length} ${event.registry.length === 1 ? "wish" : "wishes"}`
+                  : "Open gifting"}
               </span>
             </div>
 
@@ -166,10 +170,11 @@ export function PublicEventView({ event }: PublicEventViewProps) {
               </h3>
               <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                 Send a cash blessing in Naira (with USD, GBP &amp; EUR previews
-                for diaspora guests) or claim a registry keepsake.
+                for diaspora guests), gift Airtime &amp; Data, or pick any gift
+                from the catalog—whether or not it&apos;s on the registry.
               </p>
 
-              <div className="mt-5">
+              <div className="mt-5 space-y-2.5">
                 {!event.moneyGiftsEnabled ? (
                   <div className="flex items-start gap-2 rounded-2xl border border-border bg-muted/50 p-3.5 text-xs text-muted-foreground">
                     <AlertTriangle
@@ -177,11 +182,12 @@ export function PublicEventView({ event }: PublicEventViewProps) {
                       aria-hidden="true"
                     />
                     <span>
-                      Money gifts are not enabled for this event yet.
+                      Money gifts are not enabled for this event yet, but you
+                      can still gift Airtime, Data, or a Catalog keepsake below.
                     </span>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-2.5">
+                  <div className="flex flex-col gap-2">
                     <Button
                       type="button"
                       size="lg"
@@ -203,6 +209,35 @@ export function PublicEventView({ event }: PublicEventViewProps) {
                     </Button>
                   </div>
                 )}
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="w-full rounded-full text-xs"
+                  >
+                    <Link
+                      href={`/digital?event=${encodeURIComponent(event.slug)}`}
+                    >
+                      <Smartphone className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>Airtime &amp; Data</span>
+                    </Link>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="w-full rounded-full text-xs"
+                  >
+                    <Link
+                      href={`/catalog?event=${encodeURIComponent(event.slug)}`}
+                    >
+                      <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>Gift Catalog</span>
+                    </Link>
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -250,6 +285,9 @@ export function PublicEventView({ event }: PublicEventViewProps) {
         eventName={event.name}
         ownerFirstName={event.ownerFirstName}
         moneyGiftsEnabled={event.moneyGiftsEnabled}
+        eventType={event.type}
+        eventDate={event.date}
+        eventStory={event.story}
       />
     </div>
   );

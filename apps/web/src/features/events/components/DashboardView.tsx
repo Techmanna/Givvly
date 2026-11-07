@@ -27,6 +27,7 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Money } from "@/components/shared/Money";
 import { formatDate } from "@/lib/format";
+import { trackEvent } from "@/lib/analytics";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMyEvents, usePayoutAccountQuery } from "../hooks/useEvents";
 import { useOrdersList } from "@/features/orders/hooks/useOrders";
@@ -79,11 +80,52 @@ export function DashboardView() {
 
   const payoutVerified = payoutQuery.data?.status === "VERIFIED";
 
+  const readinessSteps = [
+    {
+      id: "account_created",
+      label: "Host account & celebration workspace ready",
+      done: true, // Endowed progress: never start at 0%
+      href: "/account",
+      cta: "Completed",
+    },
+    {
+      id: "event_published",
+      label: "Publish your first celebration page",
+      done: events.length > 0,
+      href: "/events/new",
+      cta: "Create page",
+    },
+    {
+      id: "payout_verified",
+      label: "Verify Nigerian bank account for direct cash blessings",
+      done: payoutVerified,
+      href: "/account/payout",
+      cta: "Verify NUBAN",
+    },
+    {
+      id: "first_engagement",
+      label: "Share your WhatsApp link & receive your first RSVP or gift",
+      done: totals.gifts + totals.rsvps > 0,
+      href: events[0] ? `/events/${events[0].id}` : "/events/new",
+      cta: "Share link",
+    },
+  ] as const;
+
+  const completedReadinessCount = readinessSteps.filter((s) => s.done).length;
+  const readinessPercent = Math.round(
+    (completedReadinessCount / readinessSteps.length) * 100
+  );
+
   const handleCopyLink = (slug: string, id: string) => {
     if (typeof window !== "undefined") {
       const origin = window.location.origin;
       navigator.clipboard.writeText(`${origin}/e/${slug}`);
       setCopiedId(id);
+      trackEvent("invite_shared_whatsapp", {
+        eventId: id,
+        slug,
+        channel: "clipboard_copy",
+      });
       setTimeout(() => setCopiedId(null), 2400);
     }
   };
@@ -104,7 +146,7 @@ export function DashboardView() {
               {user?.name ? `Welcome back, ${user.name.split(" ")[0]}! 🌸` : "Celebration Dashboard"}
             </h1>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Monitor your weddings, birthdays, baby dedications, and milestone ceremonies. Track cash gifts, curated hampers, and guest RSVPs seamlessly.
+              Manage your weddings, birthdays, baby dedications, and milestone ceremonies. Track cash blessings, curated hampers, and guest RSVPs in one place.
             </p>
           </div>
 
@@ -116,13 +158,90 @@ export function DashboardView() {
               </Link>
             </Button>
             <Button asChild variant="outline" size="default">
-              <Link href="/live-events">
+              <Link href="/celebrations">
                 <span>Live Directory</span>
               </Link>
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Celebration Readiness Checklist (Goal Gradient + Endowed Progress) */}
+      {!eventsQuery.isLoading && !payoutQuery.isLoading && readinessPercent < 100 && (
+        <Card className="border border-primary/25 bg-card/90 shadow-soft">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="font-heading text-base font-bold text-foreground">
+                  Celebration Readiness Checklist
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  You&apos;re off to a head start! Complete the remaining steps so guests can RSVP and send cash blessings smoothly.
+                </p>
+              </div>
+              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                {completedReadinessCount} of {readinessSteps.length} complete ({readinessPercent}%)
+              </span>
+            </div>
+            <div
+              role="progressbar"
+              aria-label={`Celebration readiness: ${readinessPercent}% complete`}
+              aria-valuenow={readinessPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${readinessPercent}%` }}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-2.5 pt-0 sm:grid-cols-2">
+            {readinessSteps.map((step) => (
+              <div
+                key={step.id}
+                className={`flex items-center justify-between gap-3 rounded-xl border p-3 text-xs ${
+                  step.done
+                    ? "border-emerald-500/25 bg-emerald-500/5 text-muted-foreground"
+                    : "border-border bg-background text-foreground"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2
+                    className={`h-4 w-4 shrink-0 ${
+                      step.done ? "text-emerald-600" : "text-muted-foreground/40"
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <span className={step.done ? "line-through" : "font-medium"}>
+                    {step.label}
+                  </span>
+                </div>
+                {!step.done ? (
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 shrink-0 px-2.5 text-[11px]"
+                    onClick={() =>
+                      trackEvent("readiness_checklist_clicked", {
+                        stepId: step.id,
+                      })
+                    }
+                  >
+                    <Link href={step.href}>{step.cta}</Link>
+                  </Button>
+                ) : (
+                  <span className="text-[11px] font-semibold text-emerald-700">
+                    Done ✓
+                  </span>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Payout / Bank Alert Banner */}
       {!payoutQuery.isLoading && !payoutVerified && (
@@ -133,10 +252,10 @@ export function DashboardView() {
             </div>
             <div>
               <p className="font-medium text-foreground">
-                Nigerian Bank Account verification required for cash gifts
+                Protect your cash blessings — verify your Nigerian bank account
               </p>
               <p className="text-xs text-muted-foreground">
-                Connect your verified NUBAN account so guests can send you monetary blessings directly to your bank account via Paystack/Monnify.
+                Connect your 10-digit NUBAN account in 30 seconds so guests can send monetary blessings directly to your purse via Paystack or Monnify.
               </p>
             </div>
           </div>

@@ -8,7 +8,10 @@ import {
   GIVE_DRAFT_STORAGE_KEY,
   useGiveDraftStore,
 } from "@/stores/give-draft-store";
-import { GiveMoneyForm } from "./components/GiveMoneyForm";
+import {
+  GiveMoneyForm,
+  getDynamicBlessingChips,
+} from "./components/GiveMoneyForm";
 import { GiveReceiptView } from "./components/GiveReceiptView";
 import { OwnerFeed } from "./components/OwnerFeed";
 import { WallOfLove } from "@/features/moderation";
@@ -173,5 +176,37 @@ describe("Step 4: Money gifts, Wall of Love, and Owner Feed", () => {
         screen.getAllByRole("button", { name: /^thanked$/i }).length
       ).toBeGreaterThanOrEqual(3);
     });
+  });
+
+  it("generates dynamic celebratory blessing chips tailored to event context", () => {
+    const weddingChips = getDynamicBlessingChips({
+      eventType: "WEDDING",
+      eventName: "Adaobi & Chidi's Forever",
+      ownerFirstName: "Adaobi",
+      eventDate: "2026-12-19",
+      eventStory: "From Lagos to our honeymoon getaway!",
+    });
+    expect(weddingChips.contextLabel).toBe("Wedding");
+    expect(weddingChips.chips[0]).toContain("Happy married life, Adaobi!");
+    expect(weddingChips.chips[2]).toContain("honeymoon");
+
+    const milestoneBirthdayChips = getDynamicBlessingChips({
+      eventType: "BIRTHDAY",
+      eventName: "Tunde's 40th Birthday Thanksgiving",
+      ownerFirstName: "Tunde",
+    });
+    expect(milestoneBirthdayChips.contextLabel).toBe("40th Birthday");
+    expect(milestoneBirthdayChips.chips[0]).toContain(
+      "Happy 40th birthday, Tunde!"
+    );
+    expect(milestoneBirthdayChips.chips[2]).toContain("give thanks");
+
+    const namingChips = getDynamicBlessingChips({
+      eventType: "BABY_SHOWER",
+      eventName: "Baby Amara Naming Ceremony",
+      ownerFirstName: "Chiamaka",
+    });
+    expect(namingChips.contextLabel).toBe("Naming & Dedication");
+    expect(namingChips.chips[2]).toContain("naming and dedication");
   });
 });

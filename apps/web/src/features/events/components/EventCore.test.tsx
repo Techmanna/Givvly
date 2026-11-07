@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeQueryClient } from "@/lib/query-client";
 import { PayoutSetupForm } from "./PayoutSetupForm";
 import { EventUnlockForm } from "./EventUnlockForm";
+import { getIntelligentRegistrySuggestions } from "./CreateEventWizard";
+import { MOCK_CATALOG_PRODUCTS } from "@/lib/mocks/data";
 import * as eventsApi from "../api";
 import { ApiClientError } from "@/lib/api-client";
 
@@ -85,6 +87,49 @@ describe("PayoutSetupForm & EventUnlockForm", () => {
       expect(unlockSpy).toHaveBeenCalledWith("ada-wedding", "CORRECT1");
       expect(pushMock).toHaveBeenCalledWith("/e/ada-wedding");
     });
+  });
+
+  it("ranks backend catalog products using Event type, Event name, Event date, and Our story", () => {
+    const weddingResult = getIntelligentRegistrySuggestions(
+      MOCK_CATALOG_PRODUCTS,
+      {
+        type: "WEDDING",
+        name: "Chidi & Amaka's Wedding & New Home",
+        date: "2026-12-19",
+        story: "We love cooking in our new kitchen and hosting dinner.",
+      }
+    );
+
+    expect(weddingResult.recommendations.length).toBeGreaterThan(0);
+    expect(weddingResult.activeSignals).toEqual(
+      expect.arrayContaining([
+        "Event: Wedding",
+        expect.stringContaining("Festive Season"),
+        "Story: Personalized cues active",
+      ])
+    );
+    expect(
+      weddingResult.recommendations.some(
+        (r) =>
+          r.product.occasions.includes("WEDDING") ||
+          r.product.giftType === "HOME_KITCHEN"
+      )
+    ).toBe(true);
+
+    const babyResult = getIntelligentRegistrySuggestions(
+      MOCK_CATALOG_PRODUCTS,
+      {
+        type: "BABY_SHOWER",
+        name: "Welcome Baby Onaopemipo Naming Ceremony",
+        date: "2026-08-15",
+        story: "Preparing the nursery for our newborn bundle of joy.",
+      }
+    );
+
+    expect(babyResult.recommendations[0]?.product.giftType).toBe("BABY_ITEMS");
+    expect(babyResult.recommendations[0]?.matchReason).toMatch(
+      /Baby Shower|Baby & Nursery/i
+    );
   });
 });
 

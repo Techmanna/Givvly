@@ -27,6 +27,8 @@ import {
 
 export interface CreateEventDto {
   name: string;
+  slug?: string;
+  hostName?: string;
   type: EventType;
   date: string; // ISO date string
   story?: string;
@@ -44,6 +46,7 @@ export interface CreateEventDto {
 
 export interface UpdateEventDto {
   name?: string;
+  hostName?: string;
   type?: EventType;
   date?: string;
   story?: string;
@@ -62,13 +65,20 @@ export interface CreatePayoutAccountDto {
   accountName: string;
 }
 
-function slugify(name: string): string {
+function slugifyBase(name: string, maxLen = 48): string {
   const base = name
     .toLowerCase()
     .trim()
     .replace(/[^\w\s-]/g, "")
     .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-+|-+$/g, "")
+    .slice(0, maxLen)
+    .replace(/-+$/g, "");
+  return base || "celebration";
+}
+
+function slugify(name: string): string {
+  const base = slugifyBase(name, 48);
   const suffix = Math.random().toString(36).substring(2, 6);
   return `${base}-${suffix}`;
 }
@@ -150,12 +160,41 @@ export class EventsService {
       .filter((m) => Boolean(m.url));
   }
 
+  private async resolveUniqueSlug(
+    tx: any,
+    name: string,
+    requestedSlug?: string
+  ): Promise<string> {
+    const normalizedRequested = requestedSlug?.trim()
+      ? slugifyBase(requestedSlug, 60)
+      : "";
+    let candidate =
+      normalizedRequested.length >= 4 ? normalizedRequested : slugify(name);
+
+    if (typeof tx?.event?.findUnique !== "function") {
+      return candidate;
+    }
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const existing = await tx.event.findUnique({
+        where: { slug: candidate },
+        select: { id: true },
+      });
+      if (!existing) {
+        return candidate;
+      }
+      candidate = `${slugifyBase(name, 48)}-${Math.random().toString(36).substring(2, 6)}`;
+    }
+
+    return `${slugifyBase(name, 44)}-${Date.now().toString(36).slice(-6)}`;
+  }
+
   async createEvent(userId: string, dto: CreateEventDto) {
-    const slug = slugify(dto.name);
     const date = new Date(dto.date);
     const coverMediaId = this.resolveCoverStorageValue(dto.coverUrl, dto.coverKey) ?? null;
 
     const runCreate = async (tx: any) => {
+      const slug = await this.resolveUniqueSlug(tx, dto.name, dto.slug);
       const created = await tx.event.create({
         data: {
           ownerId: userId,
@@ -169,6 +208,9 @@ export class EventsService {
           accessCodeHash: dto.accessCode ? dto.accessCode.trim() : null,
           allowPlusOne: dto.allowPlusOne ?? true,
           status: "DRAFT",
+          ...(dto.hostName?.trim()
+            ? { templateData: { hostName: dto.hostName.trim() } }
+            : {}),
         },
       });
 
@@ -197,6 +239,9 @@ export class EventsService {
       id: event.id,
       slug: event.slug,
       name: event.name,
+      hostName:
+        dto.hostName?.trim() ||
+        ((event.templateData as any)?.hostName as string | undefined),
       type: event.type,
       date: event.date,
       story: event.story,
@@ -240,6 +285,7 @@ export class EventsService {
         id: ev.id,
         slug: ev.slug,
         name: ev.name,
+        hostName: (ev.templateData as any)?.hostName || undefined,
         type: ev.type,
         date: ev.date,
         coverUrl: this.formatCoverUrl(ev.coverMediaId),
@@ -280,6 +326,7 @@ export class EventsService {
 
     return {
       ...event,
+      hostName: (event.templateData as any)?.hostName || undefined,
       coverUrl: this.formatCoverUrl(event.coverMediaId),
       totalReceivedKobo,
       giftCount: event.gifts.length,
@@ -344,11 +391,23 @@ export class EventsService {
     }
 
     const resolvedCover = this.resolveCoverStorageValue(dto.coverUrl, dto.coverKey);
+    const existingTemplateData =
+      existing.templateData && typeof existing.templateData === "object"
+        ? (existing.templateData as Record<string, unknown>)
+        : {};
 
     await this.prisma.event.update({
       where: { id: existing.id },
       data: {
         ...(dto.name ? { name: dto.name.trim() } : {}),
+        ...(dto.hostName !== undefined
+          ? {
+              templateData: {
+                ...existingTemplateData,
+                hostName: dto.hostName.trim() || undefined,
+              },
+            }
+          : {}),
         ...(dto.type ? { type: dto.type } : {}),
         ...(dto.date ? { date: new Date(dto.date) } : {}),
         ...(dto.story !== undefined ? { story: dto.story?.trim() || null } : {}),
@@ -595,12 +654,15 @@ export class EventsService {
       0
     );
 
-    const firstName = event.owner?.name?.split(" ")[0] || "Host";
+    const customHostName = (event.templateData as any)?.hostName?.trim();
+    const firstName =
+      customHostName || event.owner?.name?.split(" ")[0] || "Host";
 
     return {
       id: event.id,
       slug: event.slug,
       name: event.name,
+      hostName: firstName,
       type: event.type,
       date: event.date.toISOString(),
       coverUrl: this.formatCoverUrl(event.coverMediaId),
@@ -668,26 +730,32 @@ export class EventsService {
       take: 20,
     });
 
-    return events.map((ev) => ({
-      id: ev.id,
-      slug: ev.slug,
-      name: ev.name,
-      type: ev.type,
-      date: ev.date.toISOString(),
-      coverUrl: this.formatCoverUrl(ev.coverMediaId),
-      visibility: ev.visibility,
-      status: ev.status,
-      moneyGiftsEnabled: Boolean(ev.payoutAccountId),
-      currency: ev.currency,
-      totalReceivedKobo: 0,
-      giftCount: ev._count.gifts,
-      rsvpYesCount: ev._count.rsvps,
-      story: ev.story,
-      ownerFirstName: ev.owner?.name?.split(" ")[0] || "Host",
-      allowPlusOne: ev.allowPlusOne,
-      registry: [],
-      pools: [],
-    }));
+    return events.map((ev) => {
+      const customHostName = (ev.templateData as any)?.hostName?.trim();
+      const resolvedHost =
+        customHostName || ev.owner?.name?.split(" ")[0] || "Host";
+      return {
+        id: ev.id,
+        slug: ev.slug,
+        name: ev.name,
+        hostName: resolvedHost,
+        type: ev.type,
+        date: ev.date.toISOString(),
+        coverUrl: this.formatCoverUrl(ev.coverMediaId),
+        visibility: ev.visibility,
+        status: ev.status,
+        moneyGiftsEnabled: Boolean(ev.payoutAccountId),
+        currency: ev.currency,
+        totalReceivedKobo: 0,
+        giftCount: ev._count.gifts,
+        rsvpYesCount: ev._count.rsvps,
+        story: ev.story,
+        ownerFirstName: resolvedHost,
+        allowPlusOne: ev.allowPlusOne,
+        registry: [],
+        pools: [],
+      };
+    });
   }
 
   async unlockPublicEvent(slug: string, code: string) {

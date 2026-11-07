@@ -31,7 +31,7 @@ export function createDefaultGiveDraft(eventSlug = ""): GiveDraft {
   return {
     eventSlug,
     type: "MONEY",
-    amountKobo: 500_000, // ₦5,000 default
+    amountKobo: 1_000_000, // ₦10,000 smart social-norm default (Contrast & Anchoring)
     name: "",
     message: "",
     anonymous: false,

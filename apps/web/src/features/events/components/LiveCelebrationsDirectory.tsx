@@ -207,9 +207,10 @@ function CelebrationDirectoryCard({
           name={event.name}
           type={event.type}
           coverUrl={event.coverUrl}
+          variant="card"
           className="rounded-none border-0"
         />
-        <div className="absolute top-3.5 left-3.5 flex items-center gap-2">
+        <div className="pointer-events-none absolute top-3.5 left-3.5 z-20 flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-[#332022]/80 px-3 py-1 text-[11px] font-semibold text-[#FAF3EF] backdrop-blur-md">
             <span className="h-1.5 w-1.5 rounded-full bg-[#4ADE80]" />
             {EVENT_TYPE_BADGES[event.type] ?? event.type}

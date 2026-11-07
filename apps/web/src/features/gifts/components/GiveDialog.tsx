@@ -16,6 +16,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import type { EventType } from "@givvly/contracts";
 import { GiveMoneyForm } from "./GiveMoneyForm";
 
 function subscribeDesktopMedia(callback: () => void): () => void {
@@ -45,6 +46,9 @@ export type GiveDialogProps = {
   eventName: string;
   ownerFirstName: string;
   moneyGiftsEnabled: boolean;
+  eventType?: EventType;
+  eventDate?: string;
+  eventStory?: string;
 };
 
 export function GiveDialog({
@@ -54,6 +58,9 @@ export function GiveDialog({
   eventName,
   ownerFirstName,
   moneyGiftsEnabled,
+  eventType,
+  eventDate,
+  eventStory,
 }: GiveDialogProps) {
   const router = useRouter();
   const isDesktop = useSyncExternalStore(
@@ -84,6 +91,9 @@ export function GiveDialog({
             eventName={eventName}
             ownerFirstName={ownerFirstName}
             moneyGiftsEnabled={moneyGiftsEnabled}
+            eventType={eventType}
+            eventDate={eventDate}
+            eventStory={eventStory}
             onSuccessNavigate={handleSuccessNavigate}
           />
         </DialogContent>
@@ -106,6 +116,9 @@ export function GiveDialog({
             eventName={eventName}
             ownerFirstName={ownerFirstName}
             moneyGiftsEnabled={moneyGiftsEnabled}
+            eventType={eventType}
+            eventDate={eventDate}
+            eventStory={eventStory}
             onSuccessNavigate={handleSuccessNavigate}
           />
         </div>
