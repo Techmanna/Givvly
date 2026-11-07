@@ -2,7 +2,13 @@ import { z } from "zod";
 
 export const clientEnvSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
-  NEXT_PUBLIC_API_URL: z.string().url().default("http://localhost:4000/api/v1"),
+  NEXT_PUBLIC_API_URL: z
+    .string()
+    .refine(
+      (val) => val.startsWith("/") || z.string().url().safeParse(val).success,
+      { message: "Must be a valid URL or path (e.g. /api/v1 or https://...)" }
+    )
+    .default("http://localhost:4000/api/v1"),
   NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: z
     .string()
     .min(1)

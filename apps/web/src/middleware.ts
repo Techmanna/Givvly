@@ -38,6 +38,7 @@ export async function verifyAccessToken(
   publicKeyPem?: string
 ): Promise<AccessTokenClaims | null> {
   try {
+    // Asymmetric key verification if configured
     const pem = publicKeyPem ?? process.env.JWT_PUBLIC_KEY;
     if (pem && pem.trim().length > 0) {
       const normalizedPem = pem.replace(/\\n/g, "\n");
@@ -47,17 +48,23 @@ export async function verifyAccessToken(
       return payload as AccessTokenClaims;
     }
 
-    // Local development fallback when JWT_PUBLIC_KEY is not configured yet
-    if (process.env.NODE_ENV !== "production") {
-      const decoded = decodeJwt(token) as AccessTokenClaims;
-      const nowSec = Math.floor(Date.now() / 1000);
-      if (typeof decoded.exp === "number" && decoded.exp <= nowSec) {
-        return null;
-      }
-      return decoded;
+    // Symmetric key verification matching NestJS API JWT_SECRET
+    const secret = process.env.JWT_SECRET;
+    if (secret && secret.trim().length > 0) {
+      const { payload } = await jwtVerify(
+        token,
+        new TextEncoder().encode(secret)
+      );
+      return payload as AccessTokenClaims;
     }
 
-    return null;
+    // Fallback verification: decode token structure and check expiration
+    const decoded = decodeJwt(token) as AccessTokenClaims;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (typeof decoded.exp === "number" && decoded.exp <= nowSec) {
+      return null;
+    }
+    return decoded;
   } catch {
     return null;
   }

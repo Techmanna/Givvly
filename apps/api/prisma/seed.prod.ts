@@ -25,7 +25,39 @@ try {
   // Ignore
 }
 
-const prisma = new PrismaClient();
+// Sanitize and validate DATABASE_URL
+let dbUrl = process.env.DATABASE_URL?.trim();
+if (dbUrl) {
+  if (
+    (dbUrl.startsWith("<") && dbUrl.endsWith(">")) ||
+    (dbUrl.startsWith('"') && dbUrl.endsWith('"')) ||
+    (dbUrl.startsWith("'") && dbUrl.endsWith("'"))
+  ) {
+    dbUrl = dbUrl.slice(1, -1).trim();
+  }
+}
+
+if (!dbUrl || (!dbUrl.startsWith("postgresql://") && !dbUrl.startsWith("postgres://"))) {
+  console.error("❌ Invalid or missing DATABASE_URL!");
+  console.error(`Received value: "${dbUrl ?? "undefined"}"`);
+  console.error("\n💡 How to fix:");
+  console.error("1. Go to your Render Dashboard -> click 'givvly-postgres'.");
+  console.error("2. Under 'Connections', copy the 'External Database URL'.");
+  console.error("3. Make sure not to include the angle brackets < >.");
+  console.error("\nExample command:");
+  console.error('DATABASE_URL="postgresql://givvly:your_password@dpg-xxxxxx-a.oregon-postgres.render.com/givvly_prod" pnpm --filter @givvly/api seed:prod\n');
+  process.exit(1);
+}
+
+process.env.DATABASE_URL = dbUrl;
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: dbUrl,
+    },
+  },
+});
 
 async function main() {
   console.log("🚀 Starting Givvly Production Database Seed (Admin + Catalog + Digital Gifts)...");

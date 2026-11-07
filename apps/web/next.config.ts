@@ -43,6 +43,25 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    const backendUrl =
+      process.env.API_INTERNAL_URL ||
+      process.env.BACKEND_API_URL ||
+      "";
+
+    if (!backendUrl || !backendUrl.startsWith("http")) {
+      return [];
+    }
+
+    const cleanBackend = backendUrl.replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
+
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: `${cleanBackend}/api/v1/:path*`,
+      },
+    ];
+  },
   async headers() {
     return [
       {
