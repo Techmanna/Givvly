@@ -154,7 +154,7 @@ export function CatalogBrowseView() {
         ) : null} */}
       </div>
 
-      <div className="sticky top-16 md:top-20">
+      <div className="">
         <FilterBar filters={filters} onChange={updateFilters} />
       </div>
 
