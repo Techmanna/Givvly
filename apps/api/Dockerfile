@@ -20,7 +20,7 @@ COPY apps/api/ ./apps/api/
 RUN pnpm install --frozen-lockfile
 
 # Generate Prisma client
-RUN pnpm --filter @givvly/api prisma generate
+RUN pnpm --filter @givvly/api prisma:generate
 
 # Build API application
 RUN pnpm --filter @givvly/api build
