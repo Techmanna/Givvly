@@ -49,6 +49,7 @@ export const envSchema = z.object({
   MAX_GIFT_KOBO: z.coerce.number().default(100000000),
 
   // Mail
+  RESEND_API_KEY: z.string().optional().default(""),
   SMTP_HOST: z.string().default("localhost"),
   SMTP_PORT: z.coerce.number().default(465),
   SMTP_SECURE: z.string().optional().default("true"),
