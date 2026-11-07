@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Truck } from "lucide-react";
+import { ArrowLeft, Receipt, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Money } from "@/components/shared/Money";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { CopyButton } from "@/components/shared/CopyButton";
+import { TransactionReceiptModal } from "@/components/shared/TransactionReceiptModal";
 import { useOrderDetail, useOrderTracking } from "../hooks/useOrders";
 import { OrderTimeline } from "./OrderTimeline";
 import { RatingStars } from "./RatingStars";
@@ -23,6 +25,7 @@ export function OrderDetailView({
   trackingToken = "",
   publicView = false,
 }: OrderDetailViewProps) {
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const detailQuery = useOrderDetail(publicView ? "" : orderId);
   const trackingQuery = useOrderTracking(publicView ? trackingToken : "");
 
@@ -82,10 +85,22 @@ export function OrderDetailView({
             </CardTitle>
           </div>
 
-          <CopyButton
-            value={trackingUrl}
-            label="Copy tracking link"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setShowReceiptModal(true)}
+            >
+              <Receipt className="h-4 w-4" />
+              Receipt / Download & Share
+            </Button>
+            <CopyButton
+              value={trackingUrl}
+              label="Copy tracking link"
+            />
+          </div>
         </CardHeader>
 
         <CardContent className="grid gap-8 p-6 lg:grid-cols-[1fr_340px]">
@@ -149,6 +164,13 @@ export function OrderDetailView({
           )}
         </CardContent>
       </Card>
+
+      {showReceiptModal ? (
+        <TransactionReceiptModal
+          order={order}
+          onClose={() => setShowReceiptModal(false)}
+        />
+      ) : null}
     </div>
   );
 }

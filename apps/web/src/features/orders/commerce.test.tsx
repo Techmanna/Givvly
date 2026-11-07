@@ -11,9 +11,7 @@ import { PoolCard, RegistryGrid } from "@/features/registry";
 import { StatusStepper } from "@/features/vendor";
 import { LedgerTable } from "@/features/admin";
 import { OrderTimeline } from "./components/OrderTimeline";
-import { BoxCheckoutForm } from "./components/BoxCheckoutForm";
 import { useCartStore } from "@/stores/cart-store";
-import type { CatalogProduct } from "@givvly/contracts";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -180,111 +178,18 @@ describe("Phase 3 Commerce, Registry, Vendor & Admin", () => {
     expect(screen.getByText("PAY_GIV_1001")).toBeInTheDocument();
   });
 
-  it("manages custom Gift Box items, packaging selection, and predefined combos in cart store", () => {
+  it("hydrates and persists direct checkout draft in cart-store", () => {
     const store = useCartStore.getState();
-    store.clearBox();
+    store.clearCart("lagos-artisan-scented-candle-set");
 
-    const sampleItem1: CatalogProduct = {
-      id: "prod_sample_1",
-      slug: "artisan-chocolate-truffles",
-      name: "Artisan Chocolate Truffles",
-      description: "Handcrafted dark truffles",
-      priceKobo: 4_500_000, // ₦45,000
-      category: "Chocolates",
-      occasions: ["BIRTHDAY"],
-      relationships: ["FRIEND"],
-      vendorName: "Lagos Chocolatier",
-      inStock: true,
-      rating: 5,
-      reviewCount: 12,
-    };
+    store.updateDraft({
+      recipientPhone: "08031234567",
+      recipientName: "Chidi Nwosu",
+      wrapping: true,
+    });
 
-    const sampleItem2: CatalogProduct = {
-      id: "prod_sample_2",
-      slug: "french-jasmine-candle",
-      name: "French Jasmine Scented Candle",
-      description: "Soy wax candle",
-      priceKobo: 6_000_000, // ₦60,000
-      category: "Wellness",
-      occasions: ["BIRTHDAY"],
-      relationships: ["FRIEND"],
-      vendorName: "Scents of Ikoyi",
-      inStock: true,
-      rating: 5,
-      reviewCount: 8,
-    };
-
-    // Add items to box
-    store.addToBox(sampleItem1, 1);
-    store.addToBox(sampleItem2, 2);
-
-    expect(useCartStore.getState().getBoxItemCount()).toBe(3);
-    // 45,000 + (60,000 * 2) = 165,000 naira = 16,500,000 kobo
-    expect(useCartStore.getState().getItemsSubtotalKobo()).toBe(16_500_000);
-
-    // Update quantity & test remove
-    useCartStore.getState().updateBoxItemQty("prod_sample_1", 2);
-    expect(useCartStore.getState().getBoxItemCount()).toBe(4);
-
-    // Set packaging (Handwoven Cane Hamper: +₦8,500 = 850,000 kobo)
-    useCartStore.getState().setBoxPackaging("woven-cane");
-    expect(useCartStore.getState().getPackagingOption().name).toContain("Cane Hamper");
-    // (45k*2 + 60k*2) + 8.5k = 218,500 naira = 21,850,000 kobo
-    expect(useCartStore.getState().getTotalKobo()).toBe(21_850_000);
-
-    // Load Predefined Combo
-    const comboProduct: CatalogProduct = {
-      id: "prod_combo_test",
-      slug: "gentlemans-box-test",
-      name: "The Gentleman's Box",
-      description: "Curated 4-piece box",
-      priceKobo: 25_000_000,
-      category: "Combos",
-      occasions: ["BIRTHDAY"],
-      relationships: ["HUSBAND"],
-      vendorName: "Lagos Luxe Hampers",
-      inStock: true,
-      rating: 5,
-      reviewCount: 10,
-      isCombo: true,
-      comboItems: [
-        { name: "Oud Cologne", qty: 1 },
-        { name: "Leather Wallet", qty: 1 },
-      ],
-    };
-
-    useCartStore.getState().loadPredefinedCombo(comboProduct);
-    expect(useCartStore.getState().box.comboTitle).toBe("The Gentleman's Box");
-    expect(useCartStore.getState().getBoxItemCount()).toBe(1);
-    expect(useCartStore.getState().box.items[0]?.product.name).toBe("The Gentleman's Box");
-  });
-
-  it("renders BoxCheckoutForm with curated items and packaging", () => {
-    const store = useCartStore.getState();
-    store.clearBox();
-
-    const sampleItem: CatalogProduct = {
-      id: "prod_checkout_1",
-      slug: "royal-champagne",
-      name: "Moët & Chandon Brut",
-      description: "Champagne",
-      priceKobo: 18_500_000,
-      category: "Drinks",
-      occasions: ["WEDDING"],
-      relationships: ["COUPLE"],
-      vendorName: "Lagos Luxe Hampers",
-      inStock: true,
-      rating: 5,
-      reviewCount: 20,
-    };
-
-    store.addToBox(sampleItem, 1);
-    store.setComboTitle("Wedding Toast Box");
-
-    render(<BoxCheckoutForm />, { wrapper: createTestWrapper() });
-
-    expect(screen.getByText("Moët & Chandon Brut")).toBeInTheDocument();
-    expect(screen.getByText("Wedding Toast Box")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Pay & Send Gift Box/i })).toBeInTheDocument();
+    expect(useCartStore.getState().draft.recipientPhone).toBe("08031234567");
+    expect(useCartStore.getState().draft.recipientName).toBe("Chidi Nwosu");
+    expect(useCartStore.getState().draft.wrapping).toBe(true);
   });
 });

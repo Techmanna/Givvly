@@ -2,18 +2,22 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Package, ArrowRight } from "lucide-react";
+import { Package, ArrowRight, Receipt, Phone } from "lucide-react";
+import type { Order } from "@givvly/contracts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Money } from "@/components/shared/Money";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { PaginationBar } from "@/components/shared/PaginationBar";
+import { TransactionReceiptModal } from "@/components/shared/TransactionReceiptModal";
 import { useOrdersList } from "../hooks/useOrders";
 
 export function OrdersListView() {
   const { data: orders = [], isLoading } = useOrdersList();
   const [page, setPage] = useState(1);
+  const [selectedReceiptOrder, setSelectedReceiptOrder] =
+    useState<Order | null>(null);
 
   const PAGE_SIZE = 6;
   const totalPages = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
@@ -66,23 +70,46 @@ export function OrdersListView() {
                 <p className="font-display text-lg font-semibold text-ink">
                   {order.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}
                 </p>
-                <p className="text-xs text-ink-muted">
-                  Recipient: <span className="font-medium text-ink">{order.recipientName}</span>
-                </p>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-ink-muted">
+                  <span>
+                    Recipient:{" "}
+                    <span className="font-medium text-ink">
+                      {order.recipientName}
+                    </span>
+                  </span>
+                  {order.recipientPhone ? (
+                    <span className="inline-flex items-center gap-1 font-mono text-ink-muted">
+                      <Phone className="h-3 w-3" />
+                      {order.recipientPhone}
+                    </span>
+                  ) : null}
+                </div>
               </div>
 
-              <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
+              <div className="flex flex-wrap items-center justify-between gap-2 sm:flex-col sm:items-end">
                 <Money
                   amountKobo={order.totalKobo}
                   className="font-display text-lg font-semibold text-ink"
                 />
-                <Button asChild variant="outline" size="sm" className="gap-1.5">
-                  <Link href={`/orders/${encodeURIComponent(order.id)}`}>
-                    <Package className="h-3.5 w-3.5" />
-                    Track & Manage
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setSelectedReceiptOrder(order)}
+                  >
+                    <Receipt className="h-3.5 w-3.5" />
+                    Receipt & Share
+                  </Button>
+                  <Button asChild variant="outline" size="sm" className="gap-1.5">
+                    <Link href={`/orders/${encodeURIComponent(order.id)}`}>
+                      <Package className="h-3.5 w-3.5" />
+                      Track & Manage
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -97,6 +124,13 @@ export function OrdersListView() {
         onPageChange={setPage}
         itemName="orders"
       />
+
+      {selectedReceiptOrder ? (
+        <TransactionReceiptModal
+          order={selectedReceiptOrder}
+          onClose={() => setSelectedReceiptOrder(null)}
+        />
+      ) : null}
     </div>
   );
 }

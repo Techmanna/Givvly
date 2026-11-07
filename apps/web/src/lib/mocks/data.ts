@@ -1118,49 +1118,6 @@ export const MOCK_CATALOG_PRODUCTS: MockCatalogProduct[] = [
     rating: 5.0,
     reviewCount: 62,
   },
-  // --- DIGITAL VTU AIRTIME & DATA GIFTS (BILLSPOT PARTNER VTU) ---
-  {
-    id: "prod_vtu_airtime_01",
-    slug: "billspot-vtu-airtime-gift",
-    name: "Instant Airtime Top-Up Gift (MTN, Airtel, Glo, T2mobile)",
-    description:
-      "Send instant mobile airtime top-up directly to one or up to 50 Nigerian phone numbers via BillSpot VTU.",
-    priceKobo: 500_000, // ₦5,000 default
-    category: "Airtime & Data",
-    giftType: "GIFT_CARDS",
-    mainCategories: ["BIRTHDAY", "CORPORATE", "FOR_HIM", "FOR_HER"],
-    occasions: ["BIRTHDAY", "APPRECIATION", "JUST_BECAUSE", "THANK_YOU", "GRADUATION"],
-    relationships: ["FRIEND", "COLLEAGUE", "FAMILY", "EMPLOYEE", " SIBLING"],
-    gender: "UNISEX",
-    ageGroup: "ADULT",
-    vendorName: "BillSpot Instant VTU",
-    inStock: true,
-    rating: 5.0,
-    reviewCount: 94,
-    isDigital: true,
-    digitalKind: "AIRTIME",
-  },
-  {
-    id: "prod_vtu_data_01",
-    slug: "billspot-vtu-data-bundle-gift",
-    name: "Instant Mobile Data Bundle Gift (1GB – 1.5TB Plans)",
-    description:
-      "Gift daily, weekly, monthly, or broadband data bundles across MTN, Airtel, Glo, and T2mobile with instant activation.",
-    priceKobo: 500_000, // ₦5,000 default
-    category: "Airtime & Data",
-    giftType: "GIFT_CARDS",
-    mainCategories: ["BIRTHDAY", "CORPORATE", "FOR_HIM", "FOR_HER"],
-    occasions: ["BIRTHDAY", "APPRECIATION", "JUST_BECAUSE", "THANK_YOU", "GRADUATION"],
-    relationships: ["FRIEND", "COLLEAGUE", "FAMILY", "EMPLOYEE"],
-    gender: "UNISEX",
-    ageGroup: "ADULT",
-    vendorName: "BillSpot Instant VTU",
-    inStock: true,
-    rating: 4.9,
-    reviewCount: 78,
-    isDigital: true,
-    digitalKind: "DATA",
-  },
 ];
 
 export const MOCK_BILLSPOT_PROVIDERS = [

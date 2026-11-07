@@ -335,38 +335,6 @@ async function main() {
     },
     // Digital Gifts (Airtime, Mobile Data, Vouchers)
     {
-      slug: "billspot-vtu-airtime-gift",
-      title: "Instant Airtime Top-Up Gift (MTN, Airtel, Glo, T2mobile)",
-      description: "Send instant mobile airtime top-up directly to one or up to 50 Nigerian phone numbers via BillSpot VTU.",
-      priceKobo: 500000, // ₦5,000
-      images: [
-        "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=800&auto=format&fit=crop",
-      ],
-      occasions: ["BIRTHDAY", "OTHER"],
-      relationships: ["FRIEND", "COLLEAGUE", "FAMILY"],
-      isDigital: true,
-      digitalKind: "AIRTIME",
-      stock: null,
-      ratingAvg: 5.0,
-      ratingCount: 94,
-    },
-    {
-      slug: "billspot-vtu-data-bundle-gift",
-      title: "Instant Mobile Data Bundle Gift (1GB – 1.5TB Plans)",
-      description: "Gift daily, weekly, monthly, or broadband data bundles across MTN, Airtel, Glo, and T2mobile with instant activation.",
-      priceKobo: 500000, // ₦5,000
-      images: [
-        "https://images.unsplash.com/photo-1512428559087-560fa5ceab42?w=800&auto=format&fit=crop",
-      ],
-      occasions: ["BIRTHDAY", "OTHER"],
-      relationships: ["FRIEND", "COLLEAGUE", "FAMILY"],
-      isDigital: true,
-      digitalKind: "DATA",
-      stock: null,
-      ratingAvg: 4.9,
-      ratingCount: 78,
-    },
-    {
       slug: "mtn-airtime-voucher-5000",
       title: "MTN ₦5,000 Instant Airtime Voucher",
       description: "Direct instant VTU top-up delivered to the recipient's phone number powered by BillSpot.",

@@ -42,7 +42,7 @@ export const createOrderSchema = z
     productSlug: z.string().optional(),
     qty: z.number().int().min(1).default(1).optional(),
     recipient: recipientSchema.optional(),
-    recipientName: z.string().trim().min(2).max(60).optional(),
+    recipientName: z.string().trim().max(60).optional().or(z.literal("")),
     recipientPhone: z.string().trim().min(7).max(20).optional(),
     recipientPhones: z.array(z.string().trim().min(7).max(20)).max(50).optional(),
     address: deliveryAddressSchema.optional(),
@@ -59,9 +59,12 @@ export const createOrderSchema = z
     customAmountKobo: z.number().int().min(5000).optional(),
   })
   .transform((data) => {
+    const primaryPhone = data.recipientPhone || data.recipientPhones?.[0];
+    const resolvedName =
+      data.recipientName?.trim() || primaryPhone || "Valued Recipient";
     const recipient = data.recipient ?? {
-      name: data.recipientName || "Valued Recipient",
-      phone: data.recipientPhone || data.recipientPhones?.[0],
+      name: resolvedName,
+      phone: primaryPhone,
     };
     return {
       ...data,

@@ -668,6 +668,37 @@ export class WebhooksService {
           }
         }
       }
+
+      // 4. If associated with a direct Wallet Top-Up, credit OWNER_PAYABLE idempotently
+      const paymentMeta = (payment.metadata as Record<string, any> | null) || {};
+      if (!payment.gift && !payment.order && paymentMeta.kind === "WALLET_TOPUP" && paymentMeta.userId) {
+        const walletUserId = String(paymentMeta.userId);
+        await this.ledger.postTransaction(
+          {
+            reference: `wallet:topup:${payment.reference}`,
+            kind: "WALLET_TOPUP",
+            description: `Wallet top-up via ${providerName} (${payment.reference})`,
+            paymentId: payment.id,
+            entries: [
+              {
+                accountCode: `PROVIDER_CLEARING:${currency}`,
+                direction: Direction.DEBIT,
+                amountKobo: payment.amountKobo,
+              },
+              {
+                accountCode: `OWNER_PAYABLE:${walletUserId}`,
+                ownerId: walletUserId,
+                direction: Direction.CREDIT,
+                amountKobo: payment.amountKobo,
+              },
+            ],
+          },
+          tx
+        );
+        this.logger.log(
+          `Wallet top-up credited via webhook for user='${walletUserId}', amount=${payment.amountKobo} kobo`
+        );
+      }
     });
 
     this.logger.log(
@@ -703,30 +734,56 @@ export class WebhooksService {
         },
       });
 
-      // Ledger: Payout completed
       const currency = "NGN";
-      await this.ledger.postTransaction(
-        {
-          reference: `payout:${payout.id}:sent`,
-          kind: "PAYOUT",
-          description: `Disbursement completed for payout ${payout.reference}`,
-          payoutId: payout.id,
-          entries: [
-            {
-              accountCode: `OWNER_PAYABLE:${payout.userId}:${currency}`,
-              ownerId: payout.userId,
-              direction: Direction.DEBIT,
-              amountKobo: payout.amountKobo,
-            },
-            {
-              accountCode: `PROVIDER_CLEARING:${currency}`,
-              direction: Direction.CREDIT,
-              amountKobo: payout.amountKobo,
-            },
-          ],
-        },
-        tx
-      );
+      const isWalletWithdrawal = payout.reference.startsWith("wdr_");
+
+      if (isWalletWithdrawal) {
+        await this.ledger.postTransaction(
+          {
+            reference: `wallet:withdraw:${payout.reference}:confirm`,
+            kind: "WALLET_WITHDRAW_CONFIRM",
+            description: `Wallet withdrawal settled to bank account (${payout.reference})`,
+            payoutId: payout.id,
+            entries: [
+              {
+                accountCode: `WALLET_RESERVE:${payout.userId}`,
+                ownerId: payout.userId,
+                direction: Direction.DEBIT,
+                amountKobo: payout.amountKobo,
+              },
+              {
+                accountCode: `PROVIDER_CLEARING:${currency}`,
+                direction: Direction.CREDIT,
+                amountKobo: payout.amountKobo,
+              },
+            ],
+          },
+          tx
+        );
+      } else {
+        await this.ledger.postTransaction(
+          {
+            reference: `payout:${payout.id}:sent`,
+            kind: "PAYOUT",
+            description: `Disbursement completed for payout ${payout.reference}`,
+            payoutId: payout.id,
+            entries: [
+              {
+                accountCode: `OWNER_PAYABLE:${payout.userId}:${currency}`,
+                ownerId: payout.userId,
+                direction: Direction.DEBIT,
+                amountKobo: payout.amountKobo,
+              },
+              {
+                accountCode: `PROVIDER_CLEARING:${currency}`,
+                direction: Direction.CREDIT,
+                amountKobo: payout.amountKobo,
+              },
+            ],
+          },
+          tx
+        );
+      }
     });
 
     this.logger.log(`Payout successfully completed: ref=${reference}`);
@@ -739,15 +796,51 @@ export class WebhooksService {
     const reference = event.reference;
     const failureReason = event.failureReason || `Transfer ${event.eventType}`;
 
-    await this.prisma.payout.updateMany({
-      where: { reference },
-      data: {
-        status:
-          event.eventType === "TRANSFER_REVERSED"
-            ? PayoutStatus.REVERSED
-            : PayoutStatus.FAILED,
-        failureReason,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const payout = await tx.payout.findUnique({
+        where: { reference },
+      });
+
+      if (!payout) {
+        return;
+      }
+
+      await tx.payout.update({
+        where: { id: payout.id },
+        data: {
+          status:
+            event.eventType === "TRANSFER_REVERSED"
+              ? PayoutStatus.REVERSED
+              : PayoutStatus.FAILED,
+          failureReason,
+        },
+      });
+
+      if (payout.reference.startsWith("wdr_")) {
+        await this.ledger.postTransaction(
+          {
+            reference: `wallet:withdraw:${payout.reference}:cancel`,
+            kind: "WALLET_WITHDRAW_CANCEL",
+            description: `Compensating reversal for failed bank transfer (${payout.reference})`,
+            payoutId: payout.id,
+            entries: [
+              {
+                accountCode: `WALLET_RESERVE:${payout.userId}`,
+                ownerId: payout.userId,
+                direction: Direction.DEBIT,
+                amountKobo: payout.amountKobo,
+              },
+              {
+                accountCode: `OWNER_PAYABLE:${payout.userId}`,
+                ownerId: payout.userId,
+                direction: Direction.CREDIT,
+                amountKobo: payout.amountKobo,
+              },
+            ],
+          },
+          tx
+        );
+      }
     });
 
     this.logger.warn(`Payout '${reference}' failed: ${failureReason}`);

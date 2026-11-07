@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Gift, Star, ArrowUpRight, Plus, Check } from "lucide-react";
-import { toast } from "sonner";
+import { Gift, Star, ArrowUpRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/shared/Money";
-import { useCartStore } from "@/stores/cart-store";
 import type { CatalogProduct } from "../types";
 
 export type ProductCardProps = {
@@ -14,22 +12,6 @@ export type ProductCardProps = {
 };
 
 export function ProductCard({ product }: ProductCardProps) {
-  const { addToBox, loadPredefinedCombo, box } = useCartStore();
-
-  const isAlreadyInBox = box.items.some(
-    (item) => item.product.id === product.id
-  );
-
-  const handleAddToBox = () => {
-    if (product.isCombo) {
-      loadPredefinedCombo(product);
-      toast.success(`Loaded "${product.name}" into your gift box!`);
-    } else {
-      addToBox(product, 1);
-      toast.success(`Added "${product.name}" to your gift box!`);
-    }
-  };
-
   return (
     <article className="paper-surface scroll-reveal editorial-lift group flex flex-col justify-between overflow-hidden rounded-[22px] border border-border p-5">
       <div>
@@ -50,7 +32,7 @@ export function ProductCard({ product }: ProductCardProps) {
                   : "border border-accent/40 bg-card/85 text-primary"
               }`}
             >
-              {product.isCombo ? "Predefined Combo" : product.category}
+              {product.isCombo ? "Luxury Hamper" : product.category}
             </span>
           </div>
 
@@ -75,7 +57,7 @@ export function ProductCard({ product }: ProductCardProps) {
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="uppercase tracking-wider text-[10px] font-medium">
-              {product.isCombo ? "Curated Gift Box" : "Verified Artisan"}
+              {product.isCombo ? "Curated Hamper" : "Verified Artisan"}
             </span>
             <span className="inline-flex items-center gap-1 font-medium text-foreground">
               <Star
@@ -92,7 +74,7 @@ export function ProductCard({ product }: ProductCardProps) {
           {product.isCombo && product.comboItems ? (
             <div className="rounded-xl border border-[#D4A959]/30 bg-[#FAF3EF]/60 p-2.5 text-xs">
               <span className="text-[10px] font-semibold text-primary uppercase tracking-wide">
-                Includes {product.comboItems.length} curated keepsakes:
+                Includes {product.comboItems.length} curated items:
               </span>
               <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
                 {product.comboItems.map((c) => c.name).join(" • ")}
@@ -122,61 +104,27 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {product.isCombo ? (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                className="flex-1 rounded-full text-xs font-semibold shadow-xs"
-                onClick={handleAddToBox}
-              >
-                <span>Select Combo</span>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="rounded-full px-3 text-xs"
-              >
-                <Link href={`/gifts/${product.slug}`}>
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant={isAlreadyInBox ? "secondary" : "outline"}
-                size="sm"
-                className="flex-1 rounded-full text-xs"
-                onClick={handleAddToBox}
-              >
-                {isAlreadyInBox ? (
-                  <>
-                    <Check className="mr-1 h-3.5 w-3.5 text-success" />
-                    <span>In Box (+1)</span>
-                  </>
-                ) : (
-                  <>
-                    <Plus className="mr-1 h-3.5 w-3.5" />
-                    <span>Add to Box</span>
-                  </>
-                )}
-              </Button>
-              <Button
-                asChild
-                size="sm"
-                className="flex-1 rounded-full text-xs"
-                disabled={!product.inStock}
-              >
-                <Link href={`/checkout/${product.slug}`}>
-                  <Gift className="mr-1 h-3.5 w-3.5" />
-                  <span>Send Gift</span>
-                </Link>
-              </Button>
-            </>
-          )}
+          <Button
+            asChild
+            size="sm"
+            className="flex-1 rounded-full text-xs font-semibold"
+            disabled={!product.inStock}
+          >
+            <Link href={`/checkout/${product.slug}`}>
+              <Gift className="mr-1.5 h-3.5 w-3.5" />
+              <span>Send Gift</span>
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="rounded-full px-3 text-xs"
+          >
+            <Link href={`/gifts/${product.slug}`} aria-label={`View ${product.name}`}>
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
         </div>
       </div>
     </article>

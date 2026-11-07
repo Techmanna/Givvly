@@ -18,13 +18,6 @@ import { canOrderTransition } from "./order-state-machine";
 import { generateOrderWhatsAppLink } from "./utils/whatsapp-order.util";
 import * as crypto from "crypto";
 
-const PACKAGING_EXTRA_KOBO: Record<string, number> = {
-  "blush-gold": 0,
-  "woven-cane": 850_000, // ₦8,500
-  "midnight-plum": 500_000, // ₦5,000
-  "minimalist-kraft": 0,
-};
-
 const STANDARD_DELIVERY_FEE_KOBO = 250_000; // ₦2,500
 const FREE_DELIVERY_THRESHOLD_KOBO = 10_000_000; // ₦100,000
 
@@ -63,15 +56,23 @@ export class OrdersService {
     } else if (dto.productId) {
       rawItems.push({ productId: dto.productId, qty: dto.qty || 1 });
     } else if (dto.productSlug || dto.vtuType) {
-      const slugToFind =
-        dto.productSlug ||
-        `billspot-vtu-${dto.vtuType || "airtime"}-${(dto.vtuProvider || "mtn").toLowerCase()}`;
+      const isVtuSlug =
+        Boolean(dto.vtuType) ||
+        dto.productSlug === "airtime" ||
+        dto.productSlug === "data" ||
+        dto.productSlug?.startsWith("billspot-vtu-");
+      const effectiveVtuType =
+        dto.vtuType ||
+        (dto.productSlug?.includes("data") ? "data" : "airtime");
+      const slugToFind = isVtuSlug
+        ? `billspot-vtu-${effectiveVtuType}-${(dto.vtuProvider || "mtn").toLowerCase()}`
+        : dto.productSlug!;
       let prod = await this.prisma.product.findUnique({
         where: { slug: slugToFind },
       });
 
-      if (!prod && (dto.vtuType || slugToFind.includes("airtime") || slugToFind.includes("data"))) {
-        const isData = dto.vtuType === "data" || slugToFind.includes("data");
+      if (!prod && isVtuSlug) {
+        const isData = effectiveVtuType === "data";
         const providerUpper = (dto.vtuProvider || "MTN").toUpperCase();
         prod = await this.prisma.product.create({
           data: {
@@ -162,12 +163,10 @@ export class OrdersService {
       };
     });
 
-    // Calculate packaging fee
+    // Calculate optional gift wrapping fee
     const allDigital = products.every((p) => p.isDigital) || Boolean(dto.vtuType);
-    const packagingId = dto.packagingId || "blush-gold";
-    const packagingExtraKobo = allDigital
-      ? 0
-      : (PACKAGING_EXTRA_KOBO[packagingId] ?? 0) + (dto.wrapping ? 250_000 : 0);
+    const packagingId = dto.packagingId || "standard";
+    const packagingExtraKobo = allDigital ? 0 : dto.wrapping ? 250_000 : 0;
 
     // Calculate delivery fee (free if all products digital or subtotal exceeds threshold)
     const deliveryFeeKobo =

@@ -6,14 +6,15 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Check,
+  Clock,
   Gift,
   Phone,
   Search,
   ShieldCheck,
   Smartphone,
-  Sparkles,
   Truck,
   Users,
+  Wallet,
   Wifi,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,11 +31,15 @@ import {
   useVtuProviders,
   type BillSpotVtuType,
 } from "@/features/catalog";
+import {
+  usePayOrderWithWalletMutation,
+  useWalletSummary,
+} from "@/features/wallet";
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { PaymentGatewayModal } from "./PaymentGatewayModal";
 import { directCheckoutSchema } from "../schemas";
-import { useCreateDirectOrder } from "../hooks/useOrders";
+import { useCreateDirectOrder, useOrdersList } from "../hooks/useOrders";
 import { createSingleProductWhatsAppLink } from "@/lib/whatsapp";
 import { WhatsAppOrderSection } from "@/components/shared/WhatsAppOrderSection";
 import type { DirectCheckoutInput, Order } from "../types";
@@ -57,14 +62,81 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
   const cartStore = useCartStore();
   const { user } = useAuthStore();
   const createOrderMutation = useCreateDirectOrder();
+  const { data: pastOrders = [] } = useOrdersList();
+  const { data: walletSummary } = useWalletSummary(1, 5, true);
+  const payWithWalletMutation = usePayOrderWithWalletMutation();
+  const [walletPin, setWalletPin] = React.useState("");
+  const [paymentMethod, setPaymentMethod] = React.useState<"paystack" | "wallet">("paystack");
+  const [savedPhones, setSavedPhones] = React.useState<
+    Array<{ phone: string; name?: string }>
+  >([]);
+
+  React.useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("givvly_recent_recipient_phones_v1");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setSavedPhones(parsed);
+        }
+      }
+    } catch {
+      // Ignore storage access errors
+    }
+  }, []);
+
+  const recentPhoneHistory = React.useMemo(() => {
+    const map = new Map<string, { phone: string; name?: string }>();
+    for (const item of savedPhones) {
+      const clean = (item.phone || "").trim();
+      if (clean && !map.has(clean)) {
+        map.set(clean, { phone: clean, name: item.name });
+      }
+    }
+    for (const ord of pastOrders) {
+      const phone = (ord.recipientPhone || "").trim();
+      if (phone && !map.has(phone)) {
+        const name =
+          ord.recipientName && ord.recipientName !== phone
+            ? ord.recipientName
+            : undefined;
+        map.set(phone, { phone, name });
+      }
+    }
+    return Array.from(map.values()).slice(0, 6);
+  }, [savedPhones, pastOrders]);
+
+  const rememberRecipientPhone = React.useCallback(
+    (phone: string, name?: string) => {
+      const cleanPhone = phone.trim();
+      if (!cleanPhone) return;
+      const cleanName = name?.trim() || undefined;
+      setSavedPhones((prev) => {
+        const next = [
+          { phone: cleanPhone, name: cleanName },
+          ...prev.filter((p) => p.phone !== cleanPhone),
+        ].slice(0, 8);
+        try {
+          window.localStorage.setItem(
+            "givvly_recent_recipient_phones_v1",
+            JSON.stringify(next)
+          );
+        } catch {
+          // Ignore storage write errors
+        }
+        return next;
+      });
+    },
+    []
+  );
 
   const isVtuProduct = Boolean(
     product?.isDigital ||
-      product?.digitalKind === "AIRTIME" ||
-      product?.digitalKind === "DATA" ||
-      productSlug.includes("vtu") ||
-      productSlug.includes("airtime") ||
-      productSlug.includes("data")
+    product?.digitalKind === "AIRTIME" ||
+    product?.digitalKind === "DATA" ||
+    productSlug.includes("vtu") ||
+    productSlug.includes("airtime") ||
+    productSlug.includes("data")
   );
 
   const effectiveProduct = React.useMemo(() => {
@@ -242,15 +314,15 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
 
   const whatsAppLink = effectiveProduct
     ? createSingleProductWhatsAppLink({
-        name: effectiveProduct.name,
-        priceKobo: totalKobo,
-        category: effectiveProduct.category,
-        slug: effectiveProduct.slug,
-        recipientName: watchedRecipient || undefined,
-        deliveryAddress: isVtuProduct
-          ? `Instant ${vtuType.toUpperCase()} (${selectedProvider.toUpperCase()})`
-          : deliveryAddress || undefined,
-      })
+      name: effectiveProduct.name,
+      priceKobo: totalKobo,
+      category: effectiveProduct.category,
+      slug: effectiveProduct.slug,
+      recipientName: watchedRecipient || undefined,
+      deliveryAddress: isVtuProduct
+        ? `Instant ${vtuType.toUpperCase()} (${selectedProvider.toUpperCase()})`
+        : deliveryAddress || undefined,
+    })
     : "";
 
   const onSubmit = form.handleSubmit(async (values) => {
@@ -263,9 +335,14 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
         return;
       }
 
+      const resolvedRecipientName =
+        values.recipientName?.trim() || values.recipientPhone.trim();
+
+      rememberRecipientPhone(values.recipientPhone, values.recipientName);
+
       const result = await createOrderMutation.mutateAsync({
         productSlug,
-        recipientName: values.recipientName,
+        recipientName: resolvedRecipientName,
         recipientPhone: values.recipientPhone,
         ...(isVtuProduct && parsedAllPhones.length > 1
           ? { recipientPhones: parsedAllPhones }
@@ -280,18 +357,43 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
         wrapping: isVtuProduct ? false : values.wrapping,
         ...(isVtuProduct
           ? {
-              vtuType,
-              vtuProvider: selectedProvider,
-              billItemIdentifier:
-                vtuType === "data"
-                  ? selectedPlan?.bill_item_identifier
-                  : undefined,
-              customAmountKobo: unitPriceKobo,
-            }
+            vtuType,
+            vtuProvider: selectedProvider,
+            billItemIdentifier:
+              vtuType === "data"
+                ? selectedPlan?.bill_item_identifier
+                : undefined,
+            customAmountKobo: unitPriceKobo,
+          }
           : {}),
       });
 
       setCreatedOrder(result.order);
+
+      if (paymentMethod === "wallet" && walletSummary) {
+        if (!walletSummary.security.hasPin) {
+          toast.error(
+            "Please set your 4-digit Wallet Transaction PIN in Wallet & Payout settings first."
+          );
+          return;
+        }
+        if (!/^\d{4}$/.test(walletPin)) {
+          toast.error("Please enter your 4-digit Wallet Transaction PIN.");
+          return;
+        }
+        if ((walletSummary.availableBalanceKobo ?? 0) < result.order.totalKobo) {
+          toast.error("Insufficient Givvly Wallet balance for this order.");
+          return;
+        }
+        const walletRes = await payWithWalletMutation.mutateAsync({
+          orderId: result.order.id,
+          pin: walletPin,
+          transaction_id: `ord_wal_${result.order.id}`,
+        });
+        handlePaymentSuccess(walletRes.transaction_id);
+        return;
+      }
+
       setPaymentDetails({
         reference: result.reference,
         accessCode: result.accessCode,
@@ -349,7 +451,6 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
-                    <Sparkles className="h-3.5 w-3.5" />
                     Instant VTU Fulfillment
                   </span>
                   <CardTitle className="mt-1 font-display text-xl">
@@ -361,24 +462,38 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                 <div className="inline-flex rounded-xl border border-border bg-surface-subtle p-1">
                   <button
                     type="button"
-                    onClick={() => setVtuType("airtime")}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                      vtuType === "airtime"
+                    onClick={() => {
+                      setVtuType("airtime");
+                      if (
+                        productSlug === "data" ||
+                        productSlug.includes("billspot-vtu")
+                      ) {
+                        router.replace("/checkout/airtime", { scroll: false });
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${vtuType === "airtime"
                         ? "bg-primary text-primary-foreground shadow-2xs"
                         : "text-ink-muted hover:text-ink"
-                    }`}
+                      }`}
                   >
                     <Smartphone className="h-3.5 w-3.5" />
                     Airtime
                   </button>
                   <button
                     type="button"
-                    onClick={() => setVtuType("data")}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                      vtuType === "data"
+                    onClick={() => {
+                      setVtuType("data");
+                      if (
+                        productSlug === "airtime" ||
+                        productSlug.includes("billspot-vtu")
+                      ) {
+                        router.replace("/checkout/data", { scroll: false });
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${vtuType === "data"
                         ? "bg-primary text-primary-foreground shadow-2xs"
                         : "text-ink-muted hover:text-ink"
-                    }`}
+                      }`}
                   >
                     <Wifi className="h-3.5 w-3.5" />
                     Mobile Data
@@ -405,11 +520,10 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                         key={prov.id}
                         type="button"
                         onClick={() => setSelectedProvider(prov.slug)}
-                        className={`relative flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all ${
-                          isSelected
+                        className={`relative flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all ${isSelected
                             ? "border-primary bg-primary/10 ring-1 ring-primary"
                             : "border-border bg-card hover:border-primary/40"
-                        }`}
+                          }`}
                       >
                         <img
                           src={prov.logo}
@@ -447,11 +561,10 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                           key={preset}
                           type="button"
                           onClick={() => setAirtimeAmountNaira(preset)}
-                          className={`rounded-xl border py-2.5 text-xs font-semibold transition-all ${
-                            active
+                          className={`rounded-xl border py-2.5 text-xs font-semibold transition-all ${active
                               ? "border-primary bg-primary text-primary-foreground shadow-2xs"
                               : "border-border bg-card text-ink hover:border-primary/40"
-                          }`}
+                            }`}
                         >
                           ₦{preset.toLocaleString()}
                         </button>
@@ -512,11 +625,10 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                               onClick={() =>
                                 setSelectedPlanId(plan.bill_item_identifier)
                               }
-                              className={`flex items-center justify-between gap-2 rounded-xl border p-3 text-left transition-all ${
-                                isSelected
+                              className={`flex items-center justify-between gap-2 rounded-xl border p-3 text-left transition-all ${isSelected
                                   ? "border-primary bg-primary/10 ring-1 ring-primary"
                                   : "border-border bg-card hover:border-primary/40"
-                              }`}
+                                }`}
                             >
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-xs font-semibold text-ink">
@@ -554,24 +666,10 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="recipientName">Recipient full name</Label>
-                <Input
-                  id="recipientName"
-                  placeholder="e.g. Chidinma Eze"
-                  {...form.register("recipientName")}
-                />
-                {form.formState.errors.recipientName && (
-                  <p role="alert" className="text-xs text-danger">
-                    {form.formState.errors.recipientName.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
                 <Label htmlFor="recipientPhone">
                   {isVtuProduct
-                    ? "Primary recipient phone (NG)"
-                    : "Recipient phone (NG)"}
+                    ? "Primary recipient phone (NG) *"
+                    : "Recipient phone (NG) *"}
                 </Label>
                 <Input
                   id="recipientPhone"
@@ -581,6 +679,62 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                 {form.formState.errors.recipientPhone && (
                   <p role="alert" className="text-xs text-danger">
                     {form.formState.errors.recipientPhone.message}
+                  </p>
+                )}
+
+                {recentPhoneHistory.length > 0 && (
+                  <div className="pt-1.5">
+                    <p className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-ink-muted">
+                      <Clock className="h-3 w-3 text-primary" />
+                      <span>Sent to in the past (click to use):</span>
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {recentPhoneHistory.map((item) => {
+                        const isSelected = watchedPhone === item.phone;
+                        return (
+                          <button
+                            key={item.phone}
+                            type="button"
+                            onClick={() => {
+                              form.setValue("recipientPhone", item.phone, {
+                                shouldValidate: true,
+                              });
+                              if (item.name && !form.getValues("recipientName")) {
+                                form.setValue("recipientName", item.name);
+                              }
+                            }}
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition ${isSelected
+                                ? "border-primary bg-primary/10 font-semibold text-primary"
+                                : "border-border bg-surface-subtle text-ink hover:border-primary/40"
+                              }`}
+                          >
+                            <span className="font-mono">{item.phone}</span>
+                            {item.name && (
+                              <span className="text-ink-muted">
+                                • {item.name}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="recipientName">
+                  Recipient name / label{" "}
+                  <span className="font-normal text-ink-muted">(optional)</span>
+                </Label>
+                <Input
+                  id="recipientName"
+                  placeholder="e.g. Chidinma Eze (Optional)"
+                  {...form.register("recipientName")}
+                />
+                {form.formState.errors.recipientName && (
+                  <p role="alert" className="text-xs text-danger">
+                    {form.formState.errors.recipientName.message}
                   </p>
                 )}
               </div>
@@ -802,22 +956,99 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
               </div>
             </div>
 
+            {walletSummary && (
+              <div className="space-y-2.5 rounded-xl border border-border bg-secondary/20 p-3 text-xs">
+                <p className="font-semibold text-ink">Payment Method</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("paystack")}
+                    className={`rounded-lg border px-2.5 py-2 text-left transition ${paymentMethod === "paystack"
+                        ? "border-primary bg-primary/10 font-semibold text-primary"
+                        : "border-border bg-background text-ink-muted"
+                      }`}
+                  >
+                    <div>Paystack</div>
+                    <div className="text-[10px] opacity-80">Card / Bank / USSD</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("wallet")}
+                    className={`rounded-lg border px-2.5 py-2 text-left transition ${paymentMethod === "wallet"
+                        ? "border-primary bg-primary/10 font-semibold text-primary"
+                        : "border-border bg-background text-ink-muted"
+                      }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Wallet className="h-3 w-3" />
+                      <span>Givvly Wallet</span>
+                    </div>
+                    <div className="text-[10px] opacity-80">
+                      Bal: <Money amountKobo={walletSummary.availableBalanceKobo} />
+                    </div>
+                  </button>
+                </div>
+
+                {paymentMethod === "wallet" && (
+                  <div className="pt-1">
+                    {walletSummary.security.hasPin ? (
+                      <>
+                        <label className="mb-1 block text-[11px] font-medium text-ink">
+                          4-Digit Wallet PIN *
+                        </label>
+                        <Input
+                          type="password"
+                          inputMode="numeric"
+                          maxLength={4}
+                          value={walletPin}
+                          onChange={(e) =>
+                            setWalletPin(
+                              e.target.value.replace(/\D/g, "").slice(0, 4)
+                            )
+                          }
+                          placeholder="••••"
+                          className="h-8 font-mono tracking-widest"
+                        />
+                      </>
+                    ) : (
+                      <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-800 dark:text-amber-200">
+                        You have not set a 4-digit Wallet PIN yet. Visit{" "}
+                        <a
+                          href="/account/payout"
+                          className="font-semibold underline"
+                        >
+                          Wallet &amp; Payouts
+                        </a>{" "}
+                        to configure your PIN before paying with your wallet.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full gap-2 rounded-xl"
               size="lg"
-              disabled={createOrderMutation.isPending}
+              disabled={
+                createOrderMutation.isPending || payWithWalletMutation.isPending
+              }
             >
-              {isVtuProduct ? (
+              {paymentMethod === "wallet" ? (
+                <Wallet className="h-4 w-4" />
+              ) : isVtuProduct ? (
                 <Phone className="h-4 w-4" />
               ) : (
                 <Gift className="h-4 w-4" />
               )}
-              {createOrderMutation.isPending
+              {createOrderMutation.isPending || payWithWalletMutation.isPending
                 ? "Processing payment..."
-                : isVtuProduct
-                  ? `Pay & Top-Up Now`
-                  : "Pay & Send Gift"}
+                : paymentMethod === "wallet"
+                  ? "Pay Instantly with Wallet"
+                  : isVtuProduct
+                    ? `Pay & Top-Up Now`
+                    : "Pay & Send Gift"}
             </Button>
 
             {whatsAppLink && (

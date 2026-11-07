@@ -1,21 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Gift,
-  ShieldCheck,
-  Star,
-  Truck,
-  Plus,
-  Check,
-} from "lucide-react";
-import { toast } from "sonner";
+import { ArrowLeft, Gift, Star, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Money } from "@/components/shared/Money";
-import { useCartStore } from "@/stores/cart-store";
 import { createSingleProductWhatsAppLink } from "@/lib/whatsapp";
 import { WhatsAppOrderSection } from "@/components/shared/WhatsAppOrderSection";
 import type { CatalogProduct } from "../types";
@@ -28,22 +17,6 @@ export type ProductDetailViewProps = {
 };
 
 export function ProductDetailView({ product }: ProductDetailViewProps) {
-  const { addToBox, loadPredefinedCombo, box } = useCartStore();
-
-  const isAlreadyInBox = box.items.some(
-    (item) => item.product.id === product.id
-  );
-
-  const handleAddToBox = () => {
-    if (product.isCombo) {
-      loadPredefinedCombo(product);
-      toast.success(`Loaded "${product.name}" into your curated gift box!`);
-    } else {
-      addToBox(product, 1);
-      toast.success(`Added "${product.name}" to your curated gift box!`);
-    }
-  };
-
   const whatsAppLink = createSingleProductWhatsAppLink({
     name: product.name,
     priceKobo: product.priceKobo,
@@ -75,7 +48,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                 variant={product.isCombo ? "default" : "outline"}
                 className={product.isCombo ? "bg-primary text-white" : ""}
               >
-                {product.isCombo ? "Predefined Gift Combo" : product.category}
+                {product.isCombo ? "Luxury Gift Hamper" : product.category}
               </Badge>
               <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
                 <Star
@@ -99,11 +72,10 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
             {product.description}
           </p>
 
-          {/* If it's a predefined combo, show complete contents breakdown */}
           {product.isCombo && product.comboItems && (
             <div className="rounded-2xl border border-[#D4A959]/50 bg-[#FAF3EF] p-4 text-xs space-y-2.5">
               <div className="flex items-center gap-2 text-primary font-semibold uppercase tracking-wider text-[11px]">
-                <span>Predefined Combo Inclusions</span>
+                <span>Hamper Inclusions</span>
               </div>
               <ul className="divide-y divide-border/60">
                 {product.comboItems.map((item, idx) => (
@@ -136,38 +108,14 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button
-              type="button"
-              variant={isAlreadyInBox ? "secondary" : "outline"}
-              size="lg"
-              className="flex-1 rounded-full gap-2 font-semibold"
-              onClick={handleAddToBox}
-            >
-              {product.isCombo ? (
-                <>
-                  <span>Select Predefined Combo</span>
-                </>
-              ) : isAlreadyInBox ? (
-                <>
-                  <Check className="h-4 w-4 text-success" />
-                  <span>In Box (+1 More)</span>
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4" />
-                  <span>Add to Curated Box</span>
-                </>
-              )}
-            </Button>
-
-            <Button
               asChild
               size="lg"
-              className="flex-1 rounded-full gap-2 font-semibold"
+              className="w-full rounded-full gap-2 font-semibold"
               disabled={!product.inStock}
             >
               <Link href={`/checkout/${product.slug}`}>
                 <Gift className="h-4 w-4" aria-hidden="true" />
-                <span>Instant Send</span>
+                <span>Send This Gift Now</span>
               </Link>
             </Button>
           </div>
@@ -181,10 +129,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
         </div>
       </div>
 
-      {/* Related Products Section matching Image 2 */}
       <RelatedProductsSection currentProduct={product} />
-
-      {/* Customer Reviews & Trust Pillars matching Image 1 */}
       <ProductReviewsSection product={product} />
     </div>
   );

@@ -146,6 +146,9 @@ export type Order = {
   status: OrderStatus;
   timeline: { status: OrderStatus; at: string }[];
   recipientName: string;
+  recipientPhone?: string;
+  address?: string;
+  createdAt?: string;
 };
 
 // Shared Example Schema (Section 8.2)

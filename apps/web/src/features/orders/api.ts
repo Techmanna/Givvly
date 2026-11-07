@@ -42,7 +42,20 @@ function normalizeOrder(raw: any): Order {
     totalKobo: Number(raw.totalKobo ?? 0),
     status: raw.status || "CONFIRMED",
     timeline,
-    recipientName: raw.recipientName || "Recipient",
+    recipientName: raw.recipientName || raw.recipientPhone || "Recipient",
+    recipientPhone: raw.recipientPhone || undefined,
+    address:
+      typeof raw.address === "string"
+        ? raw.address
+        : raw.address
+          ? [raw.address.street, raw.address.area, raw.address.city, raw.address.state]
+              .filter(Boolean)
+              .join(", ")
+          : raw.deliveryLocation || undefined,
+    createdAt:
+      typeof raw.createdAt === "string"
+        ? raw.createdAt
+        : raw.createdAt?.toISOString?.() ?? timeline[0]?.at,
   };
 }
 

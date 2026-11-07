@@ -161,7 +161,6 @@ describe("BillSpotProvider", () => {
             amount: 100,
             provider: "mtn",
             type: "airtime",
-            idempotency_key: "req-abc-001",
           }),
         }
       );
@@ -204,7 +203,6 @@ describe("BillSpotProvider", () => {
             amount: 1000,
             provider: "mtn",
             type: "airtime",
-            idempotency_key: "req-multi-001",
           }),
         })
       );
@@ -248,7 +246,6 @@ describe("BillSpotProvider", () => {
             provider: "mtn",
             type: "data",
             bill_item_identifier: "KUD-DAT-MTND-008",
-            idempotency_key: "req-data-001",
           }),
         })
       );

@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Gift, Smartphone, Wifi } from "lucide-react";
+import { Smartphone, Wifi } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PaginationBar } from "@/components/shared/PaginationBar";
-import { useCartStore } from "@/stores/cart-store";
 import {
   useCatalogCollections,
   useCatalogProducts,
@@ -16,13 +15,10 @@ import {
 import type { CatalogFilters } from "../types";
 import { FilterBar } from "./FilterBar";
 import { ProductCard } from "./ProductCard";
-import { GiftBoxDrawer } from "./GiftBoxDrawer";
-import { FloatingBoxButton } from "./FloatingBoxButton";
 
 export function CatalogBrowseView() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { openDrawer, getBoxItemCount } = useCartStore();
 
   const filters: CatalogFilters = {
     mainCategory: searchParams.get("mainCategory") ?? "ALL",
@@ -77,8 +73,14 @@ export function CatalogBrowseView() {
   };
 
   const collections = collectionsQuery.data ?? [];
-  const products = productsQuery.data ?? [];
-  const boxItemCount = getBoxItemCount();
+  const products = (productsQuery.data ?? []).filter(
+    (p) =>
+      p.slug !== "airtime" &&
+      p.slug !== "data" &&
+      !p.slug.startsWith("billspot-vtu-") &&
+      p.digitalKind !== "AIRTIME" &&
+      p.digitalKind !== "DATA"
+  );
 
   const PAGE_SIZE = 12;
   const pageParam = Number(searchParams.get("page")) || 1;
@@ -112,35 +114,25 @@ export function CatalogBrowseView() {
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div className="max-w-2xl space-y-3">
             <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
-              <span>The Givvly Gift Atelier &amp; Box Studio</span>
+              <span>The Givvly Gift Atelier</span>
             </p>
             <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-5xl">
               Thoughtful keepsakes &amp;{" "}
               <span className="italic font-normal text-primary">
-                curated gift boxes
+                luxury hampers
               </span>
               .
             </h1>
             <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
-              Add individual keepsakes into your bespoke gift box to create a
-              personalized combo, or choose a ready-to-ship predefined luxury
-              hamper. Delivered with real-time tracking across Nigeria.
+              Pick a curated keepsake or ready-to-ship luxury hamper and send it
+              directly to your recipient&apos;s doorstep with real-time tracking
+              across Nigeria.
             </p>
-          </div>
-
-          <div className="shrink-0">
-            <button
-              type="button"
-              onClick={openDrawer}
-              className="inline-flex items-center gap-2.5 rounded-full border border-[#D4A959]/50 bg-card px-5 py-2.5 text-xs font-semibold text-foreground shadow-2xs transition-all hover:border-primary hover:bg-primary-subtle/30"
-            >
-              <Gift className="h-4 w-4 text-primary" />
-              <span>My Curated Box ({boxItemCount})</span>
-            </button>
           </div>
         </div>
 
-        {collections.length > 0 ? (
+        {/* disabled for now */}
+        {/* {collections.length > 0 ? (
           <div className="mt-8 grid grid-cols-1 gap-4 border-t border-border/70 pt-6 sm:grid-cols-2">
             {collections.map((col) => (
               <div
@@ -159,10 +151,12 @@ export function CatalogBrowseView() {
               </div>
             ))}
           </div>
-        ) : null}
+        ) : null} */}
       </div>
 
-      <FilterBar filters={filters} onChange={updateFilters} />
+      <div className="sticky top-16 md:top-20">
+        <FilterBar filters={filters} onChange={updateFilters} />
+      </div>
 
       {/* Instant Airtime & Data VTU Studio Banner */}
       <div className="flex flex-col justify-between gap-4 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-card to-accent/15 p-5 sm:flex-row sm:items-center">
@@ -198,14 +192,14 @@ export function CatalogBrowseView() {
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <Link
-            href="/checkout/billspot-vtu-airtime-gift"
+            href="/checkout/airtime"
             className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-2xs transition-opacity hover:opacity-95"
           >
             <Smartphone className="h-3.5 w-3.5" />
             Send Airtime
           </Link>
           <Link
-            href="/checkout/billspot-vtu-data-bundle-gift"
+            href="/checkout/data"
             className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-card px-4 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-primary/10"
           >
             <Wifi className="h-3.5 w-3.5 text-primary" />
@@ -252,10 +246,6 @@ export function CatalogBrowseView() {
           />
         </div>
       )}
-
-      {/* Floating interactive box drawer & trigger */}
-      <FloatingBoxButton />
-      <GiftBoxDrawer />
     </div>
   );
 }

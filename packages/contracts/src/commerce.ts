@@ -76,40 +76,6 @@ export type CatalogFilters = {
   q?: string;
 };
 
-export type BoxPackagingOption = {
-  id: string;
-  name: string;
-  description: string;
-  extraKobo: number;
-};
-
-export const BOX_PACKAGING_OPTIONS: BoxPackagingOption[] = [
-  {
-    id: "blush-gold",
-    name: "Blush & Gold Rigid Keepsake Box",
-    description: "Signature satin ribbon, hot-stamped gold foil seal, and embossed greeting card.",
-    extraKobo: 0,
-  },
-  {
-    id: "woven-cane",
-    name: "Handwoven Northern Cane Hamper",
-    description: "Artisanal woven hamper basket tied with raw silk ribbon and botanical sprig.",
-    extraKobo: 850_000, // ₦8,500
-  },
-  {
-    id: "midnight-plum",
-    name: "Midnight Plum Velvet Ribbon Box",
-    description: "Deep plum textured box with wide champagne velvet ribbon and wax seal.",
-    extraKobo: 500_000, // ₦5,000
-  },
-  {
-    id: "minimalist-kraft",
-    name: "Eco Luxury Kraft Ribbon Box",
-    description: "Recycled heavyweight kraft box with grosgrain ribbon and dried floral stem.",
-    extraKobo: 0,
-  },
-];
-
 // Group gift contribution schema (Section 8.1)
 export function createPoolContributionSchema(remainingKobo: number) {
   const maxNaira = Math.max(500, Math.floor(remainingKobo / 100));
@@ -176,8 +142,9 @@ export const directCheckoutSchema = z
     recipientName: z
       .string()
       .trim()
-      .min(2, "Recipient name must be at least 2 characters")
-      .max(60, "Recipient name must be 60 characters or fewer"),
+      .max(60, "Recipient name must be 60 characters or fewer")
+      .optional()
+      .or(z.literal("")),
     recipientPhone: z
       .string()
       .trim()
@@ -217,7 +184,7 @@ export type DirectCheckoutInput = z.infer<typeof directCheckoutSchema>;
 
 export type CreateDirectOrderRequest = {
   productSlug?: string;
-  recipientName: string;
+  recipientName?: string;
   recipientPhone: string;
   recipientPhones?: string[];
   address?: {

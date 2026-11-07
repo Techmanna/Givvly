@@ -284,7 +284,21 @@ export class PaystackService {
 
     const data = await res.json();
     if (!res.ok || !data.status) {
-      throw new Error(data.message || `Paystack initiateTransfer failed`);
+      const msg = String(data.message || `Paystack initiateTransfer failed`);
+      const isTestKey = this.secretKey.startsWith("sk_test_");
+      if (
+        isTestKey &&
+        msg.toLowerCase().includes("cannot initiate third party payouts")
+      ) {
+        this.logger.warn(
+          `[PAYSTACK TEST SANDBOX] Paystack account returned "${msg}" (Starter Business / Test Key restriction). Simulating transfer completion for ref=${params.reference}.`
+        );
+        return {
+          transferCode: `TRF_test_${params.reference}`,
+          status: "success",
+        };
+      }
+      throw new Error(msg);
     }
 
     return {

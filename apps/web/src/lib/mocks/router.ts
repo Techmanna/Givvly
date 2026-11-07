@@ -1441,6 +1441,34 @@ export async function handleMockApiRequest<T>(
   );
   if (method === "GET" && productDetailMatch) {
     const slug = decodeURIComponent(productDetailMatch[1]!);
+    const lower = slug.toLowerCase();
+    if (
+      lower === "airtime" ||
+      lower === "data" ||
+      lower === "billspot-vtu-airtime-gift" ||
+      lower === "billspot-vtu-data-bundle-gift"
+    ) {
+      const isData = lower.includes("data");
+      return wrapSuccess({
+        id: isData ? "prod_vtu_data_01" : "prod_vtu_airtime_01",
+        slug: isData ? "data" : "airtime",
+        name: isData
+          ? "Instant Mobile Data Bundle Gift"
+          : "Instant Airtime Top-Up Gift",
+        description:
+          "Instant VTU top-up delivered directly to Nigerian mobile numbers.",
+        priceKobo: 500_000,
+        category: "Airtime & Data",
+        occasions: ["BIRTHDAY", "APPRECIATION"],
+        relationships: ["FRIEND", "FAMILY"],
+        vendorName: "Instant VTU",
+        inStock: true,
+        rating: 5.0,
+        reviewCount: 64,
+        isDigital: true,
+        digitalKind: isData ? "DATA" : "AIRTIME",
+      } as unknown as T);
+    }
     const product = db.products.find((p) => p.slug === slug || p.id === slug);
     if (!product) {
       throwMockError(404, "NOT_FOUND", "Product not found");
@@ -1522,7 +1550,15 @@ export async function handleMockApiRequest<T>(
               { status: "PENDING_PAYMENT", at: now },
               { status: "CONFIRMED", at: now },
             ],
-        recipientName: body.recipientName,
+        recipientName:
+          body.recipientName?.trim() ||
+          body.recipientPhone?.trim() ||
+          "Valued Recipient",
+        recipientPhone: body.recipientPhone,
+        address: body.address
+          ? `${body.address.street}, ${body.address.area}, ${body.address.city}, ${body.address.state}`
+          : undefined,
+        createdAt: now,
       };
       db.orders.unshift(created);
       if (opts.idempotencyKey) {
@@ -1850,6 +1886,377 @@ export async function handleMockApiRequest<T>(
     const body = (opts.body ?? {}) as { status?: "RESOLVED" | "REJECTED" };
     disp.status = body.status ?? "RESOLVED";
     return wrapSuccess({ ...disp } as unknown as T);
+  }
+
+  // --- WALLET ENDPOINTS ---
+  const mockWalletState = ((db as unknown as Record<string, any>).walletState ??= {
+    availableBalanceKobo: 4_500_000, // ₦45,000
+    reservedBalanceKobo: 0,
+    escrowBalanceKobo: 12_500_000,
+    hasPin: false,
+    pin: "1234",
+    dailyUsedKobo: 500_000,
+    recentRecipients: [
+      {
+        id: "usr_chidi",
+        name: "Chidi Nwosu",
+        email: "chidi@givvly.ng",
+        phone: "08031234567",
+        lastSentAt: new Date(Date.now() - 172_800_000).toISOString(),
+      },
+      {
+        id: "usr_tunde",
+        name: "Tunde Bakare",
+        email: "tunde@givvly.ng",
+        phone: "08166551496",
+        lastSentAt: new Date(Date.now() - 345_600_000).toISOString(),
+      },
+    ],
+    transactions: [
+      {
+        id: "wtx_01",
+        reference: "gift:gft_01:captured",
+        kind: "GIFT_CAPTURE",
+        direction: "CREDIT",
+        amountKobo: 3_500_000,
+        description: "Celebration cash gift credited to wallet",
+        createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+        metadata: { eventName: "Adaobi & Chidi's Forever", giverName: "Tunde Bakare" },
+      },
+      {
+        id: "wtx_02",
+        reference: "wallet:topup:wal_topup_demo",
+        kind: "WALLET_TOPUP",
+        direction: "CREDIT",
+        amountKobo: 1_500_000,
+        description: "Wallet funded via PAYSTACK (wal_topup_demo)",
+        createdAt: new Date(Date.now() - 43_200_000).toISOString(),
+        metadata: { provider: "PAYSTACK", paymentRef: "wal_topup_demo" },
+      },
+      {
+        id: "wtx_03",
+        reference: "wallet:tcc:confirm:order:ord_vtu_demo",
+        kind: "WALLET_TCC_CONFIRM",
+        direction: "DEBIT",
+        amountKobo: 500_000,
+        description: "Paid Order GV-VTU-01 via Givvly Wallet",
+        createdAt: new Date(Date.now() - 7_200_000).toISOString(),
+        metadata: { orderNumber: "GV-VTU-01", recipientPhone: "08166551496" },
+      },
+    ],
+  });
+
+  if (method === "GET" && normalizedPath === "/wallet") {
+    const page = Math.max(1, Number(searchParams.get("page") || "1"));
+    const limit = Math.max(1, Number(searchParams.get("limit") || "10"));
+    const start = (page - 1) * limit;
+    const verifiedBank = Boolean(db.payoutAccount);
+    const isTier3 = mockWalletState.kycTier === 3;
+    const tier = isTier3 ? "TIER_3" : verifiedBank ? "TIER_2" : "TIER_1";
+    const singleLimit = isTier3 ? 500_000_000 : verifiedBank ? 20_000_000 : 5_000_000;
+    const dailyLimit = isTier3 ? 500_000_000 : verifiedBank ? 50_000_000 : 30_000_000;
+    const maxBal = isTier3 ? null : verifiedBank ? 50_000_000 : 30_000_000;
+
+    return wrapSuccess({
+      availableBalanceKobo: mockWalletState.availableBalanceKobo,
+      reservedBalanceKobo: mockWalletState.reservedBalanceKobo,
+      escrowBalanceKobo: mockWalletState.escrowBalanceKobo,
+      currency: "NGN",
+      cbnPolicy: {
+        tier,
+        label: isTier3
+          ? "CBN Tier 3 (Enhanced KYC Verified)"
+          : verifiedBank
+            ? "CBN Tier 2 (Bank/NUBAN Verified)"
+            : "CBN Tier 1 (Basic Verification)",
+        singleTransactionLimitKobo: singleLimit,
+        dailyCumulativeLimitKobo: dailyLimit,
+        maxBalanceKobo: maxBal,
+        dailyUsedKobo: mockWalletState.dailyUsedKobo,
+        dailyRemainingKobo: Math.max(0, dailyLimit - mockWalletState.dailyUsedKobo),
+      },
+      security: {
+        hasPin: mockWalletState.hasPin,
+        verifiedBankLinked: verifiedBank,
+        bankName: db.payoutAccount?.bankName,
+        accountLast4: db.payoutAccount?.accountNumberLast4,
+        accountName: db.payoutAccount?.accountName,
+      },
+      recentRecipients: mockWalletState.recentRecipients ?? [],
+      transactions: mockWalletState.transactions.slice(start, start + limit),
+      pagination: {
+        page,
+        limit,
+        total: mockWalletState.transactions.length,
+      },
+    } as unknown as T);
+  }
+
+  if (method === "GET" && normalizedPath === "/wallet/audit-replay") {
+    const asOf = searchParams.get("asOf") || new Date().toISOString();
+    return wrapSuccess({
+      userId: db.currentUser?.id || "usr_host_01",
+      accountCode: `OWNER_PAYABLE:${db.currentUser?.id || "usr_host_01"}`,
+      asOf,
+      replayedEventCount: mockWalletState.transactions.length,
+      replayedDebitKobo: 500_000,
+      replayedCreditKobo: mockWalletState.availableBalanceKobo + 500_000,
+      replayedBalanceKobo: mockWalletState.availableBalanceKobo,
+      currentBalanceKobo: mockWalletState.availableBalanceKobo,
+      reconciled: true,
+    } as unknown as T);
+  }
+
+  const verifyMockWalletPin = (pin?: string) => {
+    if (mockWalletState.lockedUntil && mockWalletState.lockedUntil > Date.now()) {
+      throwMockError(
+        403,
+        "FORBIDDEN",
+        "Wallet outflows are temporarily locked for 30 minutes due to 5 failed PIN attempts."
+      );
+    }
+    if (!mockWalletState.hasPin) {
+      throwMockError(
+        403,
+        "FORBIDDEN",
+        "Please set your 4-digit Wallet Transaction PIN first before performing any wallet transfer, withdrawal, or order payment."
+      );
+    }
+    if (!pin || !/^\d{4}$/.test(pin)) {
+      throwMockError(
+        403,
+        "FORBIDDEN",
+        "Your 4-digit Wallet Transaction PIN is required to authorize this transaction."
+      );
+    }
+    if (pin !== mockWalletState.pin) {
+      mockWalletState.failedAttempts = (mockWalletState.failedAttempts || 0) + 1;
+      if (mockWalletState.failedAttempts >= 5) {
+        mockWalletState.lockedUntil = Date.now() + 30 * 60 * 1000;
+        throwMockError(
+          403,
+          "FORBIDDEN",
+          "Wallet outflows are temporarily locked for 30 minutes due to 5 failed PIN attempts."
+        );
+      }
+      const left = Math.max(0, 5 - mockWalletState.failedAttempts);
+      throwMockError(
+        403,
+        "FORBIDDEN",
+        `Invalid Wallet Transaction PIN (${left} attempt${left === 1 ? "" : "s"} remaining before temporary lockout).`
+      );
+    }
+    mockWalletState.failedAttempts = 0;
+    mockWalletState.lockedUntil = null;
+  };
+
+  if (method === "POST" && normalizedPath === "/wallet/pin") {
+    const body = (opts.body ?? {}) as { pin?: string; currentPin?: string };
+    if (!body.pin || !/^\d{4}$/.test(body.pin)) {
+      throwMockError(400, "BAD_REQUEST", "Wallet Transaction PIN must be exactly 4 digits");
+    }
+    if (mockWalletState.hasPin) {
+      if (!body.currentPin) {
+        throwMockError(400, "BAD_REQUEST", "Current PIN is required to change your Wallet PIN");
+      }
+      verifyMockWalletPin(body.currentPin);
+      if (body.currentPin === body.pin) {
+        throwMockError(400, "BAD_REQUEST", "New PIN must be different from your current PIN");
+      }
+    }
+    const hadPin = mockWalletState.hasPin;
+    mockWalletState.hasPin = true;
+    mockWalletState.pin = body.pin;
+    mockWalletState.failedAttempts = 0;
+    mockWalletState.lockedUntil = null;
+    return wrapSuccess({
+      ok: true,
+      message: hadPin
+        ? "Wallet 4-digit Transaction PIN updated permanently"
+        : "Wallet 4-digit Transaction PIN configured permanently",
+    } as unknown as T);
+  }
+
+  if (method === "POST" && normalizedPath === "/wallet/kyc/upgrade") {
+    mockWalletState.kycTier = 3;
+    return wrapSuccess({
+      ok: true,
+      tier: "TIER_3",
+      message:
+        "Congratulations! Your wallet has been upgraded to CBN Tier 3 (Unlimited Max Balance & ₦5,000,000 Single/Daily Limits).",
+    } as unknown as T);
+  }
+
+  if (method === "POST" && normalizedPath === "/wallet/topup") {
+    const body = (opts.body ?? {}) as { amountKobo?: number };
+    const amountKobo = Number(body.amountKobo ?? 500_000);
+    const reference = `wal_topup_${Date.now()}`;
+    return wrapSuccess({
+      reference,
+      accessCode: `acc_${reference}`,
+      authorizationUrl: `https://checkout.paystack.com/${reference}`,
+      amountKobo,
+      currency: "NGN",
+    } as unknown as T);
+  }
+
+  if (method === "POST" && normalizedPath === "/wallet/topup/verify") {
+    const body = (opts.body ?? {}) as { reference?: string; amountKobo?: number };
+    const creditedKobo = Number(body.amountKobo ?? 500_000);
+    mockWalletState.availableBalanceKobo += creditedKobo;
+    mockWalletState.transactions.unshift({
+      id: `wtx_${Date.now()}`,
+      reference: `wallet:topup:${body.reference || "ref"}`,
+      kind: "WALLET_TOPUP",
+      direction: "CREDIT",
+      amountKobo: creditedKobo,
+      description: `Wallet funded via PAYSTACK (${body.reference || "ref"})`,
+      createdAt: new Date().toISOString(),
+    });
+    return wrapSuccess({
+      status: "success",
+      reference: body.reference || "ref",
+      creditedKobo,
+      availableBalanceKobo: mockWalletState.availableBalanceKobo,
+    } as unknown as T);
+  }
+
+  if (method === "POST" && normalizedPath === "/wallet/balance_transfer") {
+    const body = (opts.body ?? {}) as {
+      to_account?: string;
+      amount?: string;
+      currency?: string;
+      transaction_id?: string;
+      pin?: string;
+      note?: string;
+    };
+    verifyMockWalletPin(body.pin);
+    const amountKobo = Number(body.amount || "0");
+    if (amountKobo > mockWalletState.availableBalanceKobo) {
+      throwMockError(400, "BAD_REQUEST", "Insufficient wallet balance");
+    }
+    mockWalletState.availableBalanceKobo -= amountKobo;
+    mockWalletState.dailyUsedKobo += amountKobo;
+    const toTarget = (body.to_account || "").trim();
+    const isPhone = /^(\+?234|0)[789][01]\d{8}$/.test(toTarget);
+    const recipientRecord = {
+      id: `usr_${Date.now()}`,
+      name: toTarget || "Givvly Member",
+      email: isPhone ? "member@givvly.ng" : toTarget || "member@givvly.ng",
+      phone: isPhone ? toTarget : null,
+    };
+    mockWalletState.transactions.unshift({
+      id: `wtx_${Date.now()}`,
+      reference: `wallet:transfer:${body.transaction_id || Date.now()}`,
+      kind: "WALLET_TRANSFER",
+      direction: "DEBIT",
+      amountKobo,
+      description: body.note || `P2P Wallet transfer to ${toTarget}`,
+      createdAt: new Date().toISOString(),
+      metadata: {
+        toUserId: recipientRecord.id,
+        toName: recipientRecord.name,
+        toEmail: recipientRecord.email,
+        toPhone: recipientRecord.phone,
+        note: body.note ?? null,
+      },
+    });
+    mockWalletState.recentRecipients = [
+      {
+        ...recipientRecord,
+        lastSentAt: new Date().toISOString(),
+      },
+      ...(mockWalletState.recentRecipients ?? []).filter(
+        (r: { email: string; phone?: string | null }) =>
+          r.email !== recipientRecord.email && r.phone !== recipientRecord.phone
+      ),
+    ].slice(0, 8);
+    return wrapSuccess({
+      status: "success",
+      transaction_id: body.transaction_id || `tx_${Date.now()}`,
+      amount: String(amountKobo),
+      currency: body.currency || "NGN",
+      recipient: recipientRecord,
+    } as unknown as T);
+  }
+
+  if (method === "POST" && normalizedPath === "/wallet/pay-order") {
+    const body = (opts.body ?? {}) as {
+      orderId?: string;
+      pin?: string;
+      transaction_id?: string;
+    };
+    verifyMockWalletPin(body.pin);
+    const order = db.orders.find((o) => o.id === body.orderId);
+    const amountKobo = order?.totalKobo ?? 100_000;
+    if (amountKobo > mockWalletState.availableBalanceKobo) {
+      throwMockError(400, "BAD_REQUEST", "Insufficient wallet balance for this order");
+    }
+    mockWalletState.availableBalanceKobo -= amountKobo;
+    mockWalletState.dailyUsedKobo += amountKobo;
+    if (order) {
+      order.status = "CONFIRMED";
+    }
+    mockWalletState.transactions.unshift({
+      id: `wtx_${Date.now()}`,
+      reference: `wallet:tcc:confirm:order:${body.orderId}`,
+      kind: "WALLET_TCC_CONFIRM",
+      direction: "DEBIT",
+      amountKobo,
+      description: `Paid Order ${order?.number || body.orderId} via Givvly Wallet`,
+      createdAt: new Date().toISOString(),
+    });
+    return wrapSuccess({
+      status: "success",
+      transaction_id: `wallet:tcc:confirm:order:${body.orderId}`,
+      orderId: body.orderId,
+      orderNumber: order?.number || "GV-WAL-01",
+      orderStatus: "CONFIRMED",
+    } as unknown as T);
+  }
+
+  if (method === "POST" && normalizedPath === "/wallet/withdraw") {
+    const body = (opts.body ?? {}) as {
+      amountKobo?: number;
+      pin?: string;
+      transaction_id?: string;
+    };
+    verifyMockWalletPin(body.pin);
+    const amountKobo = Number(body.amountKobo ?? 0);
+    if (!db.payoutAccount) {
+      throwMockError(
+        400,
+        "BAD_REQUEST",
+        "Closed-Loop Policy: Please link and verify your Nigerian bank account before withdrawing."
+      );
+    }
+    if (amountKobo > mockWalletState.availableBalanceKobo) {
+      throwMockError(400, "BAD_REQUEST", "Insufficient available wallet balance");
+    }
+    mockWalletState.availableBalanceKobo -= amountKobo;
+    mockWalletState.dailyUsedKobo += amountKobo;
+    mockWalletState.transactions.unshift({
+      id: `wtx_${Date.now()}`,
+      reference: `wallet:tcc:confirm:wd:${body.transaction_id || Date.now()}`,
+      kind: "WALLET_WITHDRAWAL",
+      direction: "DEBIT",
+      amountKobo,
+      description: `Wallet withdrawal to ${db.payoutAccount.bankName} (••••${db.payoutAccount.accountNumberLast4})`,
+      createdAt: new Date().toISOString(),
+    });
+    return wrapSuccess({
+      status: "success",
+      transaction_id: body.transaction_id || `wd_${Date.now()}`,
+      payoutId: `po_${Date.now()}`,
+      amountKobo,
+      availableBalanceKobo: mockWalletState.availableBalanceKobo,
+      tier: "TIER_2",
+      destination: {
+        bankName: db.payoutAccount.bankName,
+        accountLast4: db.payoutAccount.accountNumberLast4,
+        accountName: db.payoutAccount.accountName,
+      },
+    } as unknown as T);
   }
 
   throwMockError(

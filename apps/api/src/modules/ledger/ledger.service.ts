@@ -30,11 +30,24 @@ export class LedgerService {
    * Determine the default LedgerType for known system account codes
    */
   private inferAccountType(code: string): LedgerType {
-    if (code === "PROVIDER_CLEARING") return LedgerType.ASSET;
-    if (code === "PLATFORM_REVENUE") return LedgerType.REVENUE;
-    if (code === "PROVIDER_FEES") return LedgerType.EXPENSE;
-    if (code === "REFUNDS") return LedgerType.EXPENSE;
-    if (code.startsWith("OWNER_PAYABLE:") || code.startsWith("VENDOR_PAYABLE:") || code.startsWith("POOL_ESCROW:")) {
+    if (code === "PROVIDER_CLEARING" || code.startsWith("PROVIDER_CLEARING:")) {
+      return LedgerType.ASSET;
+    }
+    if (code === "PLATFORM_REVENUE" || code.startsWith("PLATFORM_REVENUE:")) {
+      return LedgerType.REVENUE;
+    }
+    if (code === "PROVIDER_FEES" || code.startsWith("PROVIDER_FEES:")) {
+      return LedgerType.EXPENSE;
+    }
+    if (code === "REFUNDS" || code.startsWith("REFUNDS:")) {
+      return LedgerType.EXPENSE;
+    }
+    if (
+      code.startsWith("OWNER_PAYABLE:") ||
+      code.startsWith("WALLET_RESERVE:") ||
+      code.startsWith("VENDOR_PAYABLE:") ||
+      code.startsWith("POOL_ESCROW:")
+    ) {
       return LedgerType.LIABILITY;
     }
     return LedgerType.LIABILITY;
@@ -214,6 +227,70 @@ export class LedgerService {
     return {
       code,
       type: account.type,
+      debitTotal,
+      creditTotal,
+      balanceKobo,
+    };
+  }
+
+  /**
+   * Event-Sourcing Historical Replay:
+   * Reconstruct the exact account balance at any historical point in time (asOf)
+   * by replaying immutable ledger entries from the beginning.
+   */
+  async getAccountBalanceAt(
+    code: string,
+    asOf: Date = new Date()
+  ): Promise<{
+    code: string;
+    asOf: string;
+    eventCount: number;
+    debitTotal: bigint;
+    creditTotal: bigint;
+    balanceKobo: bigint;
+  }> {
+    const account = await this.prisma.ledgerAccount.findUnique({
+      where: { code },
+      include: {
+        entries: {
+          where: { createdAt: { lte: asOf } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+
+    if (!account) {
+      return {
+        code,
+        asOf: asOf.toISOString(),
+        eventCount: 0,
+        debitTotal: BigInt(0),
+        creditTotal: BigInt(0),
+        balanceKobo: BigInt(0),
+      };
+    }
+
+    let debitTotal = BigInt(0);
+    let creditTotal = BigInt(0);
+
+    for (const entry of account.entries) {
+      if (entry.direction === Direction.DEBIT) {
+        debitTotal += entry.amountKobo;
+      } else {
+        creditTotal += entry.amountKobo;
+      }
+    }
+
+    const isDebitNormal =
+      account.type === LedgerType.ASSET || account.type === LedgerType.EXPENSE;
+    const balanceKobo = isDebitNormal
+      ? debitTotal - creditTotal
+      : creditTotal - debitTotal;
+
+    return {
+      code,
+      asOf: asOf.toISOString(),
+      eventCount: account.entries.length,
       debitTotal,
       creditTotal,
       balanceKobo,

@@ -2,12 +2,9 @@
 
 import { useRef } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Star, Plus, Check } from "lucide-react";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, ChevronRight, Star, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/shared/Money";
-import { useCartStore } from "@/stores/cart-store";
 import { useCatalogProducts } from "../hooks/useCatalog";
 import type { CatalogProduct } from "../types";
 
@@ -18,13 +15,21 @@ export function RelatedProductsSection({
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const productsQuery = useCatalogProducts();
-  const { addToBox, loadPredefinedCombo, box } = useCartStore();
 
   const allProducts = productsQuery.data ?? [];
 
-  // Filter out current product, prioritize same category or combo, then others
+  // Filter out current product and VTU items, prioritize same category
   const relatedProducts = allProducts
-    .filter((p) => p.id !== currentProduct.id && p.slug !== currentProduct.slug)
+    .filter(
+      (p) =>
+        p.id !== currentProduct.id &&
+        p.slug !== currentProduct.slug &&
+        p.slug !== "airtime" &&
+        p.slug !== "data" &&
+        !p.slug.startsWith("billspot-vtu-") &&
+        p.digitalKind !== "AIRTIME" &&
+        p.digitalKind !== "DATA"
+    )
     .sort((a, b) => {
       const aSameCategory = a.category === currentProduct.category ? -1 : 1;
       const bSameCategory = b.category === currentProduct.category ? -1 : 1;
@@ -41,18 +46,6 @@ export function RelatedProductsSection({
   const scrollRight = () => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollBy({ left: 340, behavior: "smooth" });
-    }
-  };
-
-  const handleQuickAdd = (product: CatalogProduct, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (product.isCombo) {
-      loadPredefinedCombo(product);
-      toast.success(`Loaded "${product.name}" into your gift box!`);
-    } else {
-      addToBox(product, 1);
-      toast.success(`Added "${product.name}" to your gift box!`);
     }
   };
 
@@ -101,107 +94,94 @@ export function RelatedProductsSection({
           className="flex gap-5 overflow-x-auto pb-4 pt-2 scrollbar-none snap-x snap-mandatory"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {relatedProducts.map((item) => {
-            const isAlreadyInBox = box.items.some(
-              (bi) => bi.product.id === item.id
-            );
-
-            return (
-              <article
-                key={item.id}
-                className="group/card flex-none w-[270px] sm:w-[290px] snap-start flex flex-col justify-between overflow-hidden rounded-[22px] border border-border/80 bg-card p-4 shadow-soft transition-all duration-300 hover:border-primary/40 hover:shadow-card hover:-translate-y-1"
-              >
-                <div>
-                  {/* Stage Card */}
-                  <Link
-                    href={`/gifts/${item.slug}`}
-                    className={`relative flex h-40 flex-col items-center justify-center overflow-hidden rounded-xl border p-4 text-center transition-all duration-300 ${
+          {relatedProducts.map((item) => (
+            <article
+              key={item.id}
+              className="group/card flex-none w-[270px] sm:w-[290px] snap-start flex flex-col justify-between overflow-hidden rounded-[22px] border border-border/80 bg-card p-4 shadow-soft transition-all duration-300 hover:border-primary/40 hover:shadow-card hover:-translate-y-1"
+            >
+              <div>
+                {/* Stage Card */}
+                <Link
+                  href={`/gifts/${item.slug}`}
+                  className={`relative flex h-40 flex-col items-center justify-center overflow-hidden rounded-xl border p-4 text-center transition-all duration-300 ${
+                    item.isCombo
+                      ? "border-[#D4A959]/50 bg-gradient-to-br from-[#332022]/90 via-[#6E2E3C] to-[#8F3545] text-white"
+                      : "border-accent/30 bg-gradient-to-br from-primary/10 via-[#FAF3EF] to-accent/15 text-foreground"
+                  }`}
+                >
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                       item.isCombo
-                        ? "border-[#D4A959]/50 bg-gradient-to-br from-[#332022]/90 via-[#6E2E3C] to-[#8F3545] text-white"
-                        : "border-accent/30 bg-gradient-to-br from-primary/10 via-[#FAF3EF] to-accent/15 text-foreground"
+                        ? "border border-[#D4A959]/60 bg-[#D4A959]/20 text-[#D4A959]"
+                        : "border border-accent/40 bg-card/90 text-primary"
                     }`}
                   >
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                        item.isCombo
-                          ? "border border-[#D4A959]/60 bg-[#D4A959]/20 text-[#D4A959]"
-                          : "border border-accent/40 bg-card/90 text-primary"
-                      }`}
-                    >
-                      {item.isCombo ? "Curated Combo" : item.category}
-                    </span>
+                    {item.isCombo ? "Luxury Hamper" : item.category}
+                  </span>
 
-                    <p
-                      className={`mt-2 font-heading text-sm font-semibold leading-snug line-clamp-2 ${
-                        item.isCombo ? "text-white" : "text-foreground"
-                      }`}
-                    >
-                      {item.name}
-                    </p>
-
-                    <span
-                      className={`mt-1 text-[11px] italic ${
-                        item.isCombo ? "text-[#FAF3EF]/75" : "text-muted-foreground"
-                      }`}
-                    >
-                      by {item.vendorName}
-                    </span>
-                  </Link>
-
-                  {/* Rating & Description */}
-                  <div className="mt-3 space-y-1">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                        <Star className="h-3.5 w-3.5 fill-accent text-accent" />
-                        {item.rating.toFixed(1)}{" "}
-                        <span className="text-muted-foreground">
-                          ({item.reviewCount})
-                        </span>
-                      </span>
-                      <span className="text-[10px] uppercase font-semibold text-primary">
-                        {item.inStock ? "In Stock" : "Pre-order"}
-                      </span>
-                    </div>
-
-                    <p className="line-clamp-2 text-xs text-muted-foreground leading-relaxed pt-1">
-                      {item.description}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Price and Add button */}
-                <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
-                  <div>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Price
-                    </span>
-                    <p className="font-heading text-base font-bold text-primary">
-                      <Money amountKobo={item.priceKobo} />
-                    </p>
-                  </div>
-
-                  <Button
-                    size="sm"
-                    variant={isAlreadyInBox ? "secondary" : "outline"}
-                    className="rounded-full text-xs font-semibold gap-1"
-                    onClick={(e) => handleQuickAdd(item, e)}
+                  <p
+                    className={`mt-2 font-heading text-sm font-semibold leading-snug line-clamp-2 ${
+                      item.isCombo ? "text-white" : "text-foreground"
+                    }`}
                   >
-                    {isAlreadyInBox ? (
-                      <>
-                        <Check className="h-3 w-3 text-emerald-600" />
-                        <span>In Box</span>
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-3 w-3" />
-                        <span>Add</span>
-                      </>
-                    )}
-                  </Button>
+                    {item.name}
+                  </p>
+
+                  <span
+                    className={`mt-1 text-[11px] italic ${
+                      item.isCombo ? "text-[#FAF3EF]/75" : "text-muted-foreground"
+                    }`}
+                  >
+                    by {item.vendorName}
+                  </span>
+                </Link>
+
+                {/* Rating & Description */}
+                <div className="mt-3 space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                      <Star className="h-3.5 w-3.5 fill-accent text-accent" />
+                      {item.rating.toFixed(1)}{" "}
+                      <span className="text-muted-foreground">
+                        ({item.reviewCount})
+                      </span>
+                    </span>
+                    <span className="text-[10px] uppercase font-semibold text-primary">
+                      {item.inStock ? "In Stock" : "Pre-order"}
+                    </span>
+                  </div>
+
+                  <p className="line-clamp-2 text-xs text-muted-foreground leading-relaxed pt-1">
+                    {item.description}
+                  </p>
                 </div>
-              </article>
-            );
-          })}
+              </div>
+
+              {/* Price and Send button */}
+              <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Price
+                  </span>
+                  <p className="font-heading text-base font-bold text-primary">
+                    <Money amountKobo={item.priceKobo} />
+                  </p>
+                </div>
+
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full text-xs font-semibold gap-1.5"
+                >
+                  <Link href={`/checkout/${item.slug}`}>
+                    <Gift className="h-3 w-3" />
+                    <span>Send Gift</span>
+                  </Link>
+                </Button>
+              </div>
+            </article>
+          ))}
         </div>
       </div>
     </section>

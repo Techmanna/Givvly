@@ -22,6 +22,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
 import { MediaModule } from "./modules/media/media.module";
 import { DigitalGiftsModule } from "./modules/digital-gifts/digital-gifts.module";
 import { UsersModule } from "./modules/users/users.module";
+import { WalletModule } from "./modules/wallet/wallet.module";
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { UsersModule } from "./modules/users/users.module";
     MediaModule,
     DigitalGiftsModule,
     UsersModule,
+    WalletModule,
   ],
 })
 export class AppModule {}
