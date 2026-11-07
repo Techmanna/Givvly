@@ -102,7 +102,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
   return (
     <div className="space-y-6">
       {/* Quick Mock Account Switcher */}
-      <div className="rounded-xl border border-secondary/30 bg-secondary/5 p-3.5 text-xs">
+      {/* <div className="rounded-xl border border-secondary/30 bg-secondary/5 p-3.5 text-xs">
         <div className="flex items-center gap-1.5 font-semibold text-foreground mb-2">
           <span>Quick Demo Login (Mock Mode)</span>
         </div>
@@ -131,7 +131,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
             Admin (Tunde)
           </Button>
         </div>
-      </div>
+      </div> */}
 
       <GoogleAuthButton nextPath={safeNext} label="Sign in with Google" />
 
