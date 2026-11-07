@@ -17,15 +17,25 @@ export class EmailService {
 
   constructor(private readonly config: ConfigService) {
     const host = this.config.get<string>("SMTP_HOST", "localhost");
-    const port = this.config.get<number>("SMTP_PORT", 1025);
+    const rawPort = this.config.get("SMTP_PORT", 465);
+    const port = Number(rawPort);
     const user = this.config.get<string>("SMTP_USER", "");
     const pass = this.config.get<string>("SMTP_PASS", "");
-    this.fromAddress = this.config.get<string>("MAIL_FROM", "Givvly <no-reply@givvly.vercel.app>");
+    const secureConfig = this.config.get("SMTP_SECURE");
+    this.fromAddress = this.config.get<string>(
+      "MAIL_FROM",
+      "Givvly <onboarding@resend.dev>"
+    );
+
+    const isSecure = port === 465 || String(secureConfig).toLowerCase() === "true";
 
     const transportOptions: any = {
       host,
       port,
-      secure: port === 465,
+      secure: isSecure,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     };
 
     if (user && pass) {
