@@ -203,6 +203,8 @@ model User {
   prefs           NotificationPref[]
 
   @@index([status])
+  @@index([phone])
+  @@index([createdAt(sort: Desc)])
 }
 
 model Session {
@@ -253,6 +255,8 @@ model PayoutAccount {
 
   @@unique([userId, accountHash])
   @@index([userId])
+  @@index([userId, status])
+  @@index([userId, isDefault])
 }
 
 model Event {
@@ -304,6 +308,8 @@ model Rsvp {
   event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, contactKey])
+  @@index([eventId, response])
+  @@index([eventId, createdAt(sort: Desc)])
 }
 
 model RegistryItem {
@@ -343,6 +349,7 @@ model Pool {
   event         Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   gifts         Gift[]
 
+  @@index([eventId, status])
   @@index([status, deadline])
 }
 
@@ -551,6 +558,8 @@ model Order {
   disputes        Dispute[]
 
   @@index([buyerUserId, createdAt])
+  @@index([buyerEmail, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
   @@index([vendorId, status])
   @@index([eventId])
 }
@@ -563,6 +572,9 @@ model OrderItem {
   unitPriceKobo Int
   qty           Int     @default(1)
   order         Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model OrderStatusHistory {
@@ -601,6 +613,7 @@ model Dispute {
   resolvedAt   DateTime?
   order        Order         @relation(fields: [orderId], references: [id])
 
+  @@index([orderId])
   @@index([status, createdAt])
 }
 
@@ -675,6 +688,7 @@ model Notification {
   user        User?       @relation(fields: [userId], references: [id])
 
   @@index([userId, readAt])
+  @@index([userId, createdAt(sort: Desc)])
   @@index([status, createdAt])
 }
 

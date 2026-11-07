@@ -179,6 +179,23 @@ describe("OrdersService", () => {
         )
       ).rejects.toThrow(ConflictException);
     });
+
+    it("throws ConflictException when duplicate items for the same product exceed available stock", async () => {
+      await expect(
+        service.createOrder(
+          {
+            items: [
+              { productId: mockProduct.id, qty: 3 },
+              { productId: mockProduct.id, qty: 3 },
+            ],
+            recipient: { name: "Jane Doe" },
+            buyerEmail: "buyer@example.com",
+            currency: "NGN",
+          },
+          { id: "user-1", email: "buyer@example.com" }
+        )
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   describe("trackOrderByToken", () => {

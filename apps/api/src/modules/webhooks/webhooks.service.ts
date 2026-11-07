@@ -179,6 +179,18 @@ export class WebhooksService {
     const reference = event.reference;
     const amountSubunits = event.amountSubunits;
 
+    let pendingGiftNotification: {
+      payerEmail: string;
+      giverDisplayName: string;
+      eventName: string;
+      amountKobo: number;
+      currency: string;
+      reference: string;
+      message?: string;
+      owner?: { id: string; email: string; name: string };
+    } | null = null;
+    let pendingDigitalOrderId: string | null = null;
+
     await this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({
         where: { reference },
@@ -571,32 +583,20 @@ export class WebhooksService {
           });
         }
 
-        // 5. Dispatch email and in-app notifications
+        // 5. Queue post-commit email and in-app notifications (do not block DB transaction with SMTP I/O)
         if (this.notifications && payment.payerEmail) {
-          try {
-            await this.notifications.sendGiftReceiptEmail(
-              payment.payerEmail,
-              gift.anonymous ? "A Friend" : gift.giverName || "A Friend",
-              targetEvent?.name || "Celebration",
-              gift.amountKobo,
-              currency,
-              payment.reference
-            );
-            if (owner?.email) {
-              await this.notifications.sendHostGiftReceivedEmail(
-                owner.email,
-                owner.id,
-                owner.name,
-                gift.anonymous ? "A Friend" : gift.giverName || "A Friend",
-                gift.amountKobo,
-                currency,
-                gift.message || undefined,
-                targetEvent?.name
-              );
-            }
-          } catch (err: any) {
-            this.logger.warn(`Could not dispatch gift notifications: ${err.message}`);
-          }
+          pendingGiftNotification = {
+            payerEmail: payment.payerEmail,
+            giverDisplayName: gift.anonymous ? "A Friend" : gift.giverName || "A Friend",
+            eventName: targetEvent?.name || "Celebration",
+            amountKobo: gift.amountKobo,
+            currency,
+            reference: payment.reference,
+            message: gift.message || undefined,
+            owner: owner?.email
+              ? { id: owner.id, email: owner.email, name: owner.name }
+              : undefined,
+          };
         }
       }
 
@@ -619,20 +619,43 @@ export class WebhooksService {
           },
         });
 
-        // Decrement stock for tracked products
-        for (const item of order.items) {
-          const product = await tx.product.findUnique({
-            where: { id: item.productId },
-          });
-          if (product && product.stock !== null) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: {
-                stock: Math.max(0, product.stock - item.qty),
-              },
-            });
-          }
-        }
+        // Batch fetch and concurrently decrement stock for tracked products
+        const itemProductIds = Array.from(
+          new Set(order.items.map((item) => item.productId))
+        );
+        const products =
+          typeof tx.product?.findMany === "function"
+            ? await tx.product.findMany({
+                where: { id: { in: itemProductIds } },
+                select: { id: true, stock: true },
+              })
+            : (
+                await Promise.all(
+                  itemProductIds.map((id) =>
+                    tx.product?.findUnique?.({ where: { id } })
+                  )
+                )
+              ).filter(Boolean);
+        const productById = new Map(
+          (products as Array<{ id: string; stock: number | null }>).map((p) => [
+            p.id,
+            p,
+          ])
+        );
+
+        await Promise.all(
+          order.items.map(async (item) => {
+            const product = productById.get(item.productId);
+            if (product && product.stock !== null) {
+              await tx.product.update({
+                where: { id: item.productId },
+                data: {
+                  stock: Math.max(0, product.stock - item.qty),
+                },
+              });
+            }
+          })
+        );
 
         // Post balanced ledger capture
         await this.ledger.postTransaction(
@@ -659,13 +682,9 @@ export class WebhooksService {
 
         this.logger.log(`Direct order '${order.number}' confirmed and captured`);
 
-        // 4. Trigger digital fulfillment if any items are digital
+        // 4. Mark digital order for post-commit fulfillment
         if (this.digitalGifts) {
-          try {
-            await this.digitalGifts.fulfillDigitalOrder(order.id);
-          } catch (err: any) {
-            this.logger.error(`Error fulfilling digital order ${order.id}: ${err.message}`);
-          }
+          pendingDigitalOrderId = order.id;
         }
       }
 
@@ -701,6 +720,59 @@ export class WebhooksService {
       }
     });
 
+    // Post-commit asynchronous side effects (notifications & digital fulfillment)
+    const notifTask = pendingGiftNotification as {
+      payerEmail: string;
+      giverDisplayName: string;
+      eventName: string;
+      amountKobo: number;
+      currency: string;
+      reference: string;
+      message?: string;
+      owner?: { id: string; email: string; name: string };
+    } | null;
+
+    if (this.notifications && notifTask) {
+      try {
+        await Promise.all([
+          this.notifications.sendGiftReceiptEmail(
+            notifTask.payerEmail,
+            notifTask.giverDisplayName,
+            notifTask.eventName,
+            notifTask.amountKobo,
+            notifTask.currency,
+            notifTask.reference
+          ),
+          ...(notifTask.owner
+            ? [
+                this.notifications.sendHostGiftReceivedEmail(
+                  notifTask.owner.email,
+                  notifTask.owner.id,
+                  notifTask.owner.name,
+                  notifTask.giverDisplayName,
+                  notifTask.amountKobo,
+                  notifTask.currency,
+                  notifTask.message,
+                  notifTask.eventName
+                ),
+              ]
+            : []),
+        ]);
+      } catch (err: any) {
+        this.logger.warn(`Could not dispatch gift notifications: ${err.message}`);
+      }
+    }
+
+    if (this.digitalGifts && pendingDigitalOrderId) {
+      try {
+        await this.digitalGifts.fulfillDigitalOrder(pendingDigitalOrderId);
+      } catch (err: any) {
+        this.logger.error(
+          `Error fulfilling digital order ${pendingDigitalOrderId}: ${err.message}`
+        );
+      }
+    }
+
     this.logger.log(
       `Successfully verified and processed payment success for ref=${reference} via ${providerName}`
     );
@@ -735,7 +807,9 @@ export class WebhooksService {
       });
 
       const currency = "NGN";
-      const isWalletWithdrawal = payout.reference.startsWith("wdr_");
+      const isWalletWithdrawal =
+        payout.reference.startsWith("wdr_") ||
+        payout.reference.startsWith("po_wal_");
 
       if (isWalletWithdrawal) {
         await this.ledger.postTransaction(
@@ -816,7 +890,10 @@ export class WebhooksService {
         },
       });
 
-      if (payout.reference.startsWith("wdr_")) {
+      if (
+        payout.reference.startsWith("wdr_") ||
+        payout.reference.startsWith("po_wal_")
+      ) {
         await this.ledger.postTransaction(
           {
             reference: `wallet:withdraw:${payout.reference}:cancel`,

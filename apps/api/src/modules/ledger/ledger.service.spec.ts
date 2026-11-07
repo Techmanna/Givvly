@@ -127,4 +127,62 @@ describe("LedgerService", () => {
     expect(result).toEqual(existingTx);
     expect(mockPrisma.ledgerTransaction.create).not.toHaveBeenCalled();
   });
+
+  it("should handle concurrent race conditions on duplicate reference (P2002) idempotently", async () => {
+    const existingTx = {
+      id: "ltx_race",
+      reference: "tx_concurrent_race",
+      kind: "PAYMENT_CAPTURE",
+      description: "Concurrent tx",
+      entries: [],
+    };
+
+    mockPrisma.ledgerTransaction.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existingTx);
+    mockPrisma.ledgerTransaction.create.mockRejectedValueOnce({
+      code: "P2002",
+    });
+
+    const result = await service.postTransaction({
+      reference: "tx_concurrent_race",
+      kind: "PAYMENT_CAPTURE",
+      description: "Concurrent tx",
+      entries: [
+        {
+          accountCode: "PROVIDER_CLEARING",
+          direction: Direction.DEBIT,
+          amountKobo: 50000,
+        },
+        {
+          accountCode: "OWNER_PAYABLE:user_1",
+          direction: Direction.CREDIT,
+          amountKobo: 50000,
+        },
+      ],
+    });
+
+    expect(result).toEqual(existingTx);
+  });
+
+  it("should compute account balance via database groupBy aggregation without loading entries into memory", async () => {
+    mockPrisma.ledgerAccount.findUnique.mockResolvedValueOnce({
+      id: "acc_user_1",
+      code: "OWNER_PAYABLE:user_1",
+      type: LedgerType.LIABILITY,
+    });
+    mockPrisma.ledgerEntry.groupBy.mockResolvedValueOnce([
+      { direction: Direction.CREDIT, _sum: { amountKobo: BigInt(150000) } },
+      { direction: Direction.DEBIT, _sum: { amountKobo: BigInt(40000) } },
+    ]);
+
+    const balance = await service.getAccountBalance("OWNER_PAYABLE:user_1");
+
+    expect(mockPrisma.ledgerEntry.groupBy).toHaveBeenCalledWith({
+      by: ["direction"],
+      where: { accountId: "acc_user_1" },
+      _sum: { amountKobo: true },
+    });
+    expect(balance.balanceKobo).toBe(BigInt(110000));
+  });
 });

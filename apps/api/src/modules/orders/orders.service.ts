@@ -98,8 +98,8 @@ export class OrdersService {
       throw new BadRequestException("At least one product item is required");
     }
 
-    // Fetch products and verify availability
-    const productIds = rawItems.map((i) => i.productId);
+    // Fetch products and verify availability (deduplicated IDs)
+    const productIds = Array.from(new Set(rawItems.map((i) => i.productId)));
     const products = await this.prisma.product.findMany({
       where: {
         id: { in: productIds },
@@ -113,10 +113,18 @@ export class OrdersService {
 
     const productMap = new Map(products.map((p) => [p.id, p]));
 
-    // Check stock
+    // Aggregate requested quantity per productId and check stock
+    const requestedQtyByProduct = new Map<string, number>();
     for (const item of rawItems) {
-      const p = productMap.get(item.productId)!;
-      if (p.stock !== null && p.stock < item.qty) {
+      requestedQtyByProduct.set(
+        item.productId,
+        (requestedQtyByProduct.get(item.productId) ?? 0) + item.qty
+      );
+    }
+
+    for (const [prodId, totalQty] of requestedQtyByProduct.entries()) {
+      const p = productMap.get(prodId)!;
+      if (p.stock !== null && p.stock < totalQty) {
         throw new ConflictException(
           `Product '${p.title}' has insufficient stock (available: ${p.stock})`
         );
@@ -201,8 +209,42 @@ export class OrdersService {
           }
         : undefined;
 
-    // Create Order, OrderItems, OrderStatusHistory and Payment record in a transaction
+    // Initialize Payment Gateway before DB transaction to avoid holding DB locks over HTTP I/O
+    // and to eliminate post-creation update round trips
+    const gateway = this.paymentGatewayRegistry.getGateway("PAYSTACK");
+    const paymentInit = await gateway.initializePayment({
+      reference: paymentReference,
+      amountSubunits: totalKobo,
+      customerEmail: buyerEmail,
+      customerName: user?.name,
+      currency,
+      metadata: {
+        orderNumber,
+        buyerUserId: user?.id,
+      },
+    });
+
+    // Create Payment, Order, OrderItems, and OrderStatusHistory atomically in a single transaction
     const { order, payment } = await this.prisma.$transaction(async (tx) => {
+      const newPayment = await tx.payment.create({
+        data: {
+          reference: paymentReference,
+          currency,
+          amountKobo: totalKobo,
+          feeKobo: 0,
+          status: PaymentStatus.INITIATED,
+          accessCode: paymentInit.accessCode,
+          authorizationUrl: paymentInit.authorizationUrl,
+          payerEmail: buyerEmail,
+          provider: "PAYSTACK",
+          metadata: {
+            orderNumber,
+            itemsCount: orderItemsData.length,
+            payerName: user?.name || "Direct Customer",
+          },
+        },
+      });
+
       const newOrder = await tx.order.create({
         data: {
           number: orderNumber,
@@ -219,6 +261,7 @@ export class OrdersService {
           subtotalKobo: subtotalKobo + packagingExtraKobo,
           deliveryFeeKobo,
           totalKobo,
+          paymentId: newPayment.id,
           trackingToken,
           items: {
             create: orderItemsData,
@@ -238,52 +281,7 @@ export class OrdersService {
         },
       });
 
-      const newPayment = await tx.payment.create({
-        data: {
-          reference: paymentReference,
-          currency,
-          amountKobo: totalKobo,
-          feeKobo: 0,
-          status: PaymentStatus.INITIATED,
-          payerEmail: buyerEmail,
-          provider: "PAYSTACK",
-          metadata: {
-            orderId: newOrder.id,
-            orderNumber: newOrder.number,
-            itemsCount: orderItemsData.length,
-            payerName: user?.name || "Direct Customer",
-          },
-        },
-      });
-
-      await tx.order.update({
-        where: { id: newOrder.id },
-        data: { paymentId: newPayment.id },
-      });
-
       return { order: newOrder, payment: newPayment };
-    });
-
-    // Initialize Payment Gateway
-    const gateway = this.paymentGatewayRegistry.getGateway("PAYSTACK");
-    const paymentInit = await gateway.initializePayment({
-      reference: payment.reference,
-      amountSubunits: payment.amountKobo,
-      customerEmail: buyerEmail,
-      customerName: user?.name,
-      currency,
-      metadata: {
-        orderId: order.id,
-        orderNumber: order.number,
-        buyerUserId: user?.id,
-      },
-    });
-
-    await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        accessCode: paymentInit.accessCode,
-      },
     });
 
     const whatsappLink = generateOrderWhatsAppLink({
@@ -364,26 +362,29 @@ export class OrdersService {
       },
     });
 
-    const newPayment = await this.prisma.payment.create({
-      data: {
-        reference: newReference,
-        currency,
-        amountKobo: order.totalKobo,
-        feeKobo: 0,
-        status: PaymentStatus.INITIATED,
-        payerEmail: order.buyerEmail,
-        accessCode: paymentInit.accessCode,
-        provider: "PAYSTACK",
-        metadata: {
-          orderId: order.id,
-          orderNumber: order.number,
+    await this.prisma.$transaction(async (tx) => {
+      const newPayment = await tx.payment.create({
+        data: {
+          reference: newReference,
+          currency,
+          amountKobo: order.totalKobo,
+          feeKobo: 0,
+          status: PaymentStatus.INITIATED,
+          payerEmail: order.buyerEmail,
+          accessCode: paymentInit.accessCode,
+          authorizationUrl: paymentInit.authorizationUrl,
+          provider: "PAYSTACK",
+          metadata: {
+            orderId: order.id,
+            orderNumber: order.number,
+          },
         },
-      },
-    });
+      });
 
-    await this.prisma.order.update({
-      where: { id: order.id },
-      data: { paymentId: newPayment.id },
+      await tx.order.update({
+        where: { id: order.id },
+        data: { paymentId: newPayment.id },
+      });
     });
 
     return {
@@ -476,18 +477,18 @@ export class OrdersService {
       throw new NotFoundException(`Order with id '${orderId}' not found`);
     }
 
-    const userObj = await this.prisma.user.findUnique({
-      where: { id: user.id },
-      select: { email: true },
-    });
-
     if (
       user.role !== "ADMIN" &&
       order.buyerUserId &&
-      order.buyerUserId !== user.id &&
-      order.buyerEmail !== userObj?.email
+      order.buyerUserId !== user.id
     ) {
-      throw new ForbiddenException("You do not have access to this order");
+      const userObj = await this.prisma.user?.findUnique({
+        where: { id: user.id },
+        select: { email: true },
+      });
+      if (order.buyerEmail !== userObj?.email) {
+        throw new ForbiddenException("You do not have access to this order");
+      }
     }
 
     return {
@@ -536,7 +537,7 @@ export class OrdersService {
     const verifyRes = await gateway.verifyPayment(order.payment.reference);
 
     if (verifyRes.status === "success") {
-      await this.prisma.$transaction(async (tx) => {
+      let updatedOrder = await this.prisma.$transaction(async (tx) => {
         await tx.payment.update({
           where: { id: order.payment!.id },
           data: {
@@ -547,7 +548,7 @@ export class OrdersService {
           },
         });
 
-        await tx.order.update({
+        const confirmedOrder = await tx.order.update({
           where: { id: order.id },
           data: {
             status: OrderStatus.CONFIRMED,
@@ -560,22 +561,46 @@ export class OrdersService {
               ],
             },
           },
+          include: { items: true, history: true },
         });
 
-        // Decrement stock for tracked products
-        for (const item of order.items) {
-          const product = await tx.product.findUnique({
-            where: { id: item.productId },
-          });
-          if (product && product.stock !== null) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: {
-                stock: Math.max(0, product.stock - item.qty),
-              },
-            });
-          }
-        }
+        // Batch fetch and concurrently decrement stock for tracked products
+        const itemProductIds = Array.from(
+          new Set(order.items.map((item) => item.productId))
+        );
+        const products =
+          typeof tx.product.findMany === "function"
+            ? await tx.product.findMany({
+                where: { id: { in: itemProductIds } },
+                select: { id: true, stock: true },
+              })
+            : (
+                await Promise.all(
+                  itemProductIds.map((id) =>
+                    tx.product.findUnique({ where: { id } })
+                  )
+                )
+              ).filter(Boolean);
+        const productById = new Map(
+          (products as Array<{ id: string; stock: number | null }>).map((p) => [
+            p.id,
+            p,
+          ])
+        );
+
+        await Promise.all(
+          order.items.map(async (item) => {
+            const product = productById.get(item.productId);
+            if (product && product.stock !== null) {
+              await tx.product.update({
+                where: { id: item.productId },
+                data: {
+                  stock: Math.max(0, product.stock - item.qty),
+                },
+              });
+            }
+          })
+        );
 
         // Post balanced ledger capture
         const currency = order.payment?.currency || "NGN";
@@ -600,11 +625,20 @@ export class OrdersService {
           },
           tx
         );
+
+        return confirmedOrder;
       });
 
       if (this.digitalGifts) {
         try {
-          await this.digitalGifts.fulfillDigitalOrder(order.id);
+          const digitalRes = await this.digitalGifts.fulfillDigitalOrder(order.id);
+          if (digitalRes.fulfilled) {
+            updatedOrder =
+              (await this.prisma.order.findUnique({
+                where: { id: order.id },
+                include: { items: true, history: true },
+              })) ?? updatedOrder;
+          }
         } catch (err: any) {
           this.logger.warn(
             `Digital fulfillment after verifyOrderPayment encountered an error for order ${order.number}: ${err.message}`
@@ -612,15 +646,10 @@ export class OrdersService {
         }
       }
 
-      const updated = await this.prisma.order.findUnique({
-        where: { id: order.id },
-        include: { items: true, history: true },
-      });
-
       return {
-        order: updated,
+        order: updatedOrder,
         verified: true,
-        status: updated?.status || OrderStatus.CONFIRMED,
+        status: updatedOrder?.status || OrderStatus.CONFIRMED,
       };
     }
 
@@ -659,14 +688,16 @@ export class OrdersService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // If order was already confirmed, restore product stock
+      // If order was already confirmed, restore product stock concurrently
       if (order.status === OrderStatus.CONFIRMED) {
-        for (const item of order.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { increment: item.qty } },
-          });
-        }
+        await Promise.all(
+          order.items.map((item) =>
+            tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: item.qty } },
+            })
+          )
+        );
       }
 
       const updated = await tx.order.update({
@@ -720,35 +751,58 @@ export class OrdersService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const review = await tx.review.create({
-        data: {
-          orderId: order.id,
-          userId,
-          vendorId: order.vendorId || "givvly-curated",
-          rating: dto.rating,
-          comment: dto.comment,
-        },
-      });
+      const itemProductIds = Array.from(
+        new Set(order.items.map((item) => item.productId))
+      );
 
-      // Update rating for the products in this order
-      for (const item of order.items) {
-        const prod = await tx.product.findUnique({
-          where: { id: item.productId },
-        });
-        if (prod) {
-          const currentCount = prod.ratingCount;
-          const newCount = currentCount + 1;
-          const newAvg = (prod.ratingAvg * currentCount + dto.rating) / newCount;
+      const [review, products] = await Promise.all([
+        tx.review.create({
+          data: {
+            orderId: order.id,
+            userId,
+            vendorId: order.vendorId || "givvly-curated",
+            rating: dto.rating,
+            comment: dto.comment,
+          },
+        }),
+        typeof tx.product.findMany === "function"
+          ? tx.product.findMany({
+              where: { id: { in: itemProductIds } },
+              select: { id: true, ratingAvg: true, ratingCount: true },
+            })
+          : Promise.all(
+              itemProductIds.map((id) =>
+                tx.product.findUnique({ where: { id } })
+              )
+            ),
+      ]);
 
-          await tx.product.update({
-            where: { id: item.productId },
-            data: {
-              ratingAvg: Math.round(newAvg * 10) / 10,
-              ratingCount: newCount,
-            },
-          });
-        }
-      }
+      const productMap = new Map(
+        (products ?? [])
+          .filter(Boolean)
+          .map((p: any) => [p.id, p])
+      );
+
+      // Update rating for all products in this order concurrently
+      await Promise.all(
+        itemProductIds.map(async (productId) => {
+          const prod = productMap.get(productId);
+          if (prod) {
+            const currentCount = prod.ratingCount ?? 0;
+            const currentAvg = prod.ratingAvg ?? 0;
+            const newCount = currentCount + 1;
+            const newAvg = (currentAvg * currentCount + dto.rating) / newCount;
+
+            await tx.product.update({
+              where: { id: productId },
+              data: {
+                ratingAvg: Math.round(newAvg * 10) / 10,
+                ratingCount: newCount,
+              },
+            });
+          }
+        })
+      );
 
       return review;
     });

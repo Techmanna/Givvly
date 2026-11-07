@@ -236,29 +236,29 @@ export class NotificationsService {
       `
     );
 
-    // Send email
-    await this.notify({
-      userId: hostUserId,
-      toAddress: to,
-      channel: Channel.EMAIL,
-      type: "HOST_GIFT_RECEIVED",
-      category: "GIFTS",
-      title,
-      body,
-      html,
-      data: { giverName, amountKobo, currency, message, eventName },
-    });
-
-    // Also send in-app notification
-    await this.notify({
-      userId: hostUserId,
-      channel: Channel.IN_APP,
-      type: "HOST_GIFT_RECEIVED",
-      category: "GIFTS",
-      title,
-      body,
-      data: { giverName, amountKobo, currency, message, eventName },
-    });
+    // Dispatch email and in-app notifications concurrently
+    await Promise.all([
+      this.notify({
+        userId: hostUserId,
+        toAddress: to,
+        channel: Channel.EMAIL,
+        type: "HOST_GIFT_RECEIVED",
+        category: "GIFTS",
+        title,
+        body,
+        html,
+        data: { giverName, amountKobo, currency, message, eventName },
+      }),
+      this.notify({
+        userId: hostUserId,
+        channel: Channel.IN_APP,
+        type: "HOST_GIFT_RECEIVED",
+        category: "GIFTS",
+        title,
+        body,
+        data: { giverName, amountKobo, currency, message, eventName },
+      }),
+    ]);
   }
 
   async sendOrderConfirmedEmail(

@@ -45,7 +45,10 @@ export class AuthService {
     }
 
     const email = dto.email.trim().toLowerCase();
-    const existing = await this.prisma.user.findUnique({ where: { email } });
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
     if (existing) {
       throw new ConflictException("An account with this email already exists");
     }
@@ -54,23 +57,31 @@ export class AuthService {
       ? await argon2.hash(dto.password, { type: argon2.argon2id })
       : null;
 
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        name: dto.name.trim(),
-        phone: dto.phone?.trim() || null,
-        passwordHash,
-        status: "ACTIVE",
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        status: true,
-        createdAt: true,
-      },
-    });
+    let user;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          name: dto.name.trim(),
+          phone: dto.phone?.trim() || null,
+          passwordHash,
+          status: "ACTIVE",
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        throw new ConflictException("An account with this email already exists");
+      }
+      throw err;
+    }
 
     // Create session and issue token pair
     const tokens = await this.createSession(user.id, user.role, user.email, ip, userAgent);
@@ -82,6 +93,14 @@ export class AuthService {
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        status: true,
+        passwordHash: true,
+      },
     });
 
     if (!user || !user.passwordHash) {
@@ -101,13 +120,14 @@ export class AuthService {
       throw new UnauthorizedException("Invalid email or password");
     }
 
-    // Reset failed logins & update lastLoginAt
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { failedLogins: 0, lastLoginAt: new Date() },
-    });
-
-    const tokens = await this.createSession(user.id, user.role, user.email, ip, userAgent);
+    // Reset failed logins & update lastLoginAt concurrently with session creation
+    const [, tokens] = await Promise.all([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLogins: 0, lastLoginAt: new Date() },
+      }),
+      this.createSession(user.id, user.role, user.email, ip, userAgent),
+    ]);
 
     return {
       user: {
@@ -125,7 +145,17 @@ export class AuthService {
     const tokenHash = hashString(refreshToken);
     const session = await this.prisma.session.findUnique({
       where: { tokenHash },
-      include: { user: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            status: true,
+          },
+        },
+      },
     });
 
     if (!session || session.revokedAt || session.expiresAt < new Date()) {
@@ -155,21 +185,22 @@ export class AuthService {
       },
     });
 
-    // Mark previous session replaced
-    await this.prisma.session.update({
-      where: { id: session.id },
-      data: {
-        revokedAt: new Date(),
-        replacedById: newSession.id,
-      },
-    });
-
-    const accessToken = await this.signAccessToken(
-      session.user.id,
-      session.user.email,
-      session.user.role,
-      newSession.id
-    );
+    // Mark previous session replaced and sign access token concurrently
+    const [, accessToken] = await Promise.all([
+      this.prisma.session.update({
+        where: { id: session.id },
+        data: {
+          revokedAt: new Date(),
+          replacedById: newSession.id,
+        },
+      }),
+      this.signAccessToken(
+        session.user.id,
+        session.user.email,
+        session.user.role,
+        newSession.id
+      ),
+    ]);
 
     const csrfToken = crypto.randomBytes(16).toString("hex");
 

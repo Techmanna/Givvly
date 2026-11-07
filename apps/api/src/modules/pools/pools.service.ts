@@ -51,10 +51,15 @@ export class PoolsService {
     dto: ContributePoolDto,
     giverUserId?: string
   ) {
-    const event = await this.prisma.event.findUnique({
-      where: { slug },
-      include: { owner: true },
-    });
+    const [event, pool] = await Promise.all([
+      this.prisma.event.findUnique({
+        where: { slug },
+        select: { id: true, slug: true, status: true, currency: true },
+      }),
+      this.prisma.pool.findUnique({
+        where: { id: dto.poolId },
+      }),
+    ]);
 
     if (!event) {
       throw new NotFoundException(`Event '${slug}' not found`);
@@ -64,104 +69,105 @@ export class PoolsService {
       throw new BadRequestException("This celebration is not currently accepting gifts");
     }
 
+    if (!pool || pool.eventId !== event.id) {
+      throw new NotFoundException("Pool not found on this celebration");
+    }
+
     const now = new Date();
+    if (pool.status !== PoolStatus.OPEN) {
+      throw new BadRequestException(
+        `This group gift is no longer accepting contributions (status: ${pool.status})`
+      );
+    }
+
+    if (pool.deadline && pool.deadline < now) {
+      throw new BadRequestException("The deadline for this group gift has passed");
+    }
+
     const currency = (event.currency || "NGN").toUpperCase();
+    const pendingCutoff = new Date(now.getTime() - 20 * 60 * 1000);
 
-    // In a transaction, lock and validate pool capacity
-    const { pool, feeResult, reference, gatewayResult } = await this.prisma.$transaction(
-      async (tx) => {
-        const poolRecord = await tx.pool.findUnique({
-          where: { id: dto.poolId },
-        });
+    const validatePoolCapacity = async (client: any, targetPool: typeof pool) => {
+      const pendingAgg = await client.gift.aggregate({
+        where: {
+          poolId: targetPool.id,
+          status: GiftStatus.PENDING,
+          createdAt: { gte: pendingCutoff },
+        },
+        _sum: { amountKobo: true },
+      });
 
-        if (!poolRecord || poolRecord.eventId !== event.id) {
-          throw new NotFoundException("Pool not found on this celebration");
+      const pendingKobo = pendingAgg._sum.amountKobo ?? 0;
+      const totalCommitted = targetPool.raisedKobo + pendingKobo;
+
+      if (!targetPool.allowOverfund) {
+        const remainingKobo = targetPool.targetKobo - totalCommitted;
+        if (dto.amountKobo > remainingKobo) {
+          throw new ConflictException({
+            code: "POOL_OVERFUNDED",
+            message: `Contribution of ${dto.amountKobo} exceeds remaining target. Maximum acceptable contribution is ${Math.max(
+              0,
+              remainingKobo
+            )}.`,
+            remainingKobo: Math.max(0, remainingKobo),
+          });
         }
-
-        if (poolRecord.status !== PoolStatus.OPEN) {
-          throw new BadRequestException(
-            `This group gift is no longer accepting contributions (status: ${poolRecord.status})`
-          );
-        }
-
-        if (poolRecord.deadline && poolRecord.deadline < now) {
-          throw new BadRequestException("The deadline for this group gift has passed");
-        }
-
-        // Overfunding guard: sum active contributions in payment window (last 20 mins)
-        const pendingCutoff = new Date(now.getTime() - 20 * 60 * 1000);
-        const pendingAgg = await tx.gift.aggregate({
-          where: {
-            poolId: poolRecord.id,
-            status: GiftStatus.PENDING,
-            createdAt: { gte: pendingCutoff },
-          },
-          _sum: { amountKobo: true },
-        });
-
-        const pendingKobo = pendingAgg._sum.amountKobo ?? 0;
-        const totalCommitted = poolRecord.raisedKobo + pendingKobo;
-
-        if (!poolRecord.allowOverfund) {
-          const remainingKobo = poolRecord.targetKobo - totalCommitted;
-          if (dto.amountKobo > remainingKobo) {
-            throw new ConflictException({
-              code: "POOL_OVERFUNDED",
-              message: `Contribution of ${dto.amountKobo} exceeds remaining target. Maximum acceptable contribution is ${Math.max(
-                0,
-                remainingKobo
-              )}.`,
-              remainingKobo: Math.max(0, remainingKobo),
-            });
-          }
-        }
-
-        const calculatedFees = calculateGiftFee(
-          dto.amountKobo,
-          this.feeConfig,
-          currency
-        );
-
-        const gateway = this.gatewayRegistry.getGatewayForCurrency(currency);
-        const ref = `pay_${Date.now()}_${crypto.randomBytes(6).toString("hex")}`;
-
-        const appUrl = this.config.get<string>("APP_URL", "http://localhost:3000");
-        const callbackUrl =
-          dto.callbackUrl ?? `${appUrl}/events/${slug}?payment_ref=${ref}`;
-
-        const initResult = await gateway.initializePayment({
-          customerEmail: dto.giverEmail,
-          customerName: dto.isAnonymous ? "Anonymous" : dto.giverName,
-          amountSubunits: calculatedFees.totalKobo,
-          currency,
-          reference: ref,
-          callbackUrl,
-          metadata: {
-            eventId: event.id,
-            eventSlug: event.slug,
-            kind: "POOL",
-            poolId: poolRecord.id,
-            poolTitle: poolRecord.title,
-            poolMode: poolRecord.mode,
-            currency,
-            provider: gateway.providerName,
-            isAnonymous: dto.isAnonymous,
-            giverName: dto.isAnonymous ? "Anonymous" : dto.giverName ?? "Anonymous",
-            showOnWall: dto.showOnWall,
-          },
-        });
-
-        return {
-          pool: poolRecord,
-          feeResult: calculatedFees,
-          reference: ref,
-          gatewayResult: initResult,
-        };
       }
+    };
+
+    // Pre-validate capacity before external gateway call
+    await validatePoolCapacity(this.prisma, pool);
+
+    const feeResult = calculateGiftFee(
+      dto.amountKobo,
+      this.feeConfig,
+      currency
     );
 
-    // Atomically create Payment and Gift
+    const gateway = this.gatewayRegistry.getGatewayForCurrency(currency);
+    const reference = `pay_${Date.now()}_${crypto.randomBytes(6).toString("hex")}`;
+
+    const appUrl = this.config.get<string>("APP_URL", "http://localhost:3000");
+    const callbackUrl =
+      dto.callbackUrl ?? `${appUrl}/events/${slug}?payment_ref=${reference}`;
+
+    // Initialize payment outside DB transaction to avoid holding DB connections during network I/O
+    const gatewayResult = await gateway.initializePayment({
+      customerEmail: dto.giverEmail,
+      customerName: dto.isAnonymous ? "Anonymous" : dto.giverName,
+      amountSubunits: feeResult.totalKobo,
+      currency,
+      reference,
+      callbackUrl,
+      metadata: {
+        eventId: event.id,
+        eventSlug: event.slug,
+        kind: "POOL",
+        poolId: pool.id,
+        poolTitle: pool.title,
+        poolMode: pool.mode,
+        currency,
+        provider: gateway.providerName,
+        isAnonymous: dto.isAnonymous,
+        giverName: dto.isAnonymous ? "Anonymous" : dto.giverName ?? "Anonymous",
+        showOnWall: dto.showOnWall,
+      },
+    });
+
+    // Atomically re-verify overfunding guard and create Payment + Gift in a single transaction
     const { payment, gift } = await this.prisma.$transaction(async (tx) => {
+      const freshPool = await tx.pool.findUnique({
+        where: { id: pool.id },
+      });
+
+      if (!freshPool || freshPool.status !== PoolStatus.OPEN) {
+        throw new BadRequestException(
+          `This group gift is no longer accepting contributions`
+        );
+      }
+
+      await validatePoolCapacity(tx, freshPool);
+
       const paymentRecord = await tx.payment.create({
         data: {
           reference,
@@ -274,18 +280,23 @@ export class PoolsService {
    * Host action: Convert an underfunded or expired PRODUCT pool to cash payout
    */
   async convertToCash(slug: string, poolId: string, hostUserId: string) {
-    const event = await this.prisma.event.findUnique({
-      where: { slug },
-      include: {
-        owner: {
-          include: {
-            payoutAccounts: {
-              where: { isDefault: true },
+    const [event, pool] = await Promise.all([
+      this.prisma.event.findUnique({
+        where: { slug },
+        include: {
+          owner: {
+            include: {
+              payoutAccounts: {
+                where: { isDefault: true },
+              },
             },
           },
         },
-      },
-    });
+      }),
+      this.prisma.pool.findUnique({
+        where: { id: poolId },
+      }),
+    ]);
 
     if (!event) {
       throw new NotFoundException(`Event '${slug}' not found`);
@@ -294,10 +305,6 @@ export class PoolsService {
     if (event.ownerId !== hostUserId) {
       throw new ForbiddenException("Only the celebration host can manage pool resolutions");
     }
-
-    const pool = await this.prisma.pool.findUnique({
-      where: { id: poolId },
-    });
 
     if (!pool || pool.eventId !== event.id) {
       throw new NotFoundException("Pool not found");

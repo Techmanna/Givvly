@@ -41,7 +41,13 @@ export class PaymentsService {
   ) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
-      include: { owner: true },
+      select: {
+        id: true,
+        slug: true,
+        status: true,
+        date: true,
+        currency: true,
+      },
     });
 
     if (!event) {

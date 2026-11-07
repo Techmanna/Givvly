@@ -117,10 +117,15 @@ export class RegistryService {
     dto: PurchaseItemGiftDto,
     giverUserId?: string
   ) {
-    const event = await this.prisma.event.findUnique({
-      where: { slug },
-      include: { owner: true },
-    });
+    const [event, item] = await Promise.all([
+      this.prisma.event.findUnique({
+        where: { slug },
+        select: { id: true, slug: true, status: true, currency: true },
+      }),
+      this.prisma.registryItem.findUnique({
+        where: { id: dto.registryItemId },
+      }),
+    ]);
 
     if (!event) {
       throw new NotFoundException(`Event '${slug}' not found`);
@@ -131,9 +136,6 @@ export class RegistryService {
     }
 
     const now = new Date();
-    const item = await this.prisma.registryItem.findUnique({
-      where: { id: dto.registryItemId },
-    });
 
     if (!item || item.eventId !== event.id) {
       throw new NotFoundException("Registry item not found on this celebration");
@@ -424,9 +426,14 @@ export class RegistryService {
       throw new NotFoundException("Event not found");
     }
 
-    const item = await this.prisma.registryItem.findFirst({
-      where: { id: itemId, eventId: event.id },
-    });
+    const [item, pool] = await Promise.all([
+      this.prisma.registryItem.findFirst({
+        where: { id: itemId, eventId: event.id },
+      }),
+      this.prisma.pool.findFirst({
+        where: { id: itemId, eventId: event.id },
+      }),
+    ]);
 
     if (item) {
       const updated = await this.prisma.registryItem.update({
@@ -443,10 +450,6 @@ export class RegistryService {
         status: updated.status,
       };
     }
-
-    const pool = await this.prisma.pool.findFirst({
-      where: { id: itemId, eventId: event.id },
-    });
 
     if (pool) {
       const updatedPool = await this.prisma.pool.update({
@@ -478,24 +481,26 @@ export class RegistryService {
   ) {
     const event = await this.prisma.event.findFirst({
       where: { OR: [{ id: eventId }, { slug: eventId }], ownerId: userId },
+      select: { id: true },
     });
 
     if (!event) {
       throw new NotFoundException("Event not found");
     }
 
-    const item = await this.prisma.registryItem.findFirst({
-      where: { id: itemId, eventId: event.id },
-    });
+    const [item, pool] = await Promise.all([
+      this.prisma.registryItem.findFirst({
+        where: { id: itemId, eventId: event.id },
+      }),
+      this.prisma.pool.findFirst({
+        where: { id: itemId, eventId: event.id },
+      }),
+    ]);
 
     if (item) {
       await this.prisma.registryItem.delete({ where: { id: item.id } });
       return { deleted: true };
     }
-
-    const pool = await this.prisma.pool.findFirst({
-      where: { id: itemId, eventId: event.id },
-    });
 
     if (pool) {
       await this.prisma.pool.delete({ where: { id: pool.id } });

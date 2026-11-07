@@ -558,6 +558,19 @@ export class AdminService {
       dto.resolution ||
       `Dispute resolved as ${targetStatus.toLowerCase()} by administrator via operations console`;
 
+    if (dispute.status === targetStatus) {
+      return {
+        id: dispute.id,
+        orderId: dispute.orderId,
+        orderNumber: dispute.order?.number || "GV-ORD",
+        type: dispute.type,
+        description: dispute.description,
+        status: targetStatus,
+        createdAt:
+          dispute.createdAt?.toISOString?.() ?? new Date().toISOString(),
+      };
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const updatedDispute = await tx.dispute.update({
         where: { id },
@@ -655,10 +668,10 @@ export class AdminService {
         });
       }
 
-      // 3. Post double-entry refund ledger transaction
+      // 3. Post double-entry refund ledger transaction (deterministic reference for idempotency)
       await this.ledger.postTransaction(
         {
-          reference: `refund:${payment.id}:${Date.now()}`,
+          reference: `refund:${payment.id}`,
           kind: "REFUND",
           description: `Refund for payment ${payment.reference}: ${dto.reason}`,
           paymentId: payment.id,
@@ -690,15 +703,17 @@ export class AdminService {
   // ==================== LEDGER & TRIAL BALANCE ====================
 
   async getLedgerReport() {
-    const trialBalance = await this.ledger.getTrialBalance();
-    const recentEntries = await this.prisma.ledgerEntry.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 50,
-      include: {
-        account: true,
-        transaction: true,
-      },
-    });
+    const [trialBalance, recentEntries] = await Promise.all([
+      this.ledger.getTrialBalance(),
+      this.prisma.ledgerEntry.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: {
+          account: { select: { code: true } },
+          transaction: { select: { description: true, reference: true } },
+        },
+      }),
+    ]);
 
     return {
       trialBalance: {
@@ -798,24 +813,30 @@ export class AdminService {
 
   // ==================== CELEBRATION EVENTS ====================
 
-  async getEvents() {
+  async getEvents(query?: { limit?: number; offset?: number }) {
+    const take = query?.limit ? Math.min(Number(query.limit), 100) : 100;
+    const skip = query?.offset ? Number(query.offset) : 0;
+
     const events = await this.prisma.event.findMany({
       orderBy: { createdAt: "desc" },
+      take,
+      skip,
       include: {
+        _count: {
+          select: {
+            rsvps: { where: { response: "YES" } },
+          },
+        },
         gifts: {
           where: { payment: { status: PaymentStatus.SUCCESS } },
           select: { amountKobo: true },
         },
-        rsvps: {
-          where: { response: "YES" },
-          select: { id: true },
-        },
       },
     });
 
-    return events.map((ev) => {
-      const totalReceivedKobo = ev.gifts.reduce(
-        (sum, g) => sum + g.amountKobo,
+    return events.map((ev: any) => {
+      const totalReceivedKobo = (ev.gifts ?? []).reduce(
+        (sum: number, g: any) => sum + g.amountKobo,
         0
       );
       return {
@@ -830,18 +851,29 @@ export class AdminService {
         moneyGiftsEnabled: Boolean(ev.payoutAccountId),
         currency: ev.currency || "NGN",
         totalReceivedKobo,
-        giftCount: ev.gifts.length,
-        rsvpYesCount: ev.rsvps.length,
+        giftCount: (ev.gifts ?? []).length,
+        rsvpYesCount: ev._count?.rsvps ?? ev.rsvps?.length ?? 0,
       };
     });
   }
 
   // ==================== PAYMENTS ====================
 
-  async getPayments() {
+  async getPayments(query?: { limit?: number; offset?: number }) {
+    const take = query?.limit ? Math.min(Number(query.limit), 100) : 100;
+    const skip = query?.offset ? Number(query.offset) : 0;
+
     const payments = await this.prisma.payment.findMany({
       orderBy: { createdAt: "desc" },
-      take: 100,
+      take,
+      skip,
+      select: {
+        reference: true,
+        amountKobo: true,
+        feeKobo: true,
+        status: true,
+        createdAt: true,
+      },
     });
 
     return payments.map((p) => ({
@@ -931,19 +963,26 @@ export class AdminService {
 
   // ==================== VENDORS (LEGACY PARTNERS) ====================
 
-  async getVendors() {
+  async getVendors(query?: { limit?: number; offset?: number }) {
+    const take = query?.limit ? Math.min(Number(query.limit), 100) : 100;
+    const skip = query?.offset ? Number(query.offset) : 0;
+
     const vendors = await this.prisma.vendor.findMany({
       orderBy: { createdAt: "desc" },
+      take,
+      skip,
       include: {
-        products: { select: { id: true } },
+        _count: {
+          select: { products: true },
+        },
       },
     });
 
-    return vendors.map((v) => ({
+    return vendors.map((v: any) => ({
       id: v.id,
       name: v.name,
       email: v.contactEmail,
-      productCount: v.products.length,
+      productCount: v._count?.products ?? v.products?.length ?? 0,
       status: v.active
         ? ("VERIFIED" as const)
         : ("PENDING_REVIEW" as const),

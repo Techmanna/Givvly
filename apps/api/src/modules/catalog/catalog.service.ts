@@ -258,18 +258,21 @@ export class CatalogService {
       ];
     }
 
-    // Resolve product slugs for each collection
+    // Resolve product slugs for each collection (skip query if no productIds)
     const allProductIds = Array.from(new Set(collections.flatMap((c) => c.productIds)));
-    const products = await this.prisma.product.findMany({
-      where: {
-        id: { in: allProductIds },
-        active: true,
-      },
-      select: {
-        id: true,
-        slug: true,
-      },
-    });
+    const products =
+      allProductIds.length > 0
+        ? await this.prisma.product.findMany({
+            where: {
+              id: { in: allProductIds },
+              active: true,
+            },
+            select: {
+              id: true,
+              slug: true,
+            },
+          })
+        : [];
 
     const idToSlugMap = new Map(products.map((p) => [p.id, p.slug]));
 

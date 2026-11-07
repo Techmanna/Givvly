@@ -107,10 +107,18 @@ export class DigitalGiftsService {
       };
     }
 
-    // Resolve products for this order
-    const productIds = order.items.map((i) => i.productId);
+    // Resolve products for this order (deduplicated)
+    const productIds = Array.from(new Set(order.items.map((i) => i.productId)));
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
+      select: {
+        id: true,
+        title: true,
+        isDigital: true,
+        digitalKind: true,
+        occasions: true,
+        priceKobo: true,
+      },
     });
 
     const productMap = new Map(products.map((p) => [p.id, p]));
@@ -128,46 +136,47 @@ export class DigitalGiftsService {
       return { fulfilled: false, message: "No digital products in order" };
     }
 
-    const fulfillmentResults = [];
+    // Fulfill digital items concurrently
+    const fulfillmentResults = await Promise.all(
+      digitalItems.map(async (item) => {
+        const product = productMap.get(item.productId);
+        const kind: DigitalKind = addressMeta.vtuType
+          ? addressMeta.vtuType === "data"
+            ? "DATA"
+            : "AIRTIME"
+          : ((product?.digitalKind as DigitalKind) || "VOUCHER");
 
-    for (const item of digitalItems) {
-      const product = productMap.get(item.productId);
-      const kind: DigitalKind = addressMeta.vtuType
-        ? addressMeta.vtuType === "data"
-          ? "DATA"
-          : "AIRTIME"
-        : ((product?.digitalKind as DigitalKind) || "VOUCHER");
+        const recipientPhones: string[] = Array.isArray(addressMeta.recipientPhones)
+          ? addressMeta.recipientPhones
+          : order.recipientPhone
+            ? [order.recipientPhone]
+            : [];
 
-      const recipientPhones: string[] = Array.isArray(addressMeta.recipientPhones)
-        ? addressMeta.recipientPhones
-        : order.recipientPhone
-          ? [order.recipientPhone]
-          : [];
+        const primaryPhone = recipientPhones[0] || order.recipientPhone;
 
-      const primaryPhone = recipientPhones[0] || order.recipientPhone;
+        if ((kind === "AIRTIME" || kind === "DATA") && primaryPhone) {
+          const unitAmountSubunits =
+            typeof addressMeta.unitVtuAmountKobo === "number" &&
+            addressMeta.unitVtuAmountKobo > 0
+              ? addressMeta.unitVtuAmountKobo
+              : item.unitPriceKobo;
 
-      if ((kind === "AIRTIME" || kind === "DATA") && primaryPhone) {
-        const unitAmountSubunits =
-          typeof addressMeta.unitVtuAmountKobo === "number" &&
-          addressMeta.unitVtuAmountKobo > 0
-            ? addressMeta.unitVtuAmountKobo
-            : item.unitPriceKobo;
+          const topUp = await this.billspot.fulfillTopUp({
+            phoneNumber: primaryPhone,
+            phoneNumbers: recipientPhones.length > 0 ? recipientPhones : undefined,
+            operator:
+              addressMeta.vtuProvider ||
+              product?.occasions?.[0] ||
+              product?.title ||
+              item.title,
+            amountSubunits: unitAmountSubunits,
+            reference: `${order.number}-${item.id}`,
+            type: kind === "DATA" ? "data" : "airtime",
+            billItemIdentifier: addressMeta.billItemIdentifier || undefined,
+          });
+          return { item: item.title, topUp };
+        }
 
-        const topUp = await this.billspot.fulfillTopUp({
-          phoneNumber: primaryPhone,
-          phoneNumbers: recipientPhones.length > 0 ? recipientPhones : undefined,
-          operator:
-            addressMeta.vtuProvider ||
-            product?.occasions?.[0] ||
-            product?.title ||
-            item.title,
-          amountSubunits: unitAmountSubunits,
-          reference: `${order.number}-${item.id}`,
-          type: kind === "DATA" ? "data" : "airtime",
-          billItemIdentifier: addressMeta.billItemIdentifier || undefined,
-        });
-        fulfillmentResults.push({ item: item.title, topUp });
-      } else {
         const voucher = await this.vouchers.generateVoucher({
           kind,
           title: item.title,
@@ -176,9 +185,9 @@ export class DigitalGiftsService {
           recipientPhone: primaryPhone || undefined,
           reference: `${order.number}-${item.id}`,
         });
-        fulfillmentResults.push({ item: item.title, voucher });
-      }
-    }
+        return { item: item.title, voucher };
+      })
+    );
 
     // Advance order directly to DELIVERED since digital goods do not require physical shipping
     const allDigital = order.items.length === digitalItems.length;

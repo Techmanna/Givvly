@@ -13,8 +13,21 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const profileSelect = {
+      id: true,
+      email: true,
+      name: true,
+      phone: true,
+      role: true,
+      status: true,
+      emailVerifiedAt: true,
+      createdAt: true,
+      updatedAt: true,
+    } as const;
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      select: profileSelect,
     });
 
     if (!user) {
@@ -22,23 +35,25 @@ export class UsersService {
     }
 
     const data: { name?: string; phone?: string } = {};
-    if (dto.name !== undefined) data.name = dto.name;
-    if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.name !== undefined && dto.name !== user.name) {
+      data.name = dto.name;
+    }
+    if (dto.phone !== undefined && dto.phone !== user.phone) {
+      data.phone = dto.phone;
+    }
+
+    // Avoid unnecessary database write when values have not changed
+    if (Object.keys(data).length === 0) {
+      return {
+        ...user,
+        verified: Boolean(user.emailVerifiedAt),
+      };
+    }
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        role: true,
-        status: true,
-        emailVerifiedAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: profileSelect,
     });
 
     return {
@@ -50,6 +65,7 @@ export class UsersService {
   async changePassword(userId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      select: { id: true, passwordHash: true },
     });
 
     if (!user) {

@@ -77,33 +77,42 @@ export class EventsService {
     const slug = slugify(dto.name);
     const date = new Date(dto.date);
 
-    const event = await this.prisma.event.create({
-      data: {
-        ownerId: userId,
-        slug,
-        name: dto.name.trim(),
-        type: dto.type,
-        date,
-        story: dto.story?.trim() || null,
-        visibility: dto.visibility || "PUBLIC",
-        accessCodeHash: dto.accessCode ? dto.accessCode.trim() : null,
-        allowPlusOne: dto.allowPlusOne ?? true,
-        status: "DRAFT",
-      },
-    });
-
-    if (dto.registryItems && dto.registryItems.length > 0) {
-      await this.prisma.registryItem.createMany({
-        data: dto.registryItems.map((item, idx) => ({
-          eventId: event.id,
-          productId: item.productId || null,
-          title: item.title,
-          priceKobo: item.priceKobo,
-          position: idx + 1,
-          status: "AVAILABLE",
-        })),
+    const runCreate = async (tx: any) => {
+      const created = await tx.event.create({
+        data: {
+          ownerId: userId,
+          slug,
+          name: dto.name.trim(),
+          type: dto.type,
+          date,
+          story: dto.story?.trim() || null,
+          visibility: dto.visibility || "PUBLIC",
+          accessCodeHash: dto.accessCode ? dto.accessCode.trim() : null,
+          allowPlusOne: dto.allowPlusOne ?? true,
+          status: "DRAFT",
+        },
       });
-    }
+
+      if (dto.registryItems && dto.registryItems.length > 0) {
+        await tx.registryItem.createMany({
+          data: dto.registryItems.map((item, idx) => ({
+            eventId: created.id,
+            productId: item.productId || null,
+            title: item.title,
+            priceKobo: item.priceKobo,
+            position: idx + 1,
+            status: "AVAILABLE",
+          })),
+        });
+      }
+
+      return created;
+    };
+
+    const event =
+      typeof this.prisma.$transaction === "function"
+        ? await this.prisma.$transaction((tx) => runCreate(tx))
+        : await runCreate(this.prisma);
 
     return {
       id: event.id,
@@ -198,24 +207,25 @@ export class EventsService {
   }
 
   async publishEvent(userId: string, eventId: string) {
-    const event = await this.prisma.event.findFirst({
-      where: { id: eventId, ownerId: userId },
-    });
+    const [event, verifiedAccount] = await Promise.all([
+      this.prisma.event.findFirst({
+        where: { id: eventId, ownerId: userId },
+      }),
+      this.prisma.payoutAccount.findFirst({
+        where: { userId, status: "VERIFIED" },
+        select: { id: true },
+      }),
+    ]);
 
     if (!event) {
       throw new NotFoundException("Event not found");
     }
 
-    // Check if owner has a verified payout account for money gifts
-    const verifiedAccount = await this.prisma.payoutAccount.findFirst({
-      where: { userId, status: "VERIFIED" },
-    });
-
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
         status: "PUBLISHED",
-        publishedAt: new Date(),
+        publishedAt: event.publishedAt ?? new Date(),
         payoutAccountId: verifiedAccount?.id || null,
       },
     });
@@ -303,17 +313,17 @@ export class EventsService {
   async getKeepsakeSummary(userId: string, eventId: string) {
     const event = await this.getEventDetail(userId, eventId);
 
-    // Count thanked gifts
-    const thankedCount = await this.prisma.gift.count({
-      where: { eventId: event.id, thankedAt: { not: null } },
-    });
-
-    // Wall highlights
-    const posts = await this.prisma.wallPost.findMany({
-      where: { eventId: event.id, status: PostStatus.VISIBLE },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    });
+    // Count thanked gifts & fetch wall highlights concurrently
+    const [thankedCount, posts] = await Promise.all([
+      this.prisma.gift.count({
+        where: { eventId: event.id, thankedAt: { not: null } },
+      }),
+      this.prisma.wallPost.findMany({
+        where: { eventId: event.id, status: PostStatus.VISIBLE },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      }),
+    ]);
 
     const highlights = posts.map((p) => ({
       id: p.id,
@@ -611,21 +621,24 @@ export class EventsService {
 
   // --- Public Wall of Love & RSVPs ---
 
-  async getPublicWall(slug: string) {
+  async getPublicWall(slug: string, limit = 50) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
+      select: { id: true },
     });
 
     if (!event) {
       throw new NotFoundException("Event not found");
     }
 
+    const take = Math.min(Math.max(1, Number(limit) || 50), 100);
     const posts = await this.prisma.wallPost.findMany({
       where: {
         eventId: event.id,
         status: PostStatus.VISIBLE,
       },
       orderBy: { createdAt: "desc" },
+      take,
     });
 
     return posts.map((p) => ({
@@ -641,6 +654,7 @@ export class EventsService {
   async createPublicWallPost(slug: string, dto: CreateWallPostRequestDto) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
+      select: { id: true },
     });
 
     if (!event) {
@@ -670,6 +684,7 @@ export class EventsService {
   async submitPublicRsvp(slug: string, dto: SubmitRsvpRequestDto) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
+      select: { id: true },
     });
 
     if (!event) {
@@ -721,33 +736,39 @@ export class EventsService {
   // --- Host Event Management Methods ---
 
   async getEventRsvps(userId: string, eventId: string) {
-    const event = await this.prisma.event.findFirst({
-      where: { id: eventId, ownerId: userId },
-    });
+    const [event, rsvps] = await Promise.all([
+      this.prisma.event.findFirst({
+        where: { id: eventId, ownerId: userId },
+        select: { id: true },
+      }),
+      this.prisma.rsvp.findMany({
+        where: { eventId },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
     if (!event) {
       throw new NotFoundException("Event not found");
     }
 
-    return this.prisma.rsvp.findMany({
-      where: { eventId },
-      orderBy: { createdAt: "desc" },
-    });
+    return rsvps;
   }
 
   async exportEventRsvpsCsv(userId: string, eventId: string) {
-    const event = await this.prisma.event.findFirst({
-      where: { id: eventId, ownerId: userId },
-    });
+    const [event, rsvps] = await Promise.all([
+      this.prisma.event.findFirst({
+        where: { id: eventId, ownerId: userId },
+        select: { id: true, slug: true },
+      }),
+      this.prisma.rsvp.findMany({
+        where: { eventId },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
     if (!event) {
       throw new NotFoundException("Event not found");
     }
-
-    const rsvps = await this.prisma.rsvp.findMany({
-      where: { eventId },
-      orderBy: { createdAt: "desc" },
-    });
 
     const header = "Name,Email,Phone,Response,Plus One,Registered At\n";
     const rows = rsvps
@@ -764,18 +785,20 @@ export class EventsService {
   }
 
   async getEventWall(userId: string, eventId: string) {
-    const event = await this.prisma.event.findFirst({
-      where: { id: eventId, ownerId: userId },
-    });
+    const [event, posts] = await Promise.all([
+      this.prisma.event.findFirst({
+        where: { id: eventId, ownerId: userId },
+        select: { id: true },
+      }),
+      this.prisma.wallPost.findMany({
+        where: { eventId },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
     if (!event) {
       throw new NotFoundException("Event not found");
     }
-
-    const posts = await this.prisma.wallPost.findMany({
-      where: { eventId },
-      orderBy: { createdAt: "desc" },
-    });
 
     return posts.map((p) => ({
       id: p.id,
@@ -795,10 +818,21 @@ export class EventsService {
   ) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, ownerId: userId },
+      select: { id: true },
     });
 
     if (!event) {
       throw new NotFoundException("Event not found");
+    }
+
+    if (typeof (this.prisma.wallPost as any).findFirst === "function") {
+      const existingPost = await this.prisma.wallPost.findFirst({
+        where: { id: postId, eventId: event.id },
+        select: { id: true },
+      });
+      if (!existingPost) {
+        throw new NotFoundException("Wall post not found on this event");
+      }
     }
 
     const post = await this.prisma.wallPost.update({

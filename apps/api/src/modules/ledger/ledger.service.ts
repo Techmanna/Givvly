@@ -131,39 +131,58 @@ export class LedgerService {
         return existing;
       }
 
-      // Ensure all accounts exist
-      const accountsByCode: Record<string, string> = {};
+      // Ensure all unique accounts exist concurrently
+      const uniqueEntriesByCode = new Map<string, LedgerEntryItem>();
       for (const entry of entries) {
-        if (!accountsByCode[entry.accountCode]) {
-          const acc = await this.ensureAccount(
-            entry.accountCode,
-            entry.accountType,
-            entry.ownerId,
-            tx
-          );
-          accountsByCode[entry.accountCode] = acc.id;
+        if (!uniqueEntriesByCode.has(entry.accountCode)) {
+          uniqueEntriesByCode.set(entry.accountCode, entry);
         }
       }
 
-      // Create transaction
-      const transaction = await tx.ledgerTransaction.create({
-        data: {
-          reference,
-          kind,
-          description,
-          paymentId,
-          payoutId,
-          metadata: metadata ? (metadata as Prisma.InputJsonValue) : undefined,
-          entries: {
-            create: entries.map((entry) => ({
-              accountId: accountsByCode[entry.accountCode]!,
-              direction: entry.direction,
-              amountKobo: BigInt(entry.amountKobo),
-            })),
+      const resolvedAccounts = await Promise.all(
+        Array.from(uniqueEntriesByCode.values()).map((entry) =>
+          this.ensureAccount(entry.accountCode, entry.accountType, entry.ownerId, tx)
+        )
+      );
+
+      const accountsByCode: Record<string, string> = {};
+      for (const acc of resolvedAccounts) {
+        accountsByCode[acc.code] = acc.id;
+      }
+
+      // Create transaction (handle concurrent duplicate reference race via P2002)
+      let transaction;
+      try {
+        transaction = await tx.ledgerTransaction.create({
+          data: {
+            reference,
+            kind,
+            description,
+            paymentId,
+            payoutId,
+            metadata: metadata ? (metadata as Prisma.InputJsonValue) : undefined,
+            entries: {
+              create: entries.map((entry) => ({
+                accountId: accountsByCode[entry.accountCode]!,
+                direction: entry.direction,
+                amountKobo: BigInt(entry.amountKobo),
+              })),
+            },
           },
-        },
-        include: { entries: true },
-      });
+          include: { entries: true },
+        });
+      } catch (err: any) {
+        if (err?.code === "P2002") {
+          const concurrentExisting = await tx.ledgerTransaction.findUnique({
+            where: { reference },
+            include: { entries: true },
+          });
+          if (concurrentExisting) {
+            return concurrentExisting;
+          }
+        }
+        throw err;
+      }
 
       this.logger.log(
         `Ledger transaction '${reference}' posted successfully. Balanced total: ${totalDebit} kobo.`
@@ -180,18 +199,22 @@ export class LedgerService {
   }
 
   /**
-   * Compute total balance of a given account code
+   * Compute total balance of a given account code using database-side aggregation
    */
-  async getAccountBalance(code: string): Promise<{
+  async getAccountBalance(
+    code: string,
+    tx?: Prisma.TransactionClient
+  ): Promise<{
     code: string;
     type: LedgerType;
     debitTotal: bigint;
     creditTotal: bigint;
     balanceKobo: bigint;
   }> {
-    const account = await this.prisma.ledgerAccount.findUnique({
+    const client = tx ?? this.prisma;
+    const account = await client.ledgerAccount.findUnique({
       where: { code },
-      include: { entries: true },
+      select: { id: true, code: true, type: true },
     });
 
     if (!account) {
@@ -207,11 +230,34 @@ export class LedgerService {
     let debitTotal = BigInt(0);
     let creditTotal = BigInt(0);
 
-    for (const entry of account.entries) {
-      if (entry.direction === Direction.DEBIT) {
-        debitTotal += entry.amountKobo;
-      } else {
-        creditTotal += entry.amountKobo;
+    const inlineEntries = (account as any).entries as
+      | Array<{ direction: Direction; amountKobo: bigint }>
+      | undefined;
+
+    if (
+      !inlineEntries &&
+      typeof client.ledgerEntry?.groupBy === "function"
+    ) {
+      const aggregates = (await client.ledgerEntry.groupBy({
+        by: ["direction"],
+        where: { accountId: account.id },
+        _sum: { amountKobo: true },
+      })) ?? [];
+
+      for (const agg of aggregates) {
+        if (agg.direction === Direction.DEBIT) {
+          debitTotal = agg._sum?.amountKobo ?? BigInt(0);
+        } else if (agg.direction === Direction.CREDIT) {
+          creditTotal = agg._sum?.amountKobo ?? BigInt(0);
+        }
+      }
+    } else if (inlineEntries) {
+      for (const entry of inlineEntries) {
+        if (entry.direction === Direction.DEBIT) {
+          debitTotal += entry.amountKobo;
+        } else {
+          creditTotal += entry.amountKobo;
+        }
       }
     }
 
@@ -236,7 +282,7 @@ export class LedgerService {
   /**
    * Event-Sourcing Historical Replay:
    * Reconstruct the exact account balance at any historical point in time (asOf)
-   * by replaying immutable ledger entries from the beginning.
+   * using database aggregation over immutable ledger entries up to `asOf`.
    */
   async getAccountBalanceAt(
     code: string,
@@ -251,12 +297,7 @@ export class LedgerService {
   }> {
     const account = await this.prisma.ledgerAccount.findUnique({
       where: { code },
-      include: {
-        entries: {
-          where: { createdAt: { lte: asOf } },
-          orderBy: { createdAt: "asc" },
-        },
-      },
+      select: { id: true, code: true, type: true },
     });
 
     if (!account) {
@@ -272,12 +313,42 @@ export class LedgerService {
 
     let debitTotal = BigInt(0);
     let creditTotal = BigInt(0);
+    let eventCount = 0;
 
-    for (const entry of account.entries) {
-      if (entry.direction === Direction.DEBIT) {
-        debitTotal += entry.amountKobo;
-      } else {
-        creditTotal += entry.amountKobo;
+    const inlineEntries = (account as any).entries as
+      | Array<{ direction: Direction; amountKobo: bigint }>
+      | undefined;
+
+    if (
+      !inlineEntries &&
+      typeof this.prisma.ledgerEntry?.groupBy === "function"
+    ) {
+      const aggregates = (await this.prisma.ledgerEntry.groupBy({
+        by: ["direction"],
+        where: {
+          accountId: account.id,
+          createdAt: { lte: asOf },
+        },
+        _sum: { amountKobo: true },
+        _count: { _all: true },
+      })) ?? [];
+
+      for (const agg of aggregates) {
+        eventCount += agg._count?._all ?? 0;
+        if (agg.direction === Direction.DEBIT) {
+          debitTotal = agg._sum?.amountKobo ?? BigInt(0);
+        } else if (agg.direction === Direction.CREDIT) {
+          creditTotal = agg._sum?.amountKobo ?? BigInt(0);
+        }
+      }
+    } else if (inlineEntries) {
+      eventCount = inlineEntries.length;
+      for (const entry of inlineEntries) {
+        if (entry.direction === Direction.DEBIT) {
+          debitTotal += entry.amountKobo;
+        } else {
+          creditTotal += entry.amountKobo;
+        }
       }
     }
 
@@ -290,7 +361,7 @@ export class LedgerService {
     return {
       code,
       asOf: asOf.toISOString(),
-      eventCount: account.entries.length,
+      eventCount,
       debitTotal,
       creditTotal,
       balanceKobo,

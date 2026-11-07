@@ -57,6 +57,7 @@ export class WalletService {
    */
   async resolveCbnTier(userId: string): Promise<{
     policy: CbnTierPolicy;
+    hasPin: boolean;
     verifiedBank: {
       id: string;
       bankName: string;
@@ -73,6 +74,7 @@ export class WalletService {
           emailVerifiedAt: true,
           kycTier: true,
           bvnLast4: true,
+          walletPinHash: true,
         },
       }),
       this.prisma.payoutAccount.findFirst({
@@ -99,6 +101,7 @@ export class WalletService {
 
     return {
       policy: CBN_KYC_POLICIES[tier],
+      hasPin: Boolean(user.walletPinHash),
       verifiedBank: verifiedAccount,
     };
   }
@@ -140,14 +143,21 @@ export class WalletService {
   /**
    * Compute cumulative wallet outflows since 00:00 WAT (Africa/Lagos) today
    */
-  async getDailyCumulativeOutflowKobo(userId: string): Promise<number> {
-    const code = this.walletAccountCode(userId);
-    const account = await this.prisma.ledgerAccount.findUnique({
-      where: { code },
-      select: { id: true },
-    });
+  async getDailyCumulativeOutflowKobo(
+    userId: string,
+    existingAccountId?: string | null
+  ): Promise<number> {
+    let accountId = existingAccountId;
+    if (accountId === undefined) {
+      const code = this.walletAccountCode(userId);
+      const account = await this.prisma.ledgerAccount.findUnique({
+        where: { code },
+        select: { id: true },
+      });
+      accountId = account?.id ?? null;
+    }
 
-    if (!account) return 0;
+    if (!accountId) return 0;
 
     // Start of current day in WAT (UTC+1)
     const now = new Date();
@@ -167,7 +177,7 @@ export class WalletService {
     const [debits, cancels] = await Promise.all([
       this.prisma.ledgerEntry.aggregate({
         where: {
-          accountId: account.id,
+          accountId,
           direction: Direction.DEBIT,
           createdAt: { gte: startOfWatDay },
         },
@@ -175,7 +185,7 @@ export class WalletService {
       }),
       this.prisma.ledgerEntry.aggregate({
         where: {
-          accountId: account.id,
+          accountId,
           direction: Direction.CREDIT,
           createdAt: { gte: startOfWatDay },
           transaction: {
@@ -376,27 +386,33 @@ export class WalletService {
     const [
       walletBal,
       reserveBal,
-      { policy, verifiedBank },
-      dailyUsedKobo,
-      hasPin,
+      { policy, hasPin, verifiedBank },
       userEvents,
       walletAccount,
     ] = await Promise.all([
       this.ledger.getAccountBalance(walletCode),
       this.ledger.getAccountBalance(reserveCode),
       this.resolveCbnTier(userId),
-      this.getDailyCumulativeOutflowKobo(userId),
-      this.hasTransactionPin(userId),
       this.prisma.event.findMany({
         where: { ownerId: userId },
-        include: {
-          pools: { where: { status: PoolStatus.OPEN } },
+        select: {
+          id: true,
+          pools: {
+            where: { status: PoolStatus.OPEN },
+            select: { raisedKobo: true },
+          },
         },
       }),
       this.prisma.ledgerAccount.findUnique({
         where: { code: walletCode },
+        select: { id: true, code: true },
       }),
     ]);
+
+    const dailyUsedKobo = await this.getDailyCumulativeOutflowKobo(
+      userId,
+      walletAccount?.id ?? null
+    );
 
     const escrowBalanceKobo = userEvents.reduce(
       (sum, ev: any) =>
@@ -580,27 +596,10 @@ export class WalletService {
 
     const reference = `wal_topup_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
-    const payment = await this.prisma.payment.create({
-      data: {
-        reference,
-        currency: "NGN",
-        amountKobo: dto.amountKobo,
-        feeKobo: 0,
-        status: PaymentStatus.INITIATED,
-        payerEmail: user.email,
-        provider: "PAYSTACK",
-        metadata: {
-          kind: "WALLET_TOPUP",
-          userId: user.id,
-          payerName: user.name,
-        },
-      },
-    });
-
     const gateway = this.paymentGatewayRegistry.getGateway("PAYSTACK");
     const initRes = await gateway.initializePayment({
-      reference: payment.reference,
-      amountSubunits: payment.amountKobo,
+      reference,
+      amountSubunits: dto.amountKobo,
       customerEmail: user.email,
       customerName: user.name,
       currency: "NGN",
@@ -610,9 +609,23 @@ export class WalletService {
       },
     });
 
-    await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: { accessCode: initRes.accessCode },
+    const payment = await this.prisma.payment.create({
+      data: {
+        reference,
+        currency: "NGN",
+        amountKobo: dto.amountKobo,
+        feeKobo: 0,
+        status: PaymentStatus.INITIATED,
+        accessCode: initRes.accessCode,
+        authorizationUrl: initRes.authorizationUrl,
+        payerEmail: user.email,
+        provider: "PAYSTACK",
+        metadata: {
+          kind: "WALLET_TOPUP",
+          userId: user.id,
+          payerName: user.name,
+        },
+      },
     });
 
     return {
@@ -790,7 +803,7 @@ export class WalletService {
       const txReference = `wallet:transfer:${dto.transaction_id}`;
 
       await this.prisma.$transaction(async (tx) => {
-        const currentSenderBal = await this.ledger.getAccountBalance(senderCode);
+        const currentSenderBal = await this.ledger.getAccountBalance(senderCode, tx);
         if (Number(currentSenderBal.balanceKobo) < amountKobo) {
           throw new BadRequestException("Insufficient wallet balance");
         }
@@ -902,7 +915,7 @@ export class WalletService {
     try {
       // PHASE 1: TRY (Deduction prior to downstream execution)
       await this.prisma.$transaction(async (tx) => {
-        const bal = await this.ledger.getAccountBalance(walletCode);
+        const bal = await this.ledger.getAccountBalance(walletCode, tx);
         if (Number(bal.balanceKobo) < amountKobo) {
           throw new BadRequestException("Insufficient wallet balance for this order");
         }
@@ -1080,7 +1093,7 @@ export class WalletService {
     try {
       // PHASE 1: TRY (Reserve withdrawal amount from available balance)
       await this.prisma.$transaction(async (tx) => {
-        const bal = await this.ledger.getAccountBalance(walletCode);
+        const bal = await this.ledger.getAccountBalance(walletCode, tx);
         if (Number(bal.balanceKobo) < dto.amountKobo) {
           throw new BadRequestException("Insufficient available wallet balance");
         }

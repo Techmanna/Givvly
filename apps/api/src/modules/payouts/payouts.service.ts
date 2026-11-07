@@ -43,6 +43,25 @@ export class PayoutsService {
       return payout;
     }
 
+    // Atomically claim the payout to prevent concurrent workers from double-disbursing
+    if (typeof (this.prisma.payout as any).updateMany === "function") {
+      const claimed = await this.prisma.payout.updateMany({
+        where: {
+          id: payout.id,
+          status: { in: [PayoutStatus.QUEUED, PayoutStatus.FAILED] },
+        },
+        data: {
+          status: PayoutStatus.PROCESSING,
+        },
+      });
+      if (claimed.count === 0) {
+        this.logger.log(
+          `Payout ${payout.reference} was already claimed by a concurrent worker, skipping.`
+        );
+        return payout;
+      }
+    }
+
     const account = await this.prisma.payoutAccount.findUnique({
       where: { id: payout.payoutAccountId },
     });
@@ -152,25 +171,33 @@ export class PayoutsService {
   }
 
   /**
-   * Process all queued payouts (invoked by scheduler / worker)
+   * Process all queued payouts with controlled concurrency (invoked by scheduler / worker)
    */
   async processAllQueuedPayouts() {
     const queued = await this.prisma.payout.findMany({
       where: { status: PayoutStatus.QUEUED },
       take: 20,
       orderBy: { queuedAt: "asc" },
+      select: { id: true },
     });
 
     this.logger.log(`Found ${queued.length} queued payouts to process`);
 
+    const CONCURRENCY_LIMIT = 5;
     const results = [];
-    for (const payout of queued) {
-      try {
-        const res = await this.processPayout(payout.id);
-        results.push(res);
-      } catch (err) {
-        this.logger.error(`Error processing payout ${payout.id}:`, err);
-      }
+    for (let i = 0; i < queued.length; i += CONCURRENCY_LIMIT) {
+      const batch = queued.slice(i, i + CONCURRENCY_LIMIT);
+      const batchResults = await Promise.all(
+        batch.map(async (payout) => {
+          try {
+            return await this.processPayout(payout.id);
+          } catch (err) {
+            this.logger.error(`Error processing payout ${payout.id}:`, err);
+            return null;
+          }
+        })
+      );
+      results.push(...batchResults.filter(Boolean));
     }
 
     return results;
@@ -180,49 +207,68 @@ export class PayoutsService {
    * Request payout withdrawal for celebration cash gifts
    */
   async requestPayout(userId: string, eventId: string) {
-    const event = await this.prisma.event.findFirst({
-      where: { OR: [{ id: eventId }, { slug: eventId }], ownerId: userId },
-      include: {
-        gifts: { where: { status: "PAID", type: "MONEY" } },
-        payouts: true,
-      },
-    });
+    const createQueuedPayout = async (tx: any) => {
+      const [event, account] = await Promise.all([
+        tx.event.findFirst({
+          where: { OR: [{ id: eventId }, { slug: eventId }], ownerId: userId },
+          include: {
+            gifts: {
+              where: { status: "PAID", type: "MONEY" },
+              select: { amountKobo: true },
+            },
+            payouts: {
+              select: { amountKobo: true, status: true },
+            },
+          },
+        }),
+        tx.payoutAccount.findFirst({
+          where: { userId, status: "VERIFIED" },
+          select: { id: true },
+        }),
+      ]);
 
-    if (!event) {
-      throw new NotFoundException("Event not found");
-    }
+      if (!event) {
+        throw new NotFoundException("Event not found");
+      }
 
-    const account = await this.prisma.payoutAccount.findFirst({
-      where: { userId, status: "VERIFIED" },
-    });
+      if (!account) {
+        throw new BadRequestException("Please add and verify a bank payout account first");
+      }
 
-    if (!account) {
-      throw new BadRequestException("Please add and verify a bank payout account first");
-    }
+      const totalGiftsKobo = event.gifts.reduce((sum: number, g: any) => sum + g.amountKobo, 0);
+      const alreadyClaimedKobo = event.payouts
+        .filter(
+          (p: any) =>
+            p.status === PayoutStatus.SUCCESS ||
+            p.status === PayoutStatus.QUEUED ||
+            p.status === PayoutStatus.PROCESSING
+        )
+        .reduce((sum: number, p: any) => sum + p.amountKobo, 0);
 
-    const totalGiftsKobo = event.gifts.reduce((sum, g) => sum + g.amountKobo, 0);
-    const alreadyClaimedKobo = event.payouts
-      .filter((p) => p.status === PayoutStatus.SUCCESS || p.status === PayoutStatus.QUEUED || p.status === PayoutStatus.PROCESSING)
-      .reduce((sum, p) => sum + p.amountKobo, 0);
+      const availableKobo = Math.max(0, totalGiftsKobo - alreadyClaimedKobo);
 
-    const availableKobo = Math.max(0, totalGiftsKobo - alreadyClaimedKobo);
+      if (availableKobo <= 0) {
+        throw new BadRequestException("No available balance for payout");
+      }
 
-    if (availableKobo <= 0) {
-      throw new BadRequestException("No available balance for payout");
-    }
+      const reference = `po_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      return tx.payout.create({
+        data: {
+          userId,
+          eventId: event.id,
+          payoutAccountId: account.id,
+          reference,
+          amountKobo: availableKobo,
+          transferFeeKobo: 0,
+          status: PayoutStatus.QUEUED,
+        },
+      });
+    };
 
-    const reference = `po_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const payout = await this.prisma.payout.create({
-      data: {
-        userId,
-        eventId: event.id,
-        payoutAccountId: account.id,
-        reference,
-        amountKobo: availableKobo,
-        transferFeeKobo: 0,
-        status: PayoutStatus.QUEUED,
-      },
-    });
+    const payout =
+      typeof this.prisma.$transaction === "function"
+        ? await this.prisma.$transaction((tx) => createQueuedPayout(tx))
+        : await createQueuedPayout(this.prisma);
 
     try {
       return await this.processPayout(payout.id);
@@ -234,10 +280,12 @@ export class PayoutsService {
   /**
    * List payouts for a specific user
    */
-  async getUserPayouts(userId: string) {
+  async getUserPayouts(userId: string, limit = 50) {
+    const take = Math.min(Math.max(1, Number(limit) || 50), 100);
     return this.prisma.payout.findMany({
       where: { userId },
       orderBy: { queuedAt: "desc" },
+      take,
     });
   }
 
