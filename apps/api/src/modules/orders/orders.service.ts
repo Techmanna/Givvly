@@ -32,7 +32,7 @@ export class OrdersService {
     private readonly ledger: LedgerService,
     @Optional() private readonly digitalGifts?: DigitalGiftsService,
     @Optional() private readonly notifications?: NotificationsService
-  ) {}
+  ) { }
 
   /**
    * Direct checkout for gift items / boxes
@@ -45,7 +45,7 @@ export class OrdersService {
       user?.email ||
       dto.buyerEmail ||
       dto.recipient?.email ||
-      "guest@givvly.ng";
+      "guest@givvly.vercel.app";
 
     const recipientPhones = Array.isArray(dto.recipientPhones)
       ? dto.recipientPhones.map((p) => p.trim()).filter(Boolean).slice(0, 50)
@@ -202,13 +202,13 @@ export class OrdersService {
     const addressPayload =
       dto.address || dto.vtuType || dto.vtuProvider || dto.billItemIdentifier || recipientPhones.length > 0
         ? {
-            ...(dto.address ? (dto.address as any) : {}),
-            ...(dto.vtuType ? { vtuType: dto.vtuType } : {}),
-            ...(dto.vtuProvider ? { vtuProvider: dto.vtuProvider } : {}),
-            ...(dto.billItemIdentifier ? { billItemIdentifier: dto.billItemIdentifier } : {}),
-            ...(resolvedUnitVtuKobo ? { unitVtuAmountKobo: resolvedUnitVtuKobo } : {}),
-            ...(recipientPhones.length > 0 ? { recipientPhones } : {}),
-          }
+          ...(dto.address ? (dto.address as any) : {}),
+          ...(dto.vtuType ? { vtuType: dto.vtuType } : {}),
+          ...(dto.vtuProvider ? { vtuProvider: dto.vtuProvider } : {}),
+          ...(dto.billItemIdentifier ? { billItemIdentifier: dto.billItemIdentifier } : {}),
+          ...(resolvedUnitVtuKobo ? { unitVtuAmountKobo: resolvedUnitVtuKobo } : {}),
+          ...(recipientPhones.length > 0 ? { recipientPhones } : {}),
+        }
         : undefined;
 
     // Initialize Payment Gateway before DB transaction to avoid holding DB locks over HTTP I/O
@@ -573,16 +573,16 @@ export class OrdersService {
         const products =
           typeof tx.product.findMany === "function"
             ? await tx.product.findMany({
-                where: { id: { in: itemProductIds } },
-                select: { id: true, stock: true },
-              })
+              where: { id: { in: itemProductIds } },
+              select: { id: true, stock: true },
+            })
             : (
-                await Promise.all(
-                  itemProductIds.map((id) =>
-                    tx.product.findUnique({ where: { id } })
-                  )
+              await Promise.all(
+                itemProductIds.map((id) =>
+                  tx.product.findUnique({ where: { id } })
                 )
-              ).filter(Boolean);
+              )
+            ).filter(Boolean);
         const productById = new Map(
           (products as Array<{ id: string; stock: number | null }>).map((p) => [
             p.id,
@@ -650,7 +650,7 @@ export class OrdersService {
 
       if (this.notifications && order.buyerEmail) {
         try {
-          const trackingUrl = `https://givvly.ng/track/${order.trackingToken}`;
+          const trackingUrl = `https://givvly.vercel.app/track/${order.trackingToken}`;
           await this.notifications.sendOrderConfirmedEmail(
             order.buyerEmail,
             order.buyerUserId || undefined,
@@ -788,14 +788,14 @@ export class OrdersService {
         }),
         typeof tx.product.findMany === "function"
           ? tx.product.findMany({
-              where: { id: { in: itemProductIds } },
-              select: { id: true, ratingAvg: true, ratingCount: true },
-            })
+            where: { id: { in: itemProductIds } },
+            select: { id: true, ratingAvg: true, ratingCount: true },
+          })
           : Promise.all(
-              itemProductIds.map((id) =>
-                tx.product.findUnique({ where: { id } })
-              )
-            ),
+            itemProductIds.map((id) =>
+              tx.product.findUnique({ where: { id } })
+            )
+          ),
       ]);
 
       const productMap = new Map(
@@ -920,15 +920,15 @@ export class OrdersService {
     const order =
       typeof this.prisma.order.findFirst === "function"
         ? await this.prisma.order.findFirst({
-            where: {
-              OR: [{ trackingToken: token }, { number: token }, { id: token }],
-            },
-            include,
-          })
+          where: {
+            OR: [{ trackingToken: token }, { number: token }, { id: token }],
+          },
+          include,
+        })
         : await this.prisma.order.findUnique({
-            where: { trackingToken: token },
-            include,
-          });
+          where: { trackingToken: token },
+          include,
+        });
 
     if (!order) {
       throw new NotFoundException("Order tracking record not found");

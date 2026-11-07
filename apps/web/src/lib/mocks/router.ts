@@ -334,8 +334,8 @@ export async function handleMockApiRequest<T>(
       email?: string;
       phone?: string;
     };
-    const email = (body.email ?? "newuser@givvly.ng").toLowerCase();
-    if (email === "taken@givvly.ng") {
+    const email = (body.email ?? "newuser@givvly.vercel.app").toLowerCase();
+    if (email === "taken@givvly.vercel.app") {
       throwMockError(409, "EMAIL_TAKEN", "Email is already registered");
     }
     const newUser: User = {
@@ -439,7 +439,7 @@ export async function handleMockApiRequest<T>(
     );
     const mediaId = `med_${Date.now()}`;
     const key = `uploads/${(body.purpose ?? "cover_image").toLowerCase()}/${mediaId}_${safeName}`;
-    const publicUrl = `https://cdn.givvly.ng/${key}`;
+    const publicUrl = `https://cdn.givvly.vercel.app/${key}`;
     const res: PresignUploadResponse = {
       mediaId,
       uploadUrl: `mock://upload/${key}`,
@@ -457,7 +457,7 @@ export async function handleMockApiRequest<T>(
   if (method === "POST" && uploadCompleteMatch) {
     const mediaId = decodeURIComponent(uploadCompleteMatch[1]!);
     const key = `uploads/completed/${mediaId}.jpg`;
-    const publicUrl = `https://cdn.givvly.ng/${key}`;
+    const publicUrl = `https://cdn.givvly.vercel.app/${key}`;
     return wrapSuccess({
       mediaId,
       key,
@@ -556,12 +556,12 @@ export async function handleMockApiRequest<T>(
     const existingSlugs = new Set(db.events.map((e) => e.slug.toLowerCase()));
     const requestedSlug = body.slug
       ? body.slug
-          .toLowerCase()
-          .trim()
-          .replace(/[^\w\s-]/g, "")
-          .replace(/[\s_-]+/g, "-")
-          .replace(/^-+|-+$/g, "")
-          .slice(0, 60)
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, "")
+        .replace(/[\s_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60)
       : "";
     let slug =
       requestedSlug.length >= 4
@@ -586,7 +586,7 @@ export async function handleMockApiRequest<T>(
       date: body.date,
       coverUrl:
         body.coverUrl ||
-        (body.coverKey ? `https://cdn.givvly.ng/${body.coverKey}` : undefined),
+        (body.coverKey ? `https://cdn.givvly.vercel.app/${body.coverKey}` : undefined),
       visibility: body.visibility,
       accessCode: body.accessCode,
       status: "DRAFT",
@@ -1831,12 +1831,12 @@ export async function handleMockApiRequest<T>(
         body.items && body.items.length > 0
           ? body.items
           : [
-              {
-                name: resolvedTitle,
-                qty: isVtuOrder ? phonesCount : 1,
-                unitPriceKobo: resolvedUnitKobo,
-              },
-            ];
+            {
+              name: resolvedTitle,
+              qty: isVtuOrder ? phonesCount : 1,
+              unitPriceKobo: resolvedUnitKobo,
+            },
+          ];
       const itemsTotalKobo = itemsList.reduce(
         (sum, item) => sum + item.unitPriceKobo * item.qty,
         0
@@ -1852,14 +1852,14 @@ export async function handleMockApiRequest<T>(
         status: isVtuOrder ? "DELIVERED" : "CONFIRMED",
         timeline: isVtuOrder
           ? [
-              { status: "PENDING_PAYMENT", at: now },
-              { status: "CONFIRMED", at: now },
-              { status: "DELIVERED", at: now },
-            ]
+            { status: "PENDING_PAYMENT", at: now },
+            { status: "CONFIRMED", at: now },
+            { status: "DELIVERED", at: now },
+          ]
           : [
-              { status: "PENDING_PAYMENT", at: now },
-              { status: "CONFIRMED", at: now },
-            ],
+            { status: "PENDING_PAYMENT", at: now },
+            { status: "CONFIRMED", at: now },
+          ],
         recipientName:
           body.recipientName?.trim() ||
           body.recipientPhone?.trim() ||
@@ -1868,7 +1868,7 @@ export async function handleMockApiRequest<T>(
         buyerEmail:
           body.buyerEmail ||
           resolveUserFromCookie(opts.cookieHeader)?.email ||
-          "guest@givvly.ng",
+          "guest@givvly.vercel.app",
         trackingToken: `trk_${Math.random().toString(36).slice(2, 12)}`,
         address: body.address
           ? `${body.address.street}, ${body.address.area}, ${body.address.city}, ${body.address.state}`
@@ -2266,7 +2266,7 @@ export async function handleMockApiRequest<T>(
     }
     const detail = {
       ...order,
-      buyerEmail: "buyer@givvly.ng",
+      buyerEmail: "buyer@givvly.vercel.app",
       buyerUserId: "usr_buyer_01",
       recipientEmail: "recipient@example.com",
       recipientPhone: "08031234567",
@@ -2295,7 +2295,7 @@ export async function handleMockApiRequest<T>(
         amountKobo: order.totalKobo,
         status: "SUCCESS",
         provider: "paystack",
-        payerEmail: "buyer@givvly.ng",
+        payerEmail: "buyer@givvly.vercel.app",
         createdAt: order.timeline?.[0]?.at ?? new Date().toISOString(),
       },
       history: (order.timeline ?? []).map((t, idx) => ({
@@ -2322,7 +2322,7 @@ export async function handleMockApiRequest<T>(
       {
         id: "usr_vendor_01",
         name: "Lagos Luxe Hampers",
-        email: "vendor@givvly.ng",
+        email: "vendor@givvly.vercel.app",
         productCount: db.products.length,
         status: "VERIFIED",
       },
@@ -2359,14 +2359,14 @@ export async function handleMockApiRequest<T>(
       {
         id: "usr_chidi",
         name: "Chidi Nwosu",
-        email: "chidi@givvly.ng",
+        email: "chidi@givvly.vercel.app",
         phone: "08031234567",
         lastSentAt: new Date(Date.now() - 172_800_000).toISOString(),
       },
       {
         id: "usr_tunde",
         name: "Tunde Bakare",
-        email: "tunde@givvly.ng",
+        email: "tunde@givvly.vercel.app",
         phone: "08166551496",
         lastSentAt: new Date(Date.now() - 345_600_000).toISOString(),
       },
@@ -2601,7 +2601,7 @@ export async function handleMockApiRequest<T>(
     const recipientRecord = {
       id: `usr_${Date.now()}`,
       name: toTarget || "Givvly Member",
-      email: isPhone ? "member@givvly.ng" : toTarget || "member@givvly.ng",
+      email: isPhone ? "member@givvly.vercel.app" : toTarget || "member@givvly.vercel.app",
       phone: isPhone ? toTarget : null,
     };
     mockWalletState.transactions.unshift({

@@ -85,7 +85,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
       ]);
       setFormError(
         mapped.formError ??
-          "Invalid email or password. Please check your details and try again."
+        "Invalid email or password. Please check your details and try again."
       );
     }
   };
@@ -116,7 +116,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
             size="sm"
             disabled={isSubmitting}
             className="h-8 text-xs font-medium bg-card hover:bg-secondary/10 hover:border-secondary/40"
-            onClick={() => handleQuickLogin("adaobi@givvly.ng")}
+            onClick={() => handleQuickLogin("adaobi@givvly.vercel.app")}
           >
             User (Adaobi)
           </Button>
@@ -126,7 +126,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
             size="sm"
             disabled={isSubmitting}
             className="h-8 text-xs font-medium bg-card hover:bg-secondary/10 hover:border-secondary/40"
-            onClick={() => handleQuickLogin("admin@givvly.ng")}
+            onClick={() => handleQuickLogin("admin@givvly.vercel.app")}
           >
             Admin (Tunde)
           </Button>

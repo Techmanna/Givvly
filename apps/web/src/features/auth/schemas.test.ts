@@ -68,11 +68,11 @@ describe("signupSchema", () => {
 describe("loginSchema, forgotPasswordSchema, resetPasswordSchema, verifyEmailSchema", () => {
   it("validates login and forgotPassword schemas", () => {
     expect(
-      loginSchema.safeParse({ email: "user@givvly.ng", password: "secret" })
+      loginSchema.safeParse({ email: "user@givvly.vercel.app", password: "secret" })
         .success
     ).toBe(true);
     expect(
-      forgotPasswordSchema.safeParse({ email: "user@givvly.ng" }).success
+      forgotPasswordSchema.safeParse({ email: "user@givvly.vercel.app" }).success
     ).toBe(true);
     expect(verifyEmailSchema.safeParse({ token: "tok_123" }).success).toBe(
       true

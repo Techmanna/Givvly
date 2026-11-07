@@ -43,7 +43,7 @@ async function bootstrap() {
           imgSrc: [
             "'self'",
             "data:",
-            "https://cdn.givvly.ng",
+            "https://cdn.givvly.vercel.app",
             "https://*.paystack.co",
             "https://cdn.jsdelivr.net",
           ],
@@ -77,12 +77,12 @@ async function bootstrap() {
     .setTitle("Givvly Enterprise API")
     .setDescription(
       "Next-Generation Digital Gifting, Event Registry & Celebration Infrastructure.\n\n" +
-        "### Core Architecture & Invariants\n" +
-        "- **Strict Subunits**: All currency values are strictly integer subunits (kobo, cents, pence).\n" +
-        "- **Balanced Ledger**: Double-entry bookkeeping enforces sum(DEBIT) === sum(CREDIT) on every financial transaction.\n" +
-        "- **Decoupled Payments & Currencies**: Pluggable multi-gateway adapters (Paystack default) supporting NGN, USD, GBP, EUR, GHS, KES.\n" +
-        "- **Atomic Concurrency**: Compare-and-set row locks on registry reservation holds and pool target increments.\n" +
-        "- **Two Role Security**: Strictly `USER` (celebration hosts, gift buyers) and `ADMIN` (catalog management, order fulfillment)."
+      "### Core Architecture & Invariants\n" +
+      "- **Strict Subunits**: All currency values are strictly integer subunits (kobo, cents, pence).\n" +
+      "- **Balanced Ledger**: Double-entry bookkeeping enforces sum(DEBIT) === sum(CREDIT) on every financial transaction.\n" +
+      "- **Decoupled Payments & Currencies**: Pluggable multi-gateway adapters (Paystack default) supporting NGN, USD, GBP, EUR, GHS, KES.\n" +
+      "- **Atomic Concurrency**: Compare-and-set row locks on registry reservation holds and pool target increments.\n" +
+      "- **Two Role Security**: Strictly `USER` (celebration hosts, gift buyers) and `ADMIN` (catalog management, order fulfillment)."
     )
     .setVersion("1.0.0")
     .addBearerAuth(

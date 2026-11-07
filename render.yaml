@@ -60,7 +60,7 @@ services:
       - key: SMTP_PASS
         sync: false
       - key: MAIL_FROM
-        value: Givvly <no-reply@givvly.ng>
+        value: Givvly <no-reply@givvly.vercel.app>
 
   # -------------------------------------------------------------
   # Managed Redis Cache & Mutex Lock
@@ -81,4 +81,3 @@ databases:
     user: givvly
     region: oregon
     plan: starter
-

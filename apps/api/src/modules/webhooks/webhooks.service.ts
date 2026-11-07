@@ -41,7 +41,7 @@ export class WebhooksService {
     private readonly ledger: LedgerService,
     @Optional() private readonly digitalGifts?: DigitalGiftsService,
     @Optional() private readonly notifications?: NotificationsService
-  ) {}
+  ) { }
 
   /**
    * Generic provider-decoupled webhook entry point
@@ -639,16 +639,16 @@ export class WebhooksService {
         const products =
           typeof tx.product?.findMany === "function"
             ? await tx.product.findMany({
-                where: { id: { in: itemProductIds } },
-                select: { id: true, stock: true },
-              })
+              where: { id: { in: itemProductIds } },
+              select: { id: true, stock: true },
+            })
             : (
-                await Promise.all(
-                  itemProductIds.map((id) =>
-                    tx.product?.findUnique?.({ where: { id } })
-                  )
+              await Promise.all(
+                itemProductIds.map((id) =>
+                  tx.product?.findUnique?.({ where: { id } })
                 )
-              ).filter(Boolean);
+              )
+            ).filter(Boolean);
         const productById = new Map(
           (products as Array<{ id: string; stock: number | null }>).map((p) => [
             p.id,
@@ -764,31 +764,31 @@ export class WebhooksService {
         await Promise.all([
           ...(notifTask.payerEmail
             ? [
-                this.notifications.sendGiftReceiptEmail(
-                  notifTask.payerEmail,
-                  notifTask.giverDisplayName,
-                  notifTask.eventName,
-                  notifTask.amountKobo,
-                  notifTask.currency,
-                  notifTask.reference
-                ),
-              ]
+              this.notifications.sendGiftReceiptEmail(
+                notifTask.payerEmail,
+                notifTask.giverDisplayName,
+                notifTask.eventName,
+                notifTask.amountKobo,
+                notifTask.currency,
+                notifTask.reference
+              ),
+            ]
             : []),
           ...(notifTask.owner
             ? [
-                this.notifications.sendHostGiftReceivedEmail(
-                  notifTask.owner.email,
-                  notifTask.owner.id,
-                  notifTask.owner.name,
-                  notifTask.giverDisplayName,
-                  notifTask.amountKobo,
-                  notifTask.currency,
-                  notifTask.message,
-                  notifTask.eventName,
-                  notifTask.eventSlug,
-                  notifTask.eventId
-                ),
-              ]
+              this.notifications.sendHostGiftReceivedEmail(
+                notifTask.owner.email,
+                notifTask.owner.id,
+                notifTask.owner.name,
+                notifTask.giverDisplayName,
+                notifTask.amountKobo,
+                notifTask.currency,
+                notifTask.message,
+                notifTask.eventName,
+                notifTask.eventSlug,
+                notifTask.eventId
+              ),
+            ]
             : []),
         ]);
       } catch (err: any) {
@@ -808,7 +808,7 @@ export class WebhooksService {
 
     if (this.notifications && orderNotifTask) {
       try {
-        const trackingUrl = `https://givvly.ng/track/${orderNotifTask.trackingToken}`;
+        const trackingUrl = `https://givvly.vercel.app/track/${orderNotifTask.trackingToken}`;
         await this.notifications.sendOrderConfirmedEmail(
           orderNotifTask.buyerEmail,
           orderNotifTask.buyerUserId,

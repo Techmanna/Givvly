@@ -63,14 +63,14 @@ Givvly is an events-first gifting platform: an owner creates an event, guests RS
 
 ## 3. Tech stack and justification
 
-| Tool | Role | Why | Rules |
-| --- | --- | --- | --- |
-| Next.js (App Router) | Framework | SSR and ISR for shareable event pages, file routing, route handlers, image optimization | Use Server Components by default. Add `'use client'` only when needed (state, effects, browser APIs). |
-| TypeScript (strict) | Language | Types shared with API contract | `strict: true`, `noUncheckedIndexedAccess: true`. No `any`. Use `unknown` and narrow. |
-| Tailwind CSS | Styling | Fast, consistent, small CSS | Design tokens in `tailwind.config.ts`. No inline hex colors in components. |
-| shadcn/ui | Component primitives | Accessible Radix-based components you own | Copy components into `src/components/ui`. Do not edit behavior; wrap them instead. |
-| TanStack Query | Server state | Caching, retries, invalidation, polling | All API data lives here. Never copy it into Zustand. |
-| Zustand | Client state | Small global UI and draft state | Only for client-only state (see Section 6). |
+| Tool                 | Role                 | Why                                                                                     | Rules                                                                                                 |
+| -------------------- | -------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Next.js (App Router) | Framework            | SSR and ISR for shareable event pages, file routing, route handlers, image optimization | Use Server Components by default. Add `'use client'` only when needed (state, effects, browser APIs). |
+| TypeScript (strict)  | Language             | Types shared with API contract                                                          | `strict: true`, `noUncheckedIndexedAccess: true`. No `any`. Use `unknown` and narrow.                 |
+| Tailwind CSS         | Styling              | Fast, consistent, small CSS                                                             | Design tokens in `tailwind.config.ts`. No inline hex colors in components.                            |
+| shadcn/ui            | Component primitives | Accessible Radix-based components you own                                               | Copy components into `src/components/ui`. Do not edit behavior; wrap them instead.                    |
+| TanStack Query       | Server state         | Caching, retries, invalidation, polling                                                 | All API data lives here. Never copy it into Zustand.                                                  |
+| Zustand              | Client state         | Small global UI and draft state                                                         | Only for client-only state (see Section 6).                                                           |
 
 ### Supporting tools (justified)
 
@@ -125,45 +125,45 @@ All routes use the App Router. Access levels: **Public** (anyone), **Guest-OK** 
 
 ### 5.1 Public and guest routes
 
-| Route | Access | Rendering | Purpose |
-| --- | --- | --- | --- |
-| `/` | Public | Static + ISR (10 min) | Landing, featured public events, how it works |
-| `/gifts` | Public | ISR (5 min), filters via search params | Catalog browse |
-| `/gifts/[slug]` | Public | ISR | Product detail |
-| `/e/[slug]` | Public (or private after unlock) | SSR with tag revalidation, OG image | Event and invite page: story, RSVP, registry, give, wall |
-| `/e/[slug]/unlock` | Public | Client | Enter access code for private events |
-| `/e/[slug]/give` | Guest-OK | Client | Give flow: money, registry item, group gift |
-| `/e/[slug]/give/success` | Guest-OK | Client | Receipt after payment (reads `?ref=`) |
-| `/checkout/[slug]` | Guest-OK for browsing, Auth to pay | Client | Direct gift checkout |
-| `/checkout/success` | Auth | Client | Order confirmation |
-| `/track/[token]` | Public with token | SSR | Order tracking for recipients and guests |
-| `/login`, `/signup` | Public only (redirect if logged in) | Client | Auth |
-| `/forgot-password`, `/reset-password` | Public | Client | Password recovery |
-| `/verify-email` | Public | Client | Consumes `?token=` |
-| `/auth/google/callback` | Public | Route handler | OAuth return |
-| `/privacy`, `/terms`, `/help` | Public | Static | Legal and support |
-| `not-found`, `error`, `global-error` | n/a | n/a | Fallbacks |
+| Route                                 | Access                              | Rendering                              | Purpose                                                  |
+| ------------------------------------- | ----------------------------------- | -------------------------------------- | -------------------------------------------------------- |
+| `/`                                   | Public                              | Static + ISR (10 min)                  | Landing, featured public events, how it works            |
+| `/gifts`                              | Public                              | ISR (5 min), filters via search params | Catalog browse                                           |
+| `/gifts/[slug]`                       | Public                              | ISR                                    | Product detail                                           |
+| `/e/[slug]`                           | Public (or private after unlock)    | SSR with tag revalidation, OG image    | Event and invite page: story, RSVP, registry, give, wall |
+| `/e/[slug]/unlock`                    | Public                              | Client                                 | Enter access code for private events                     |
+| `/e/[slug]/give`                      | Guest-OK                            | Client                                 | Give flow: money, registry item, group gift              |
+| `/e/[slug]/give/success`              | Guest-OK                            | Client                                 | Receipt after payment (reads `?ref=`)                    |
+| `/checkout/[slug]`                    | Guest-OK for browsing, Auth to pay  | Client                                 | Direct gift checkout                                     |
+| `/checkout/success`                   | Auth                                | Client                                 | Order confirmation                                       |
+| `/track/[token]`                      | Public with token                   | SSR                                    | Order tracking for recipients and guests                 |
+| `/login`, `/signup`                   | Public only (redirect if logged in) | Client                                 | Auth                                                     |
+| `/forgot-password`, `/reset-password` | Public                              | Client                                 | Password recovery                                        |
+| `/verify-email`                       | Public                              | Client                                 | Consumes `?token=`                                       |
+| `/auth/google/callback`               | Public                              | Route handler                          | OAuth return                                             |
+| `/privacy`, `/terms`, `/help`         | Public                              | Static                                 | Legal and support                                        |
+| `not-found`, `error`, `global-error`  | n/a                                 | n/a                                    | Fallbacks                                                |
 
 ### 5.2 Authenticated routes (role USER)
 
-| Route | Purpose |
-| --- | --- |
-| `/dashboard` | My events, quick stats, recent gifts, notifications |
-| `/events/new` | Create event wizard (5 steps) |
-| `/events/[id]` | Event overview, status, share tools |
-| `/events/[id]/gifts` | Gift feed, filters, thank-you tracking |
-| `/events/[id]/registry` | Manage registry items and group gifts |
-| `/events/[id]/guests` | RSVPs, invite list, CSV export |
-| `/events/[id]/invite` | Template picker and editor |
-| `/events/[id]/wall` | Wall moderation (hide, delete, restore) |
-| `/events/[id]/thank-you` | Thank-you list with bulk message |
-| `/events/[id]/settings` | Edit event, visibility, access code, close or archive |
-| `/events/[id]/summary` | Keepsake preview and publish toggle |
-| `/orders`, `/orders/[id]` | My sent gifts and tracking, rate, open dispute |
-| `/account` | Profile |
-| `/account/payout` | Bank account and verification status |
-| `/account/notifications` | Channel preferences |
-| `/account/security` | Password, sessions, delete account |
+| Route                     | Purpose                                               |
+| ------------------------- | ----------------------------------------------------- |
+| `/dashboard`              | My events, quick stats, recent gifts, notifications   |
+| `/events/new`             | Create event wizard (5 steps)                         |
+| `/events/[id]`            | Event overview, status, share tools                   |
+| `/events/[id]/gifts`      | Gift feed, filters, thank-you tracking                |
+| `/events/[id]/registry`   | Manage registry items and group gifts                 |
+| `/events/[id]/guests`     | RSVPs, invite list, CSV export                        |
+| `/events/[id]/invite`     | Template picker and editor                            |
+| `/events/[id]/wall`       | Wall moderation (hide, delete, restore)               |
+| `/events/[id]/thank-you`  | Thank-you list with bulk message                      |
+| `/events/[id]/settings`   | Edit event, visibility, access code, close or archive |
+| `/events/[id]/summary`    | Keepsake preview and publish toggle                   |
+| `/orders`, `/orders/[id]` | My sent gifts and tracking, rate, open dispute        |
+| `/account`                | Profile                                               |
+| `/account/payout`         | Bank account and verification status                  |
+| `/account/notifications`  | Channel preferences                                   |
+| `/account/security`       | Password, sessions, delete account                    |
 
 ### 5.3 Vendor and admin
 
@@ -182,7 +182,7 @@ Guarding happens in three layers. All three are required.
 2. **Server layout guard**: `(app)/layout.tsx`, `vendor/layout.tsx`, `admin/layout.tsx` call `getSession()` (server fetch of `/auth/me`). If it fails, `redirect()`. This protects against stale middleware decisions.
 3. **Resource guard**: pages under `/events/[id]` fetch the event; a 403 or 404 from the API renders `notFound()`. Never rely on hiding links as security.
 
-Auth cookies are issued by the API on the parent domain (for example `Domain=.givvly.ng`, `HttpOnly`, `Secure`, `SameSite=Lax`) so the Next server can read them. In local development both apps run on `localhost` and share cookies.
+Auth cookies are issued by the API on the parent domain (for example `Domain=.givvly.vercel.app`, `HttpOnly`, `Secure`, `SameSite=Lax`) so the Next server can read them. In local development both apps run on `localhost` and share cookies.
 
 ### 5.5 Navigation rules
 
@@ -203,11 +203,12 @@ The rule: **server data in TanStack Query, client-only state in Zustand, form st
 
 ```ts
 export const eventKeys = {
-  all: ['events'] as const,
-  mine: () => [...eventKeys.all, 'mine'] as const,
-  detail: (id: string) => [...eventKeys.all, 'detail', id] as const,
-  gifts: (id: string, f: GiftFilters) => [...eventKeys.detail(id), 'gifts', f] as const,
-  public: (slug: string) => [...eventKeys.all, 'public', slug] as const,
+  all: ["events"] as const,
+  mine: () => [...eventKeys.all, "mine"] as const,
+  detail: (id: string) => [...eventKeys.all, "detail", id] as const,
+  gifts: (id: string, f: GiftFilters) =>
+    [...eventKeys.detail(id), "gifts", f] as const,
+  public: (slug: string) => [...eventKeys.all, "public", slug] as const,
 };
 ```
 
@@ -217,13 +218,13 @@ export const eventKeys = {
 
 ### 6.2 Zustand stores
 
-| Store | State | Persistence |
-| --- | --- | --- |
-| `useAuthStore` | `user`, `status` (`loading`, `authed`, `guest`), `setUser`, `clear` | Memory only; hydrated from `/auth/me` |
-| `useGiveDraftStore` | Guest give draft: `eventSlug`, `type`, `amountKobo`, `name`, `message`, `anonymous`, `email` | `sessionStorage`, cleared on success |
-| `useEventWizardStore` | Create-event wizard draft and step | `localStorage` key `givvly.wizard.v1`, cleared on publish |
-| `useUiStore` | Open dialogs, mobile nav, theme | `localStorage` for theme only |
-| `useCartStore` | Direct-gift checkout draft (product, recipient, note, wrap) | `sessionStorage` |
+| Store                 | State                                                                                        | Persistence                                               |
+| --------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `useAuthStore`        | `user`, `status` (`loading`, `authed`, `guest`), `setUser`, `clear`                          | Memory only; hydrated from `/auth/me`                     |
+| `useGiveDraftStore`   | Guest give draft: `eventSlug`, `type`, `amountKobo`, `name`, `message`, `anonymous`, `email` | `sessionStorage`, cleared on success                      |
+| `useEventWizardStore` | Create-event wizard draft and step                                                           | `localStorage` key `givvly.wizard.v1`, cleared on publish |
+| `useUiStore`          | Open dialogs, mobile nav, theme                                                              | `localStorage` for theme only                             |
+| `useCartStore`        | Direct-gift checkout draft (product, recipient, note, wrap)                                  | `sessionStorage`                                          |
 
 Rules: stores are tiny, typed, with selectors (`useAuthStore(s => s.user)`). Never store tokens in any store or storage; tokens live only in httpOnly cookies. Never store server lists in Zustand.
 
@@ -237,8 +238,18 @@ Rules: stores are tiny, typed, with selectors (`useAuthStore(s => s.user)`). Nev
 Base URL comes from `NEXT_PUBLIC_API_URL` (browser) and `API_INTERNAL_URL` (server). All endpoints are under `/api/v1`. Responses use one envelope:
 
 ```ts
-type ApiSuccess<T> = { data: T; meta?: { page: number; pageSize: number; total: number; nextCursor?: string } };
-type ApiError = { error: { code: string; message: string; details?: Record<string, string[]>; requestId: string } };
+type ApiSuccess<T> = {
+  data: T;
+  meta?: { page: number; pageSize: number; total: number; nextCursor?: string };
+};
+type ApiError = {
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, string[]>;
+    requestId: string;
+  };
+};
 ```
 
 ### 7.1 Fetch client (`lib/api-client.ts`)
@@ -256,32 +267,32 @@ One function, `api<T>(path, opts)`, used by every feature `api.ts`. Responsibili
 
 ### 7.2 Endpoints consumed, by screen
 
-| Screen | Calls |
-| --- | --- |
-| Signup | `POST /auth/register` |
-| Login | `POST /auth/login`, `GET /auth/google/url` |
-| Session bootstrap | `GET /auth/me` |
-| Verify email | `POST /auth/verify-email` |
-| Forgot and reset | `POST /auth/forgot-password`, `POST /auth/reset-password` |
-| Create event wizard | `POST /uploads/presign`, `POST /events`, `PUT /events/:id/invite`, `POST /events/:id/publish` |
-| Payout setup | `GET /banks`, `POST /payout-accounts/resolve`, `POST /payout-accounts` |
-| Event page (public) | `GET /public/events/:slug`, `GET /public/events/:slug/wall`, `POST /public/events/:slug/unlock` |
-| RSVP | `POST /public/events/:slug/rsvps` |
-| Give money | `POST /public/events/:slug/gifts/money`, `GET /payments/:reference` |
-| Registry buy and group gift | `POST /public/events/:slug/registry/:itemId/reserve`, `POST /public/events/:slug/gifts/item`, `POST /public/events/:slug/gifts/pool` |
-| Wall post | `POST /public/events/:slug/wall`, `POST /uploads/presign` |
-| Report content | `POST /reports` |
-| Owner dashboard | `GET /events`, `GET /events/:id`, `GET /events/:id/gifts`, `GET /events/:id/stats` |
-| Owner moderation | `PATCH /events/:id/wall/:postId` |
-| Guests | `GET /events/:id/rsvps`, `GET /events/:id/rsvps/export` |
-| Registry management | `GET/POST/PATCH/DELETE /events/:id/registry` |
-| Thank-you | `GET /events/:id/thank-you`, `PATCH /gifts/:id/thanked`, `POST /events/:id/thank-you/bulk` |
-| Catalog | `GET /catalog/products`, `GET /catalog/products/:slug`, `GET /catalog/collections` |
-| Direct checkout | `POST /orders`, `POST /orders/:id/pay` |
-| Orders | `GET /orders`, `GET /orders/:id`, `POST /orders/:id/review`, `POST /orders/:id/disputes`, `GET /public/track/:token` |
-| Notifications | `GET /notifications`, `PATCH /notifications/:id/read`, `GET/PUT /me/notification-preferences` |
-| Vendor | `GET /vendor/orders`, `PATCH /vendor/orders/:id/status`, `GET/POST/PATCH /vendor/products` |
-| Admin | `GET /admin/moderation`, `PATCH /admin/moderation/:id`, `GET /admin/payments`, `GET /admin/payouts`, `POST /admin/payouts/:id/retry`, `GET /admin/ledger`, `GET /admin/disputes`, `PATCH /admin/disputes/:id` |
+| Screen                      | Calls                                                                                                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Signup                      | `POST /auth/register`                                                                                                                                                                                         |
+| Login                       | `POST /auth/login`, `GET /auth/google/url`                                                                                                                                                                    |
+| Session bootstrap           | `GET /auth/me`                                                                                                                                                                                                |
+| Verify email                | `POST /auth/verify-email`                                                                                                                                                                                     |
+| Forgot and reset            | `POST /auth/forgot-password`, `POST /auth/reset-password`                                                                                                                                                     |
+| Create event wizard         | `POST /uploads/presign`, `POST /events`, `PUT /events/:id/invite`, `POST /events/:id/publish`                                                                                                                 |
+| Payout setup                | `GET /banks`, `POST /payout-accounts/resolve`, `POST /payout-accounts`                                                                                                                                        |
+| Event page (public)         | `GET /public/events/:slug`, `GET /public/events/:slug/wall`, `POST /public/events/:slug/unlock`                                                                                                               |
+| RSVP                        | `POST /public/events/:slug/rsvps`                                                                                                                                                                             |
+| Give money                  | `POST /public/events/:slug/gifts/money`, `GET /payments/:reference`                                                                                                                                           |
+| Registry buy and group gift | `POST /public/events/:slug/registry/:itemId/reserve`, `POST /public/events/:slug/gifts/item`, `POST /public/events/:slug/gifts/pool`                                                                          |
+| Wall post                   | `POST /public/events/:slug/wall`, `POST /uploads/presign`                                                                                                                                                     |
+| Report content              | `POST /reports`                                                                                                                                                                                               |
+| Owner dashboard             | `GET /events`, `GET /events/:id`, `GET /events/:id/gifts`, `GET /events/:id/stats`                                                                                                                            |
+| Owner moderation            | `PATCH /events/:id/wall/:postId`                                                                                                                                                                              |
+| Guests                      | `GET /events/:id/rsvps`, `GET /events/:id/rsvps/export`                                                                                                                                                       |
+| Registry management         | `GET/POST/PATCH/DELETE /events/:id/registry`                                                                                                                                                                  |
+| Thank-you                   | `GET /events/:id/thank-you`, `PATCH /gifts/:id/thanked`, `POST /events/:id/thank-you/bulk`                                                                                                                    |
+| Catalog                     | `GET /catalog/products`, `GET /catalog/products/:slug`, `GET /catalog/collections`                                                                                                                            |
+| Direct checkout             | `POST /orders`, `POST /orders/:id/pay`                                                                                                                                                                        |
+| Orders                      | `GET /orders`, `GET /orders/:id`, `POST /orders/:id/review`, `POST /orders/:id/disputes`, `GET /public/track/:token`                                                                                          |
+| Notifications               | `GET /notifications`, `PATCH /notifications/:id/read`, `GET/PUT /me/notification-preferences`                                                                                                                 |
+| Vendor                      | `GET /vendor/orders`, `PATCH /vendor/orders/:id/status`, `GET/POST/PATCH /vendor/products`                                                                                                                    |
+| Admin                       | `GET /admin/moderation`, `PATCH /admin/moderation/:id`, `GET /admin/payments`, `GET /admin/payouts`, `POST /admin/payouts/:id/retry`, `GET /admin/ledger`, `GET /admin/disputes`, `PATCH /admin/disputes/:id` |
 
 The request and response bodies for every endpoint are defined in the Backend document (Section 6). The frontend MUST import the types from the shared `contracts` package and MUST NOT hand-write duplicates.
 
@@ -308,61 +319,66 @@ Every form uses react-hook-form with a zod resolver. The same zod schema (from `
 
 ### 8.1 Rules by form
 
-| Form | Field | Rule |
-| --- | --- | --- |
-| Signup | name | Required, 2 to 60 chars, trimmed |
-|  | email | Required, valid email, lowercased, max 254 |
-|  | phone | Optional, Nigerian format `+234XXXXXXXXXX` or `0XXXXXXXXXX`, normalized to E.164 |
-|  | password | Required, 10 to 72 chars, at least one letter and one number, not in common-password list; strength meter |
-|  | terms | Must be checked |
-| Login | email, password | Required; generic error on failure (never say which was wrong) |
-| Reset password | token | Required from URL; password follows signup rule; confirm must match |
-| Event wizard step 1 | type | One of BIRTHDAY, WEDDING, BABY\_SHOWER, GRADUATION, OTHER |
-|  | name | Required, 3 to 80 chars |
-|  | date | Required, today or later (Africa/Lagos), at most 3 years ahead |
-| Step 2 | cover image | Optional; JPG, PNG, WebP; max 5 MB; min 1200x600 recommended |
-|  | story | Optional, max 1500 chars |
-| Step 3 | visibility | PUBLIC or PRIVATE |
-|  | access code | Required if PRIVATE; 6 to 12 alphanumeric; show generated suggestion |
-| Step 4 | registry | Up to 50 items; each: product reference or custom title (3 to 80), target price 500 to 5,000,000 naira |
-| Step 5 | review and publish | All previous steps valid; payout status shown (not blocking) |
-| Payout setup | bank | Required, from bank list |
-|  | account number | Required, exactly 10 digits |
-|  | resolved name | Read-only from resolve call; user must tick "This is my account" |
-| Give money | amount | Required, integer naira, min 500, max 1,000,000 per gift |
-|  | name | Required unless anonymous, 2 to 60 |
-|  | email | Required for receipt, valid email |
-|  | message | Optional, max 500 chars, profanity warning client-side (soft) |
-|  | anonymous | Boolean; if true hide name on wall |
-| Group gift contribution | amount | Min 500; cannot exceed remaining amount unless owner allows overfunding |
-| RSVP | name | Required 2 to 60 |
-|  | response | YES, NO or MAYBE |
-|  | plus-one | Optional name if allowed by event |
-|  | email or phone | At least one required for confirmation |
-| Wall post | text | 1 to 500 chars |
-|  | photo | JPG, PNG, WebP; max 8 MB; up to 3 photos |
-| Report | reason | Required, enum; note optional max 300 |
-| Direct checkout | recipient name | Required 2 to 60 |
-|  | recipient phone | Required, Nigerian format |
-|  | address | Required for physical: street, area, city, state; max 200 |
-|  | gift note | Optional, max 300 |
-| Dispute | type | DAMAGED, WRONG\_ITEM, NOT\_DELIVERED, OTHER |
-|  | description | Required, 20 to 1000 chars |
-|  | photos | Optional, up to 5 |
-| Review | rating | Integer 1 to 5 |
-|  | comment | Optional max 500 |
-| Vendor status update | status | Only the next valid status; tracking note optional max 200 |
+| Form                    | Field              | Rule                                                                                                      |
+| ----------------------- | ------------------ | --------------------------------------------------------------------------------------------------------- |
+| Signup                  | name               | Required, 2 to 60 chars, trimmed                                                                          |
+|                         | email              | Required, valid email, lowercased, max 254                                                                |
+|                         | phone              | Optional, Nigerian format `+234XXXXXXXXXX` or `0XXXXXXXXXX`, normalized to E.164                          |
+|                         | password           | Required, 10 to 72 chars, at least one letter and one number, not in common-password list; strength meter |
+|                         | terms              | Must be checked                                                                                           |
+| Login                   | email, password    | Required; generic error on failure (never say which was wrong)                                            |
+| Reset password          | token              | Required from URL; password follows signup rule; confirm must match                                       |
+| Event wizard step 1     | type               | One of BIRTHDAY, WEDDING, BABY_SHOWER, GRADUATION, OTHER                                                  |
+|                         | name               | Required, 3 to 80 chars                                                                                   |
+|                         | date               | Required, today or later (Africa/Lagos), at most 3 years ahead                                            |
+| Step 2                  | cover image        | Optional; JPG, PNG, WebP; max 5 MB; min 1200x600 recommended                                              |
+|                         | story              | Optional, max 1500 chars                                                                                  |
+| Step 3                  | visibility         | PUBLIC or PRIVATE                                                                                         |
+|                         | access code        | Required if PRIVATE; 6 to 12 alphanumeric; show generated suggestion                                      |
+| Step 4                  | registry           | Up to 50 items; each: product reference or custom title (3 to 80), target price 500 to 5,000,000 naira    |
+| Step 5                  | review and publish | All previous steps valid; payout status shown (not blocking)                                              |
+| Payout setup            | bank               | Required, from bank list                                                                                  |
+|                         | account number     | Required, exactly 10 digits                                                                               |
+|                         | resolved name      | Read-only from resolve call; user must tick "This is my account"                                          |
+| Give money              | amount             | Required, integer naira, min 500, max 1,000,000 per gift                                                  |
+|                         | name               | Required unless anonymous, 2 to 60                                                                        |
+|                         | email              | Required for receipt, valid email                                                                         |
+|                         | message            | Optional, max 500 chars, profanity warning client-side (soft)                                             |
+|                         | anonymous          | Boolean; if true hide name on wall                                                                        |
+| Group gift contribution | amount             | Min 500; cannot exceed remaining amount unless owner allows overfunding                                   |
+| RSVP                    | name               | Required 2 to 60                                                                                          |
+|                         | response           | YES, NO or MAYBE                                                                                          |
+|                         | plus-one           | Optional name if allowed by event                                                                         |
+|                         | email or phone     | At least one required for confirmation                                                                    |
+| Wall post               | text               | 1 to 500 chars                                                                                            |
+|                         | photo              | JPG, PNG, WebP; max 8 MB; up to 3 photos                                                                  |
+| Report                  | reason             | Required, enum; note optional max 300                                                                     |
+| Direct checkout         | recipient name     | Required 2 to 60                                                                                          |
+|                         | recipient phone    | Required, Nigerian format                                                                                 |
+|                         | address            | Required for physical: street, area, city, state; max 200                                                 |
+|                         | gift note          | Optional, max 300                                                                                         |
+| Dispute                 | type               | DAMAGED, WRONG_ITEM, NOT_DELIVERED, OTHER                                                                 |
+|                         | description        | Required, 20 to 1000 chars                                                                                |
+|                         | photos             | Optional, up to 5                                                                                         |
+| Review                  | rating             | Integer 1 to 5                                                                                            |
+|                         | comment            | Optional max 500                                                                                          |
+| Vendor status update    | status             | Only the next valid status; tracking note optional max 200                                                |
 
 ### 8.2 Example schema
 
 ```ts
-export const giveMoneySchema = z.object({
-  amountNaira: z.coerce.number().int().min(500).max(1_000_000),
-  name: z.string().trim().min(2).max(60).optional(),
-  email: z.string().email().max(254),
-  message: z.string().max(500).optional(),
-  anonymous: z.boolean().default(false),
-}).refine(v => v.anonymous || !!v.name, { path: ['name'], message: 'Enter your name or give anonymously' });
+export const giveMoneySchema = z
+  .object({
+    amountNaira: z.coerce.number().int().min(500).max(1_000_000),
+    name: z.string().trim().min(2).max(60).optional(),
+    email: z.string().email().max(254),
+    message: z.string().max(500).optional(),
+    anonymous: z.boolean().default(false),
+  })
+  .refine((v) => v.anonymous || !!v.name, {
+    path: ["name"],
+    message: "Enter your name or give anonymously",
+  });
 // Convert to kobo only when building the request: amountKobo = amountNaira * 100
 ```
 
@@ -398,7 +414,7 @@ export const giveMoneySchema = z.object({
 
 1. Pick bank, type 10-digit account number. On the 10th digit, call resolve automatically.
 2. Show the resolved account name. User confirms it is theirs.
-3. Save. Status becomes VERIFIED (or PENDING\_REVIEW if the name does not match the profile name).
+3. Save. Status becomes VERIFIED (or PENDING_REVIEW if the name does not match the profile name).
 
 **Success:** event shows "Money gifts on". Failure states: invalid account, bank timeout (retry), name mismatch (explain and allow manual review).
 
@@ -472,29 +488,29 @@ Edge cases: popup closed (keep draft, let them retry with the same idempotency k
 
 ### 10.2 Error code mapping
 
-| API code | HTTP | UI behavior |
-| --- | --- | --- |
-| `VALIDATION_FAILED` | 422 | Map `details` to fields |
-| `UNAUTHENTICATED` | 401 | Try refresh, else redirect to login with `next` |
-| `FORBIDDEN` | 403 | Show "You do not have access" page |
-| `NOT_FOUND` | 404 | `notFound()` page |
-| `EMAIL_TAKEN` | 409 | Field error with link to login |
-| `INVALID_CREDENTIALS` | 401 | Generic form alert |
-| `ACCOUNT_LOCKED` | 423 | Alert with retry time |
-| `RATE_LIMITED` | 429 | Toast with wait time from `Retry-After`; disable the button |
-| `EVENT_LOCKED` | 403 | Redirect to unlock page |
-| `INVALID_ACCESS_CODE` | 403 | Field error, count attempts |
-| `PAYOUT_NOT_READY` | 409 | Disable money option, explain |
-| `ITEM_ALREADY_CLAIMED` | 409 | Toast and refetch the registry |
-| `RESERVATION_EXPIRED` | 409 | Offer to reserve again |
-| `POOL_OVERFUNDED` | 409 | Show remaining amount |
-| `PAYMENT_FAILED` | 402 | Show reason, allow retry with a new idempotency key |
-| `PAYMENT_PENDING` | 202 | Keep polling, then show email-confirmation message |
-| `DUPLICATE_REQUEST` | 409 | Treat as success and fetch the original result |
-| `UPLOAD_REJECTED` | 422 | Show file rule that failed |
-| `CONTENT_FLAGGED` | 202 | Tell the user it will appear after review |
-| `INVALID_STATUS_TRANSITION` | 409 | Refetch and show current status |
-| `INTERNAL_ERROR` | 500 | ErrorState with error id |
+| API code                    | HTTP | UI behavior                                                 |
+| --------------------------- | ---- | ----------------------------------------------------------- |
+| `VALIDATION_FAILED`         | 422  | Map `details` to fields                                     |
+| `UNAUTHENTICATED`           | 401  | Try refresh, else redirect to login with `next`             |
+| `FORBIDDEN`                 | 403  | Show "You do not have access" page                          |
+| `NOT_FOUND`                 | 404  | `notFound()` page                                           |
+| `EMAIL_TAKEN`               | 409  | Field error with link to login                              |
+| `INVALID_CREDENTIALS`       | 401  | Generic form alert                                          |
+| `ACCOUNT_LOCKED`            | 423  | Alert with retry time                                       |
+| `RATE_LIMITED`              | 429  | Toast with wait time from `Retry-After`; disable the button |
+| `EVENT_LOCKED`              | 403  | Redirect to unlock page                                     |
+| `INVALID_ACCESS_CODE`       | 403  | Field error, count attempts                                 |
+| `PAYOUT_NOT_READY`          | 409  | Disable money option, explain                               |
+| `ITEM_ALREADY_CLAIMED`      | 409  | Toast and refetch the registry                              |
+| `RESERVATION_EXPIRED`       | 409  | Offer to reserve again                                      |
+| `POOL_OVERFUNDED`           | 409  | Show remaining amount                                       |
+| `PAYMENT_FAILED`            | 402  | Show reason, allow retry with a new idempotency key         |
+| `PAYMENT_PENDING`           | 202  | Keep polling, then show email-confirmation message          |
+| `DUPLICATE_REQUEST`         | 409  | Treat as success and fetch the original result              |
+| `UPLOAD_REJECTED`           | 422  | Show file rule that failed                                  |
+| `CONTENT_FLAGGED`           | 202  | Tell the user it will appear after review                   |
+| `INVALID_STATUS_TRANSITION` | 409  | Refetch and show current status                             |
+| `INTERNAL_ERROR`            | 500  | ErrorState with error id                                    |
 
 ### 10.3 Special cases
 
@@ -516,15 +532,15 @@ Edge cases: popup closed (keep draft, let them retry with the same idempotency k
 
 ### 11.2 Design tokens (Blush and Gold)
 
-| Token | Light | Dark |
-| --- | --- | --- |
-| `--primary` (rose) | `#B5495B` | `#D9788A` |
-| `--accent` (gold) | `#D4A959` | `#E2BD77` |
-| `--background` | `#FAF3EF` | `#1D1315` |
-| `--card` | `#FFFFFF` | `#2A1C1F` |
-| `--foreground` | `#332022` | `#F5E9E4` |
-| `--muted-foreground` | `#7A6468` | `#B9A29D` |
-| `--border` | `#ECDCD6` | `#43303A` |
+| Token                                     | Light                           | Dark                  |
+| ----------------------------------------- | ------------------------------- | --------------------- |
+| `--primary` (rose)                        | `#B5495B`                       | `#D9788A`             |
+| `--accent` (gold)                         | `#D4A959`                       | `#E2BD77`             |
+| `--background`                            | `#FAF3EF`                       | `#1D1315`             |
+| `--card`                                  | `#FFFFFF`                       | `#2A1C1F`             |
+| `--foreground`                            | `#332022`                       | `#F5E9E4`             |
+| `--muted-foreground`                      | `#7A6468`                       | `#B9A29D`             |
+| `--border`                                | `#ECDCD6`                       | `#43303A`             |
 | `--success`, `--warning`, `--destructive` | `#2E7D5B`, `#B7791F`, `#C0392B` | adjusted for contrast |
 
 Typography: Fraunces (headings, 600 to 800) and DM Sans (body, 400 to 700), self-hosted through `next/font`. Scale: 12, 14, 16, 18, 20, 24, 30, 36, 48. Body line-height 1.5. Radius: 8 px controls, 14 px cards. Spacing in a 4 px grid. Minimum tap target 44 px.
@@ -563,34 +579,112 @@ Do not hardcode colors; use tokens via Tailwind (`bg-primary`, `text-muted-foreg
 Types come from `contracts`; shown here for clarity. Money fields end in `Kobo`.
 
 ```ts
-type Role = 'USER' | 'VENDOR' | 'ADMIN';
-type User = { id: string; name: string; email: string; phone?: string; role: Role; emailVerified: boolean; avatarUrl?: string };
+type Role = "USER" | "VENDOR" | "ADMIN";
+type User = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: Role;
+  emailVerified: boolean;
+  avatarUrl?: string;
+};
 
-type EventType = 'BIRTHDAY' | 'WEDDING' | 'BABY_SHOWER' | 'GRADUATION' | 'OTHER';
-type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED';
-type EventSummary = { id: string; slug: string; name: string; type: EventType; date: string; coverUrl?: string; visibility: 'PUBLIC' | 'PRIVATE'; status: EventStatus; moneyGiftsEnabled: boolean; totalReceivedKobo: number; giftCount: number; rsvpYesCount: number };
-type PublicEvent = EventSummary & { story?: string; ownerFirstName: string; allowPlusOne: boolean; registry: RegistryItem[]; pools: PoolItem[]; template?: InviteTemplateData };
+type EventType =
+  | "BIRTHDAY"
+  | "WEDDING"
+  | "BABY_SHOWER"
+  | "GRADUATION"
+  | "OTHER";
+type EventStatus = "DRAFT" | "PUBLISHED" | "CLOSED" | "ARCHIVED";
+type EventSummary = {
+  id: string;
+  slug: string;
+  name: string;
+  type: EventType;
+  date: string;
+  coverUrl?: string;
+  visibility: "PUBLIC" | "PRIVATE";
+  status: EventStatus;
+  moneyGiftsEnabled: boolean;
+  totalReceivedKobo: number;
+  giftCount: number;
+  rsvpYesCount: number;
+};
+type PublicEvent = EventSummary & {
+  story?: string;
+  ownerFirstName: string;
+  allowPlusOne: boolean;
+  registry: RegistryItem[];
+  pools: PoolItem[];
+  template?: InviteTemplateData;
+};
 
-type GiftType = 'MONEY' | 'PRODUCT' | 'POOL' | 'DIGITAL';
-type Gift = { id: string; type: GiftType; amountKobo: number; giverName: string | null; anonymous: boolean; message?: string; status: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED'; thanked: boolean; createdAt: string };
+type GiftType = "MONEY" | "PRODUCT" | "POOL" | "DIGITAL";
+type Gift = {
+  id: string;
+  type: GiftType;
+  amountKobo: number;
+  giverName: string | null;
+  anonymous: boolean;
+  message?: string;
+  status: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+  thanked: boolean;
+  createdAt: string;
+};
 
-type RegistryItem = { id: string; title: string; productId?: string; priceKobo: number; imageUrl?: string; status: 'AVAILABLE' | 'RESERVED' | 'CLAIMED'; reservedUntil?: string };
-type PoolItem = RegistryItem & { targetKobo: number; raisedKobo: number; deadline?: string; mode: 'PRODUCT' | 'CASH' };
+type RegistryItem = {
+  id: string;
+  title: string;
+  productId?: string;
+  priceKobo: number;
+  imageUrl?: string;
+  status: "AVAILABLE" | "RESERVED" | "CLAIMED";
+  reservedUntil?: string;
+};
+type PoolItem = RegistryItem & {
+  targetKobo: number;
+  raisedKobo: number;
+  deadline?: string;
+  mode: "PRODUCT" | "CASH";
+};
 
-type WallPost = { id: string; authorName: string; text?: string; media: { url: string; type: 'IMAGE' | 'VIDEO' }[]; status: 'PENDING' | 'VISIBLE' | 'HIDDEN' | 'REMOVED'; createdAt: string };
+type WallPost = {
+  id: string;
+  authorName: string;
+  text?: string;
+  media: { url: string; type: "IMAGE" | "VIDEO" }[];
+  status: "PENDING" | "VISIBLE" | "HIDDEN" | "REMOVED";
+  createdAt: string;
+};
 
-type OrderStatus = 'PENDING_PAYMENT' | 'CONFIRMED' | 'PACKED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED' | 'DISPUTED';
-type Order = { id: string; number: string; items: { name: string; qty: number; unitPriceKobo: number }[]; totalKobo: number; status: OrderStatus; timeline: { status: OrderStatus; at: string }[]; recipientName: string };
+type OrderStatus =
+  | "PENDING_PAYMENT"
+  | "CONFIRMED"
+  | "PACKED"
+  | "SHIPPED"
+  | "DELIVERED"
+  | "CANCELLED"
+  | "DISPUTED";
+type Order = {
+  id: string;
+  number: string;
+  items: { name: string; qty: number; unitPriceKobo: number }[];
+  totalKobo: number;
+  status: OrderStatus;
+  timeline: { status: OrderStatus; at: string }[];
+  recipientName: string;
+};
 ```
 
 ### Browser storage
 
-| Key | Where | Content | Cleared |
-| --- | --- | --- | --- |
-| `givvly.wizard.v1` | localStorage | Event wizard draft (no personal secrets) | On publish or logout |
-| `givvly.give.v1` | sessionStorage | Give draft and idempotency key | On success |
-| `givvly.cart.v1` | sessionStorage | Direct-gift draft | On order success |
-| `givvly.theme` | localStorage | `light`, `dark` or `system` | Never |
+| Key                | Where          | Content                                  | Cleared              |
+| ------------------ | -------------- | ---------------------------------------- | -------------------- |
+| `givvly.wizard.v1` | localStorage   | Event wizard draft (no personal secrets) | On publish or logout |
+| `givvly.give.v1`   | sessionStorage | Give draft and idempotency key           | On success           |
+| `givvly.cart.v1`   | sessionStorage | Direct-gift draft                        | On order success     |
+| `givvly.theme`     | localStorage   | `light`, `dark` or `system`              | Never                |
 
 Storage reads MUST be wrapped in try/catch and handle missing or malformed data. Version the keys; on version mismatch discard silently. Never store tokens, passwords, bank account numbers or card data.
 
@@ -600,15 +694,15 @@ Storage reads MUST be wrapped in try/catch and handle missing or malformed data.
 
 Testing pyramid: many fast unit tests, a solid layer of component and integration tests with a mocked API, and a small set of end-to-end tests for the money-critical journeys. A feature is not done until its tests are merged.
 
-| Level | Tools | What to cover | Target |
-| --- | --- | --- | --- |
-| Unit | Vitest | `formatNaira`, date helpers, zod schemas (valid and invalid cases), Zustand stores, query key factories, URL sanitizers (`next` param) | 90% on `lib/` and `schemas.ts` |
-| Component | Vitest + React Testing Library + MSW | Every form: validation messages, submit, server error mapping, disabled and loading states; `GiveDialog`, `PoolCard`, `RegistryGrid`, `WallPostCard`, `OrderTimeline` | 80% on feature components |
-| Integration | RTL + MSW with realistic handlers | Page-level flows with TanStack Query: dashboard feed polling, optimistic hide and rollback, refresh-token replay, 409 handling | Every query and mutation hook has at least one success and one failure test |
-| End-to-end | Playwright | Journeys below, against a seeded staging backend with Paystack in test mode | All P0 journeys green on every release |
-| Accessibility | axe-core (jest-axe and `@axe-core/playwright`) | Home, event page, give flow, login, dashboard | Zero serious or critical violations |
-| Performance | Lighthouse CI | Home, event page, catalog | Performance 90+ mobile; budgets in 11.5 |
-| Visual (optional) | Playwright screenshots | Event page, give dialog, order timeline | Review diffs manually |
+| Level             | Tools                                          | What to cover                                                                                                                                                         | Target                                                                      |
+| ----------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Unit              | Vitest                                         | `formatNaira`, date helpers, zod schemas (valid and invalid cases), Zustand stores, query key factories, URL sanitizers (`next` param)                                | 90% on `lib/` and `schemas.ts`                                              |
+| Component         | Vitest + React Testing Library + MSW           | Every form: validation messages, submit, server error mapping, disabled and loading states; `GiveDialog`, `PoolCard`, `RegistryGrid`, `WallPostCard`, `OrderTimeline` | 80% on feature components                                                   |
+| Integration       | RTL + MSW with realistic handlers              | Page-level flows with TanStack Query: dashboard feed polling, optimistic hide and rollback, refresh-token replay, 409 handling                                        | Every query and mutation hook has at least one success and one failure test |
+| End-to-end        | Playwright                                     | Journeys below, against a seeded staging backend with Paystack in test mode                                                                                           | All P0 journeys green on every release                                      |
+| Accessibility     | axe-core (jest-axe and `@axe-core/playwright`) | Home, event page, give flow, login, dashboard                                                                                                                         | Zero serious or critical violations                                         |
+| Performance       | Lighthouse CI                                  | Home, event page, catalog                                                                                                                                             | Performance 90+ mobile; budgets in 11.5                                     |
+| Visual (optional) | Playwright screenshots                         | Event page, give dialog, order timeline                                                                                                                               | Review diffs manually                                                       |
 
 ### 13.2 End-to-end journeys (P0)
 
@@ -685,26 +779,26 @@ Set in `next.config.ts` headers (and verify in production):
 
 ### 15.1 Environments
 
-| Env | URL | API | Payments | Purpose |
-| --- | --- | --- | --- | --- |
-| Local | `localhost:3000` | `localhost:4000` | Paystack test | Development |
-| Preview | per pull request | Staging API | Paystack test | Review and e2e |
-| Staging | `staging.givvly.ng` | Staging API | Paystack test | QA and demos |
-| Production | `givvly.ng` | `api.givvly.ng` | Paystack live | Live users |
+| Env        | URL                         | API                     | Payments      | Purpose        |
+| ---------- | --------------------------- | ----------------------- | ------------- | -------------- |
+| Local      | `localhost:3000`            | `localhost:4000`        | Paystack test | Development    |
+| Preview    | per pull request            | Staging API             | Paystack test | Review and e2e |
+| Staging    | `staging.givvly.vercel.app` | Staging API             | Paystack test | QA and demos   |
+| Production | `givvly.vercel.app`         | `api.givvly.vercel.app` | Paystack live | Live users     |
 
 ### 15.2 Environment variables (`.env.example`)
 
-| Variable | Scope | Notes |
-| --- | --- | --- |
-| `NEXT_PUBLIC_APP_URL` | public | Canonical URL for links and OG |
-| `NEXT_PUBLIC_API_URL` | public | Browser API base |
-| `API_INTERNAL_URL` | server | Server-to-server API base |
-| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | public | Public key only |
-| `JWT_PUBLIC_KEY` | server | Verify access token in middleware |
-| `REVALIDATE_SECRET` | server | Protects `/api/revalidate` |
-| `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` | public, build | Error tracking and source maps |
-| `NEXT_PUBLIC_POSTHOG_KEY` | public | Analytics |
-| `NEXT_PUBLIC_IMAGE_CDN` | public | Allowed image host |
+| Variable                                      | Scope         | Notes                             |
+| --------------------------------------------- | ------------- | --------------------------------- |
+| `NEXT_PUBLIC_APP_URL`                         | public        | Canonical URL for links and OG    |
+| `NEXT_PUBLIC_API_URL`                         | public        | Browser API base                  |
+| `API_INTERNAL_URL`                            | server        | Server-to-server API base         |
+| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`             | public        | Public key only                   |
+| `JWT_PUBLIC_KEY`                              | server        | Verify access token in middleware |
+| `REVALIDATE_SECRET`                           | server        | Protects `/api/revalidate`        |
+| `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` | public, build | Error tracking and source maps    |
+| `NEXT_PUBLIC_POSTHOG_KEY`                     | public        | Analytics                         |
+| `NEXT_PUBLIC_IMAGE_CDN`                       | public        | Allowed image host                |
 
 Validate env at boot with a zod schema in `lib/env.ts`; the build fails if a required variable is missing.
 

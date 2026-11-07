@@ -16,7 +16,7 @@ const dmSans = DM_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://givvly.ng";
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://givvly.vercel.app";
 
 export const viewport: Viewport = {
   themeColor: "#8C6A3E",
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     "VTU airtime gift",
     "data bundle gift Nigeria",
   ],
-  authors: [{ name: "Givvly Inc.", url: "https://givvly.ng" }],
+  authors: [{ name: "Givvly Inc.", url: "https://givvly.vercel.app" }],
   creator: "Givvly Inc.",
   publisher: "Givvly Inc.",
   formatDetection: {
@@ -165,13 +165,13 @@ const rootStructuredData = {
         "Events-first gifting and registry platform for Nigerian weddings, milestone birthdays, and celebrations worldwide.",
       slogan: "The right gift, for every right moment...",
       sameAs: [
-        "https://www.instagram.com/givvly.ng",
+        "https://www.instagram.com/givvly.vercel.app",
         "https://twitter.com/givvly_ng",
       ],
       contactPoint: {
         "@type": "ContactPoint",
         contactType: "Customer Support & Concierge",
-        email: "concierge@givvly.ng",
+        email: "concierge@givvly.vercel.app",
         availableLanguage: ["English", "Yoruba", "Igbo", "Hausa"],
       },
     },

@@ -98,7 +98,7 @@ export class CatalogProductResponseDto {
   @ApiProperty({ example: ["FRIEND", "PARTNER"] })
   relationships: string[];
 
-  @ApiPropertyOptional({ example: "https://cdn.givvly.ng/uploads/products/candle.jpg" })
+  @ApiPropertyOptional({ example: "https://cdn.givvly.vercel.app/uploads/products/candle.jpg" })
   imageUrl?: string;
 
   @ApiProperty({ example: "Givvly Curated" })

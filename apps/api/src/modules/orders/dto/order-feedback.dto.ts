@@ -68,7 +68,7 @@ export class DisputeOrderDto {
   description: string;
 
   @ApiPropertyOptional({
-    example: ["https://cdn.givvly.ng/uploads/dispute/photo1.jpg"],
+    example: ["https://cdn.givvly.vercel.app/uploads/dispute/photo1.jpg"],
     description: "Evidence photos (max 5)",
   })
   @IsOptional()

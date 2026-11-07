@@ -3,6 +3,7 @@
 ## 1. Architecture Overview
 
 Givvly is an enterprise celebration gifting, registry, and group pooling platform configured as a high-performance monorepo:
+
 - **Frontend (`apps/web`)**: Next.js 16 (App Router, React 19, Tailwind CSS v4, TanStack Query v5)
 - **Backend API (`apps/api`)**: NestJS 11 (Fastify/Express, Prisma ORM, BullMQ, Passport, Helmet, Argon2id, Scalar API Reference)
 - **Database**: PostgreSQL 16
@@ -17,6 +18,7 @@ Givvly is an enterprise celebration gifting, registry, and group pooling platfor
 ### 2.1 Multi-Container Production Topology (`docker-compose.prod.yml`)
 
 The production topology orchestrates 4 core services:
+
 1. `postgres`: Managed PostgreSQL 16 with persistent volume and health check.
 2. `redis`: Redis 7 with LRU eviction and memory bounds.
 3. `api`: Containerized NestJS API running on port `4000`.
@@ -54,7 +56,7 @@ pnpm --filter @givvly/api seed
 
 ### 4.1 Paystack Webhook Configuration
 
-- **Webhook URL**: `https://api.givvly.ng/api/v1/webhooks/paystack`
+- **Webhook URL**: `https://api.givvly.vercel.app/api/v1/webhooks/paystack`
 - **Secret Key**: Set `PAYSTACK_SECRET_KEY` in environment variables.
 - **Header**: Paystack sends `x-paystack-signature` computed as HMAC-SHA512 of the exact raw request body.
 
@@ -94,4 +96,3 @@ pnpm -r build
 - **Scalar Interactive Documentation**: `http://localhost:4000/docs`
 - **Admin Ledger Trial Balance**: `GET /api/v1/admin/ledger`
 - **Admin Moderation Queue**: `GET /api/v1/admin/moderation`
-

@@ -12,7 +12,11 @@ services:
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-givvly} -d ${POSTGRES_DB:-givvly_prod}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-givvly} -d ${POSTGRES_DB:-givvly_prod}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -52,9 +56,9 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://${POSTGRES_USER:-givvly}:${POSTGRES_PASSWORD:-givvly_secure_prod_password}@postgres:5432/${POSTGRES_DB:-givvly_prod}
       REDIS_URL: redis://redis:6379
-      APP_URL: ${APP_URL:-https://givvly.ng}
-      API_URL: ${API_URL:-https://api.givvly.ng}
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://givvly.ng}
+      APP_URL: ${APP_URL:-https://givvly.vercel.app}
+      API_URL: ${API_URL:-https://api.givvly.vercel.app}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://givvly.vercel.app}
       JWT_SECRET: ${JWT_SECRET:-production_super_secret_jwt_key_at_least_32_bytes}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
       ACCOUNT_HASH_KEY: ${ACCOUNT_HASH_KEY:-production_account_hash_key_for_hmac_32_bytes}
@@ -78,7 +82,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:4000/api/v1}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://givvly.ng}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://givvly.vercel.app}
     ports:
       - "3000:3000"
     networks:
@@ -91,4 +95,3 @@ networks:
 volumes:
   postgres_prod_data:
   redis_prod_data:
-

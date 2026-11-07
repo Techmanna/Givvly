@@ -138,54 +138,54 @@ const POPULAR_REGISTRY_PRESETS: ReadonlyArray<{
   targetPriceNaira: number;
   tag: string;
 }> = [
-  {
-    title: "Honeymoon & Getaway Fund",
-    targetPriceNaira: 250_000,
-    tag: "Most popular",
-  },
-  {
-    title: "New Home Appliances Pool",
-    targetPriceNaira: 150_000,
-    tag: "Group gift",
-  },
-  {
-    title: "Aso-Ebi & Celebration Purse",
-    targetPriceNaira: 100_000,
-    tag: "Traditional",
-  },
-  {
-    title: "Baby Nursery & Essentials Fund",
-    targetPriceNaira: 120_000,
-    tag: "Family favourite",
-  },
-];
+    {
+      title: "Honeymoon & Getaway Fund",
+      targetPriceNaira: 250_000,
+      tag: "Most popular",
+    },
+    {
+      title: "New Home Appliances Pool",
+      targetPriceNaira: 150_000,
+      tag: "Group gift",
+    },
+    {
+      title: "Aso-Ebi & Celebration Purse",
+      targetPriceNaira: 100_000,
+      tag: "Traditional",
+    },
+    {
+      title: "Baby Nursery & Essentials Fund",
+      targetPriceNaira: 120_000,
+      tag: "Family favourite",
+    },
+  ];
 
 const FLEXIBLE_GIFT_PREFERENCES: ReadonlyArray<{
   title: string;
   subtitle: string;
   category: "AIRTIME_DATA" | "CUSTOM";
 }> = [
-  {
-    title: "Airtime Top-Up (Any Network)",
-    subtitle: "Guest chooses network & amount",
-    category: "AIRTIME_DATA",
-  },
-  {
-    title: "Mobile Data Bundles (MTN, Airtel, Glo, 9mobile)",
-    subtitle: "Guest chooses data plan & bundle",
-    category: "AIRTIME_DATA",
-  },
-  {
-    title: "Airtime & Data Gift Wish",
-    subtitle: "Guest chooses airtime or data",
-    category: "AIRTIME_DATA",
-  },
-  {
-    title: "Surprise Gift from Givvly Catalog",
-    subtitle: "Guest picks any gift they love for you",
-    category: "CUSTOM",
-  },
-];
+    {
+      title: "Airtime Top-Up (Any Network)",
+      subtitle: "Guest chooses network & amount",
+      category: "AIRTIME_DATA",
+    },
+    {
+      title: "Mobile Data Bundles (MTN, Airtel, Glo, 9mobile)",
+      subtitle: "Guest chooses data plan & bundle",
+      category: "AIRTIME_DATA",
+    },
+    {
+      title: "Airtime & Data Gift Wish",
+      subtitle: "Guest chooses airtime or data",
+      category: "AIRTIME_DATA",
+    },
+    {
+      title: "Surprise Gift from Givvly Catalog",
+      subtitle: "Guest picks any gift they love for you",
+      category: "CUSTOM",
+    },
+  ];
 
 function computeQuickDate(offsetType: "next_saturday" | "one_month" | "three_months"): string {
   const now = new Date();
@@ -960,9 +960,9 @@ export function CreateEventWizard() {
     const targetPriceNaira = isDigitalOrVtu
       ? 0
       : Math.max(
-          500,
-          Math.min(5_000_000, Math.round(product.priceKobo / 100))
-        );
+        500,
+        Math.min(5_000_000, Math.round(product.priceKobo / 100))
+      );
     setStepErrors({});
     addRegistryItem({
       id: crypto.randomUUID(),
@@ -994,7 +994,7 @@ export function CreateEventWizard() {
       if (
         draft.hostName.trim() &&
         draft.hostName.trim().toLowerCase() !==
-          creatorDefaultHost.toLowerCase()
+        creatorDefaultHost.toLowerCase()
       ) {
         setStoredPastHosts(savePastHost(draft.hostName.trim()));
       }
@@ -1140,7 +1140,7 @@ export function CreateEventWizard() {
             ) : null}
           </div>
           <p className="font-mono text-[11px] text-muted-foreground">
-            Link preview: givvly.ng/e/{previewSlug}
+            Link preview: givvly.vercel.app/e/{previewSlug}
           </p>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
@@ -1179,11 +1179,10 @@ export function CreateEventWizard() {
                       type="button"
                       onClick={() => updateDraft({ type: t })}
                       aria-pressed={draft.type === t}
-                      className={`min-h-11 rounded-control border px-3 py-2 text-left text-sm font-medium transition-colors ${
-                        draft.type === t
+                      className={`min-h-11 rounded-control border px-3 py-2 text-left text-sm font-medium transition-colors ${draft.type === t
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border bg-card text-foreground hover:bg-muted"
-                      }`}
+                        }`}
                     >
                       {EVENT_TYPE_LABELS[t]}
                     </button>
@@ -1239,15 +1238,14 @@ export function CreateEventWizard() {
                     aria-pressed={
                       !draft.hostName.trim() ||
                       draft.hostName.trim().toLowerCase() ===
-                        creatorDefaultHost.toLowerCase()
+                      creatorDefaultHost.toLowerCase()
                     }
-                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                      !draft.hostName.trim() ||
-                      draft.hostName.trim().toLowerCase() ===
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${!draft.hostName.trim() ||
+                        draft.hostName.trim().toLowerCase() ===
                         creatorDefaultHost.toLowerCase()
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/5"
-                    }`}
+                      }`}
                   >
                     {creatorDefaultHost} (You • Default)
                   </button>
@@ -1262,11 +1260,10 @@ export function CreateEventWizard() {
                         type="button"
                         onClick={() => updateDraft({ hostName: pastHost })}
                         aria-pressed={isSelected}
-                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                          isSelected
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${isSelected
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/5"
-                        }`}
+                          }`}
                       >
                         {pastHost}
                       </button>
@@ -1450,11 +1447,10 @@ export function CreateEventWizard() {
                   type="button"
                   onClick={() => updateDraft({ visibility: "PUBLIC" })}
                   aria-pressed={draft.visibility === "PUBLIC"}
-                  className={`rounded-card border p-4 text-left transition-colors ${
-                    draft.visibility === "PUBLIC"
+                  className={`rounded-card border p-4 text-left transition-colors ${draft.visibility === "PUBLIC"
                       ? "border-primary bg-primary/10"
                       : "border-border bg-card hover:bg-muted"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <p className="font-heading text-base font-semibold text-foreground">
@@ -1479,11 +1475,10 @@ export function CreateEventWizard() {
                     })
                   }
                   aria-pressed={draft.visibility === "PRIVATE"}
-                  className={`rounded-card border p-4 text-left transition-colors ${
-                    draft.visibility === "PRIVATE"
+                  className={`rounded-card border p-4 text-left transition-colors ${draft.visibility === "PRIVATE"
                       ? "border-primary bg-primary/10"
                       : "border-border bg-card hover:bg-muted"
-                  }`}
+                    }`}
                 >
                   <p className="font-heading text-base font-semibold text-foreground">
                     Private with access code
@@ -1885,7 +1880,7 @@ export function CreateEventWizard() {
                 <div className="flex justify-between gap-3 py-2">
                   <dt className="text-muted-foreground">Public link</dt>
                   <dd className="truncate font-mono text-xs font-medium text-foreground">
-                    givvly.ng/e/{previewSlug}
+                    givvly.vercel.app/e/{previewSlug}
                   </dd>
                 </div>
                 <div className="flex justify-between py-2">
@@ -1893,7 +1888,7 @@ export function CreateEventWizard() {
                   <dd className="font-medium text-foreground">
                     {effectiveHostName}
                     {!draft.hostName.trim() ||
-                    draft.hostName.trim().toLowerCase() ===
+                      draft.hostName.trim().toLowerCase() ===
                       creatorDefaultHost.toLowerCase()
                       ? " (You)"
                       : ""}

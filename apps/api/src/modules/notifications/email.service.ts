@@ -20,7 +20,7 @@ export class EmailService {
     const port = this.config.get<number>("SMTP_PORT", 1025);
     const user = this.config.get<string>("SMTP_USER", "");
     const pass = this.config.get<string>("SMTP_PASS", "");
-    this.fromAddress = this.config.get<string>("MAIL_FROM", "Givvly <no-reply@givvly.ng>");
+    this.fromAddress = this.config.get<string>("MAIL_FROM", "Givvly <no-reply@givvly.vercel.app>");
 
     const transportOptions: any = {
       host,

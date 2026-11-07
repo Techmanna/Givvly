@@ -81,7 +81,7 @@ export default async function EventOpengraphImage({
             color: "#B5495B",
           }}
         >
-          <span>givvly.ng</span>
+          <span>givvly.vercel.app</span>
           <span style={{ color: "#D4A959", fontWeight: 600 }}>
             Send a gift or RSVP
           </span>

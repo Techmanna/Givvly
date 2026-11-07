@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { ProductDetailView, type CatalogProduct } from "@/features/catalog";
 
-const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://givvly.ng").replace(
+const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://givvly.vercel.app").replace(
   /\/$/,
   ""
 );

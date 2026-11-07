@@ -64,13 +64,13 @@ Subscriptions, multi-currency settlement, in-app chat, marketplace vendor self-o
 
 ## 3. Tech stack and justification
 
-| Tool | Role | Why |
-| --- | --- | --- |
-| NestJS (TypeScript) | API framework | Modules, DI, guards, interceptors, testability, fits the team's stack |
-| Prisma | ORM and migrations | Type-safe queries, migrations in source control, good DX |
-| PostgreSQL | Primary database | Transactions, row locks, constraints, JSONB, strong consistency for money |
-| Redis | Queues, cache, locks, rate limits | BullMQ queues, throttling store, short-lived state |
-| Nodemailer | Email sending | SMTP transport to a transactional provider (SES, Mailgun, Resend or Postmark SMTP) |
+| Tool                | Role                              | Why                                                                                |
+| ------------------- | --------------------------------- | ---------------------------------------------------------------------------------- |
+| NestJS (TypeScript) | API framework                     | Modules, DI, guards, interceptors, testability, fits the team's stack              |
+| Prisma              | ORM and migrations                | Type-safe queries, migrations in source control, good DX                           |
+| PostgreSQL          | Primary database                  | Transactions, row locks, constraints, JSONB, strong consistency for money          |
+| Redis               | Queues, cache, locks, rate limits | BullMQ queues, throttling store, short-lived state                                 |
+| Nodemailer          | Email sending                     | SMTP transport to a transactional provider (SES, Mailgun, Resend or Postmark SMTP) |
 
 ### Supporting tools (justified)
 
@@ -643,64 +643,64 @@ System ledger accounts to seed: `PROVIDER_CLEARING` (asset), `PLATFORM_REVENUE` 
 
 ### 6.2 Auth
 
-| Method | Path | Auth | Request | Response |
-| --- | --- | --- | --- | --- |
-| POST | `/auth/register` | Public | `{ name, email, phone?, password, acceptTerms: true }` | 201 `{ user }`, sends verification email, sets cookies |
-| POST | `/auth/login` | Public | `{ email, password }` | 200 `{ user }`, sets `givvly_at`, `givvly_rt`, `givvly_csrf` |
-| POST | `/auth/refresh` | Refresh cookie | none | 200 new cookies (rotation); reuse of an old token revokes the whole family |
-| POST | `/auth/logout` | Auth | none | 204, revokes the session and clears cookies |
-| GET | `/auth/me` | Auth | none | 200 `{ user }` |
-| POST | `/auth/verify-email` | Public | `{ token }` | 200 `{ user }` |
-| POST | `/auth/resend-verification` | Auth | none | 204 (60 s cooldown) |
-| POST | `/auth/forgot-password` | Public | `{ email }` | 204 always (no account enumeration) |
-| POST | `/auth/reset-password` | Public | `{ token, password }` | 204, revokes all sessions |
-| GET | `/auth/google/url` | Public | `?next=` | 200 `{ url }` (state and PKCE stored in Redis, 10 min) |
-| GET | `/auth/google/callback` | Public | `code, state` | 302 to frontend with cookies set |
-| GET | `/me/sessions` | Auth | none | 200 list of sessions (device, last used) |
-| DELETE | `/me/sessions/:id` | Auth | none | 204 |
+| Method | Path                        | Auth           | Request                                                | Response                                                                   |
+| ------ | --------------------------- | -------------- | ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| POST   | `/auth/register`            | Public         | `{ name, email, phone?, password, acceptTerms: true }` | 201 `{ user }`, sends verification email, sets cookies                     |
+| POST   | `/auth/login`               | Public         | `{ email, password }`                                  | 200 `{ user }`, sets `givvly_at`, `givvly_rt`, `givvly_csrf`               |
+| POST   | `/auth/refresh`             | Refresh cookie | none                                                   | 200 new cookies (rotation); reuse of an old token revokes the whole family |
+| POST   | `/auth/logout`              | Auth           | none                                                   | 204, revokes the session and clears cookies                                |
+| GET    | `/auth/me`                  | Auth           | none                                                   | 200 `{ user }`                                                             |
+| POST   | `/auth/verify-email`        | Public         | `{ token }`                                            | 200 `{ user }`                                                             |
+| POST   | `/auth/resend-verification` | Auth           | none                                                   | 204 (60 s cooldown)                                                        |
+| POST   | `/auth/forgot-password`     | Public         | `{ email }`                                            | 204 always (no account enumeration)                                        |
+| POST   | `/auth/reset-password`      | Public         | `{ token, password }`                                  | 204, revokes all sessions                                                  |
+| GET    | `/auth/google/url`          | Public         | `?next=`                                               | 200 `{ url }` (state and PKCE stored in Redis, 10 min)                     |
+| GET    | `/auth/google/callback`     | Public         | `code, state`                                          | 302 to frontend with cookies set                                           |
+| GET    | `/me/sessions`              | Auth           | none                                                   | 200 list of sessions (device, last used)                                   |
+| DELETE | `/me/sessions/:id`          | Auth           | none                                                   | 204                                                                        |
 
-Token design: access JWT (15 minutes) with claims `sub`, `role`, `sid`, `iat`, `exp`; refresh token is 256-bit random, stored only as a SHA-256 hash, 30-day lifetime, rotated on each use. Cookies: `givvly_at` (HttpOnly, path `/`), `givvly_rt` (HttpOnly, path `/api/v1/auth`), `givvly_csrf` (readable, SameSite=Lax), all `Secure` with `Domain=.givvly.ng` in production.
+Token design: access JWT (15 minutes) with claims `sub`, `role`, `sid`, `iat`, `exp`; refresh token is 256-bit random, stored only as a SHA-256 hash, 30-day lifetime, rotated on each use. Cookies: `givvly_at` (HttpOnly, path `/`), `givvly_rt` (HttpOnly, path `/api/v1/auth`), `givvly_csrf` (readable, SameSite=Lax), all `Secure` with `Domain=.givvly.vercel.app` in production.
 
 ### 6.3 Account and payout accounts
 
-| Method | Path | Auth | Request | Response |
-| --- | --- | --- | --- | --- |
-| GET, PATCH | `/me` | Auth | PATCH `{ name?, phone?, avatarMediaId? }` | 200 `{ user }` |
-| POST | `/me/change-password` | Auth + password | `{ currentPassword, newPassword }` | 204, revokes other sessions |
-| DELETE | `/me` | Auth + password | `{ password }` | 202, schedules anonymization |
-| GET, PUT | `/me/notification-preferences` | Auth | `{ prefs: [{ channel, category, enabled }] }` | 200 |
-| GET | `/banks` | Auth | none | 200 `[ { code, name } ]` (cached 24 h in Redis) |
-| POST | `/payout-accounts/resolve` | Auth | `{ bankCode, accountNumber }` | 200 `{ accountName }` |
-| POST | `/payout-accounts` | Auth + password | `{ bankCode, accountNumber, confirmedName }` | 201 `{ id, bankName, last4, accountName, status }` |
-| GET | `/payout-accounts` | Auth | none | 200 list (masked) |
+| Method     | Path                           | Auth            | Request                                       | Response                                           |
+| ---------- | ------------------------------ | --------------- | --------------------------------------------- | -------------------------------------------------- |
+| GET, PATCH | `/me`                          | Auth            | PATCH `{ name?, phone?, avatarMediaId? }`     | 200 `{ user }`                                     |
+| POST       | `/me/change-password`          | Auth + password | `{ currentPassword, newPassword }`            | 204, revokes other sessions                        |
+| DELETE     | `/me`                          | Auth + password | `{ password }`                                | 202, schedules anonymization                       |
+| GET, PUT   | `/me/notification-preferences` | Auth            | `{ prefs: [{ channel, category, enabled }] }` | 200                                                |
+| GET        | `/banks`                       | Auth            | none                                          | 200 `[ { code, name } ]` (cached 24 h in Redis)    |
+| POST       | `/payout-accounts/resolve`     | Auth            | `{ bankCode, accountNumber }`                 | 200 `{ accountName }`                              |
+| POST       | `/payout-accounts`             | Auth + password | `{ bankCode, accountNumber, confirmedName }`  | 201 `{ id, bankName, last4, accountName, status }` |
+| GET        | `/payout-accounts`             | Auth            | none                                          | 200 list (masked)                                  |
 
 A new account is `VERIFIED` when the resolved name fuzzy-matches the user's profile name (token-set ratio at or above the configured threshold) and `PENDING_REVIEW` otherwise (admin approves). Changing the default payout account triggers an email notice and a 24-hour hold on new payouts to the new account (configurable).
 
 ### 6.4 Events (owner)
 
-| Method | Path | Auth | Request | Response |
-| --- | --- | --- | --- | --- |
-| POST | `/events` | Auth (verified email) | `{ type, name, date, story?, coverMediaId?, visibility, accessCode?, allowPlusOne?, templateKey?, templateData?, registry?: [{ title, productId?, priceKobo }] }` | 201 event (DRAFT) |
-| GET | `/events` | Auth | `?status=&cursor=` | 200 my events with summary stats |
-| GET | `/events/:id` | Owner | none | 200 event detail |
-| PATCH | `/events/:id` | Owner | partial of create body | 200 event |
-| POST | `/events/:id/publish` | Owner | none | 200 `{ slug, url, moneyGiftsEnabled }` |
-| POST | `/events/:id/close` | Owner | none | 200 |
-| POST | `/events/:id/archive` | Owner | none | 200 |
-| PUT | `/events/:id/invite` | Owner | `{ templateKey, templateData }` | 200 |
-| GET | `/events/:id/stats` | Owner | none | 200 `{ totalReceivedKobo, giftCount, rsvpYes, rsvpNo, rsvpMaybe, pendingPayoutsKobo }` |
-| GET | `/events/:id/gifts` | Owner | `?type=&thanked=&cursor=` | 200 gifts (giver identity per anonymity rule) |
-| PATCH | `/gifts/:id/thanked` | Owner of event | `{ thanked: boolean }` | 200 |
-| GET | `/events/:id/thank-you` | Owner | none | 200 grouped givers and gifts |
-| POST | `/events/:id/thank-you/bulk` | Owner | `{ giftIds[], message }` | 202 (queues messages) |
-| GET, POST, PATCH, DELETE | `/events/:id/registry[/:itemId]` | Owner | item body | 200 or 201 or 204 |
-| GET, POST, PATCH | `/events/:id/pools[/:poolId]` | Owner | `{ title, productId?, mode, targetKobo, deadline?, allowOverfund? }` | 200 or 201 |
-| POST | `/events/:id/pools/:poolId/resolve` | Owner | `{ action: 'CONVERT_TO_CASH' \| 'REFUND' }` | 202 |
-| GET | `/events/:id/rsvps` | Owner | `?response=` | 200 list |
-| GET | `/events/:id/rsvps/export` | Owner | none | 200 `text/csv` |
-| GET | `/events/:id/wall` | Owner | `?status=` | 200 all posts incl. hidden |
-| PATCH | `/events/:id/wall/:postId` | Owner | `{ status: 'VISIBLE' \| 'HIDDEN' \| 'REMOVED' }` | 200 |
-| PATCH | `/events/:id/keepsake` | Owner | `{ public: boolean }` | 200 |
+| Method                   | Path                                | Auth                  | Request                                                                                                                                                           | Response                                                                               |
+| ------------------------ | ----------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| POST                     | `/events`                           | Auth (verified email) | `{ type, name, date, story?, coverMediaId?, visibility, accessCode?, allowPlusOne?, templateKey?, templateData?, registry?: [{ title, productId?, priceKobo }] }` | 201 event (DRAFT)                                                                      |
+| GET                      | `/events`                           | Auth                  | `?status=&cursor=`                                                                                                                                                | 200 my events with summary stats                                                       |
+| GET                      | `/events/:id`                       | Owner                 | none                                                                                                                                                              | 200 event detail                                                                       |
+| PATCH                    | `/events/:id`                       | Owner                 | partial of create body                                                                                                                                            | 200 event                                                                              |
+| POST                     | `/events/:id/publish`               | Owner                 | none                                                                                                                                                              | 200 `{ slug, url, moneyGiftsEnabled }`                                                 |
+| POST                     | `/events/:id/close`                 | Owner                 | none                                                                                                                                                              | 200                                                                                    |
+| POST                     | `/events/:id/archive`               | Owner                 | none                                                                                                                                                              | 200                                                                                    |
+| PUT                      | `/events/:id/invite`                | Owner                 | `{ templateKey, templateData }`                                                                                                                                   | 200                                                                                    |
+| GET                      | `/events/:id/stats`                 | Owner                 | none                                                                                                                                                              | 200 `{ totalReceivedKobo, giftCount, rsvpYes, rsvpNo, rsvpMaybe, pendingPayoutsKobo }` |
+| GET                      | `/events/:id/gifts`                 | Owner                 | `?type=&thanked=&cursor=`                                                                                                                                         | 200 gifts (giver identity per anonymity rule)                                          |
+| PATCH                    | `/gifts/:id/thanked`                | Owner of event        | `{ thanked: boolean }`                                                                                                                                            | 200                                                                                    |
+| GET                      | `/events/:id/thank-you`             | Owner                 | none                                                                                                                                                              | 200 grouped givers and gifts                                                           |
+| POST                     | `/events/:id/thank-you/bulk`        | Owner                 | `{ giftIds[], message }`                                                                                                                                          | 202 (queues messages)                                                                  |
+| GET, POST, PATCH, DELETE | `/events/:id/registry[/:itemId]`    | Owner                 | item body                                                                                                                                                         | 200 or 201 or 204                                                                      |
+| GET, POST, PATCH         | `/events/:id/pools[/:poolId]`       | Owner                 | `{ title, productId?, mode, targetKobo, deadline?, allowOverfund? }`                                                                                              | 200 or 201                                                                             |
+| POST                     | `/events/:id/pools/:poolId/resolve` | Owner                 | `{ action: 'CONVERT_TO_CASH' \| 'REFUND' }`                                                                                                                       | 202                                                                                    |
+| GET                      | `/events/:id/rsvps`                 | Owner                 | `?response=`                                                                                                                                                      | 200 list                                                                               |
+| GET                      | `/events/:id/rsvps/export`          | Owner                 | none                                                                                                                                                              | 200 `text/csv`                                                                         |
+| GET                      | `/events/:id/wall`                  | Owner                 | `?status=`                                                                                                                                                        | 200 all posts incl. hidden                                                             |
+| PATCH                    | `/events/:id/wall/:postId`          | Owner                 | `{ status: 'VISIBLE' \| 'HIDDEN' \| 'REMOVED' }`                                                                                                                  | 200                                                                                    |
+| PATCH                    | `/events/:id/keepsake`              | Owner                 | `{ public: boolean }`                                                                                                                                             | 200                                                                                    |
 
 Publishing rules: the event must have name, date, type, and visibility (and an access code if private). Publishing without a verified payout account is allowed; `moneyGiftsEnabled` is `false` until the owner has a `VERIFIED` account linked, at which point it flips to `true` automatically. Slug: slugified name plus a short random suffix, unique, immutable after publish.
 
@@ -708,21 +708,21 @@ Publishing rules: the event must have name, date, type, and visibility (and an a
 
 No authentication. Rate-limited per IP. Private events require the unlock cookie.
 
-| Method | Path | Request | Response |
-| --- | --- | --- | --- |
-| GET | `/public/events/:slug` | none | 200 event page data: name, date, story, cover, owner first name, template, registry (AVAILABLE, RESERVED, CLAIMED), pools with progress, `moneyGiftsEnabled`. 403 `EVENT_LOCKED` for private and locked. |
-| POST | `/public/events/:slug/unlock` | `{ code }` | 204 and sets `givvly_ev_<slug>` (HttpOnly, 12 h). 403 `INVALID_ACCESS_CODE`. Max 5 attempts per 15 min per IP and slug. |
-| GET | `/public/events/:slug/wall` | `?cursor=` | 200 VISIBLE posts only |
-| POST | `/public/events/:slug/wall` | `{ authorName, text?, mediaIds? }` | 201 `{ id, status }` (status may be PENDING) |
-| POST | `/public/events/:slug/rsvps` | `{ name, email?, phone?, response, plusOneName? }` | 201 or 200 (updates on same contact) |
-| POST | `/public/events/:slug/gifts/money` | see below | 201 |
-| POST | `/public/events/:slug/registry/:itemId/reserve` | `{ reservationToken? }` | 200 `{ reservedUntil, reservationToken }` |
-| POST | `/public/events/:slug/gifts/item` | `{ itemId, reservationToken, giverName, email, message?, anonymous }` | 201 (payment init) |
-| POST | `/public/events/:slug/gifts/pool` | `{ poolId, amountKobo, giverName, email, message?, anonymous }` | 201 (payment init) |
-| GET | `/public/track/:token` | none | 200 limited order status and timeline |
-| POST | `/reports` | `{ targetType, targetId, reason, note? }` | 201 |
-| GET | `/catalog/products`, `/catalog/products/:slug`, `/catalog/collections` | filters | 200 |
-| GET | `/payments/:reference` | none | 200 `{ status, receipt? }` (reference is unguessable) |
+| Method | Path                                                                   | Request                                                               | Response                                                                                                                                                                                                 |
+| ------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/public/events/:slug`                                                 | none                                                                  | 200 event page data: name, date, story, cover, owner first name, template, registry (AVAILABLE, RESERVED, CLAIMED), pools with progress, `moneyGiftsEnabled`. 403 `EVENT_LOCKED` for private and locked. |
+| POST   | `/public/events/:slug/unlock`                                          | `{ code }`                                                            | 204 and sets `givvly_ev_<slug>` (HttpOnly, 12 h). 403 `INVALID_ACCESS_CODE`. Max 5 attempts per 15 min per IP and slug.                                                                                  |
+| GET    | `/public/events/:slug/wall`                                            | `?cursor=`                                                            | 200 VISIBLE posts only                                                                                                                                                                                   |
+| POST   | `/public/events/:slug/wall`                                            | `{ authorName, text?, mediaIds? }`                                    | 201 `{ id, status }` (status may be PENDING)                                                                                                                                                             |
+| POST   | `/public/events/:slug/rsvps`                                           | `{ name, email?, phone?, response, plusOneName? }`                    | 201 or 200 (updates on same contact)                                                                                                                                                                     |
+| POST   | `/public/events/:slug/gifts/money`                                     | see below                                                             | 201                                                                                                                                                                                                      |
+| POST   | `/public/events/:slug/registry/:itemId/reserve`                        | `{ reservationToken? }`                                               | 200 `{ reservedUntil, reservationToken }`                                                                                                                                                                |
+| POST   | `/public/events/:slug/gifts/item`                                      | `{ itemId, reservationToken, giverName, email, message?, anonymous }` | 201 (payment init)                                                                                                                                                                                       |
+| POST   | `/public/events/:slug/gifts/pool`                                      | `{ poolId, amountKobo, giverName, email, message?, anonymous }`       | 201 (payment init)                                                                                                                                                                                       |
+| GET    | `/public/track/:token`                                                 | none                                                                  | 200 limited order status and timeline                                                                                                                                                                    |
+| POST   | `/reports`                                                             | `{ targetType, targetId, reason, note? }`                             | 201                                                                                                                                                                                                      |
+| GET    | `/catalog/products`, `/catalog/products/:slug`, `/catalog/collections` | filters                                                               | 200                                                                                                                                                                                                      |
+| GET    | `/payments/:reference`                                                 | none                                                                  | 200 `{ status, receipt? }` (reference is unguessable)                                                                                                                                                    |
 
 **Money gift request and response**
 
@@ -740,60 +740,60 @@ Server steps: validate; load event; ensure PUBLISHED, `moneyGiftsEnabled`, and o
 
 ### 6.6 Orders and catalog (direct gifting)
 
-| Method | Path | Auth | Request | Response |
-| --- | --- | --- | --- | --- |
-| POST | `/orders` | Auth (or guest with email) | `{ productId, qty?, eventId?, recipient: { name, phone?, email? }, address?, giftNote?, wrapStyle? }` + `Idempotency-Key` | 201 `{ order, payment }` |
-| POST | `/orders/:id/pay` | Order buyer | none | 200 new payment init if the first attempt failed |
-| GET | `/orders`, `/orders/:id` | Buyer | `?status=&cursor=` | 200 |
-| POST | `/orders/:id/cancel` | Buyer | none | 200 (only before PACKED) |
-| POST | `/orders/:id/review` | Buyer | `{ rating, comment? }` | 201 (only after DELIVERED, once) |
-| POST | `/orders/:id/disputes` | Buyer | `{ type, description, mediaIds? }` | 201 |
+| Method | Path                     | Auth                       | Request                                                                                                                   | Response                                         |
+| ------ | ------------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| POST   | `/orders`                | Auth (or guest with email) | `{ productId, qty?, eventId?, recipient: { name, phone?, email? }, address?, giftNote?, wrapStyle? }` + `Idempotency-Key` | 201 `{ order, payment }`                         |
+| POST   | `/orders/:id/pay`        | Order buyer                | none                                                                                                                      | 200 new payment init if the first attempt failed |
+| GET    | `/orders`, `/orders/:id` | Buyer                      | `?status=&cursor=`                                                                                                        | 200                                              |
+| POST   | `/orders/:id/cancel`     | Buyer                      | none                                                                                                                      | 200 (only before PACKED)                         |
+| POST   | `/orders/:id/review`     | Buyer                      | `{ rating, comment? }`                                                                                                    | 201 (only after DELIVERED, once)                 |
+| POST   | `/orders/:id/disputes`   | Buyer                      | `{ type, description, mediaIds? }`                                                                                        | 201                                              |
 
 ### 6.7 Vendor
 
-| Method | Path | Auth | Request | Response |
-| --- | --- | --- | --- | --- |
-| GET | `/vendor/orders` | VENDOR | `?status=` | 200 own orders only |
-| GET | `/vendor/orders/:id` | VENDOR of that order | none | 200 incl. recipient delivery details |
-| PATCH | `/vendor/orders/:id/status` | VENDOR | `{ status, note? }` | 200; only legal next status (Section 9.6) |
-| GET, POST, PATCH | `/vendor/products[/:id]` | VENDOR | product body | 200 or 201 |
-| POST | `/vendor/disputes/:id/respond` | VENDOR | `{ message }` | 200 |
+| Method           | Path                           | Auth                 | Request             | Response                                  |
+| ---------------- | ------------------------------ | -------------------- | ------------------- | ----------------------------------------- |
+| GET              | `/vendor/orders`               | VENDOR               | `?status=`          | 200 own orders only                       |
+| GET              | `/vendor/orders/:id`           | VENDOR of that order | none                | 200 incl. recipient delivery details      |
+| PATCH            | `/vendor/orders/:id/status`    | VENDOR               | `{ status, note? }` | 200; only legal next status (Section 9.6) |
+| GET, POST, PATCH | `/vendor/products[/:id]`       | VENDOR               | product body        | 200 or 201                                |
+| POST             | `/vendor/disputes/:id/respond` | VENDOR               | `{ message }`       | 200                                       |
 
 ### 6.8 Notifications and media
 
-| Method | Path | Auth | Request | Response |
-| --- | --- | --- | --- | --- |
-| GET | `/notifications` | Auth | `?unread=&cursor=` | 200 |
-| PATCH | `/notifications/:id/read`, POST `/notifications/read-all` | Auth | none | 204 |
-| POST | `/uploads/presign` | Auth, or guest with captcha token for wall photos | `{ purpose, mime, sizeBytes }` | 200 `{ mediaId, uploadUrl, headers, expiresIn: 300 }` |
-| POST | `/uploads/:mediaId/complete` | Same actor | none | 202 (queues scan and moderation) |
+| Method | Path                                                      | Auth                                              | Request                        | Response                                              |
+| ------ | --------------------------------------------------------- | ------------------------------------------------- | ------------------------------ | ----------------------------------------------------- |
+| GET    | `/notifications`                                          | Auth                                              | `?unread=&cursor=`             | 200                                                   |
+| PATCH  | `/notifications/:id/read`, POST `/notifications/read-all` | Auth                                              | none                           | 204                                                   |
+| POST   | `/uploads/presign`                                        | Auth, or guest with captcha token for wall photos | `{ purpose, mime, sizeBytes }` | 200 `{ mediaId, uploadUrl, headers, expiresIn: 300 }` |
+| POST   | `/uploads/:mediaId/complete`                              | Same actor                                        | none                           | 202 (queues scan and moderation)                      |
 
 ### 6.9 Admin (role ADMIN, 2FA recommended)
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/admin/users`, PATCH `/admin/users/:id` | Search, suspend, restore |
-| GET | `/admin/events`, PATCH `/admin/events/:id` | Search, force close, disable gifting |
-| GET | `/admin/payments`, `/admin/payments/:id` | Payments with provider payload (redacted) |
-| GET | `/admin/payouts`, POST `/admin/payouts/:id/retry`, POST `/admin/payouts/:id/hold`, POST `/admin/payouts/:id/release` | Payout operations |
-| GET | `/admin/ledger` | Entries by account and date; trial balance |
-| GET | `/admin/reconciliation` | Latest reconciliation run and mismatches |
-| GET | `/admin/moderation` | Union of PENDING posts and OPEN reports |
-| PATCH | `/admin/moderation/:id` | `{ action: 'APPROVE' \| 'REMOVE' \| 'DISMISS' }` |
-| GET, PATCH | `/admin/disputes[/:id]` | Resolve with refund or reject |
-| POST | `/admin/refunds` | `{ paymentId, amountKobo, reason }` |
-| GET, POST, PATCH | `/admin/vendors`, `/admin/products` | Vendor and catalog management |
-| PATCH | `/admin/payout-accounts/:id` | Approve or reject PENDING\_REVIEW |
+| Method           | Path                                                                                                                 | Purpose                                          |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| GET              | `/admin/users`, PATCH `/admin/users/:id`                                                                             | Search, suspend, restore                         |
+| GET              | `/admin/events`, PATCH `/admin/events/:id`                                                                           | Search, force close, disable gifting             |
+| GET              | `/admin/payments`, `/admin/payments/:id`                                                                             | Payments with provider payload (redacted)        |
+| GET              | `/admin/payouts`, POST `/admin/payouts/:id/retry`, POST `/admin/payouts/:id/hold`, POST `/admin/payouts/:id/release` | Payout operations                                |
+| GET              | `/admin/ledger`                                                                                                      | Entries by account and date; trial balance       |
+| GET              | `/admin/reconciliation`                                                                                              | Latest reconciliation run and mismatches         |
+| GET              | `/admin/moderation`                                                                                                  | Union of PENDING posts and OPEN reports          |
+| PATCH            | `/admin/moderation/:id`                                                                                              | `{ action: 'APPROVE' \| 'REMOVE' \| 'DISMISS' }` |
+| GET, PATCH       | `/admin/disputes[/:id]`                                                                                              | Resolve with refund or reject                    |
+| POST             | `/admin/refunds`                                                                                                     | `{ paymentId, amountKobo, reason }`              |
+| GET, POST, PATCH | `/admin/vendors`, `/admin/products`                                                                                  | Vendor and catalog management                    |
+| PATCH            | `/admin/payout-accounts/:id`                                                                                         | Approve or reject PENDING_REVIEW                 |
 
 Every admin write creates an `AuditLog` row with actor, action, target, IP and before and after diff.
 
 ### 6.10 Webhooks
 
-| Method | Path | Notes |
-| --- | --- | --- |
-| POST | `/webhooks/paystack` | Verify `x-paystack-signature` (HMAC SHA-512 of the raw body with the secret key) BEFORE parsing. Store a `WebhookEvent` (unique on `provider + eventKey`), respond `200` immediately, process in a queue. Events handled: `charge.success`, `transfer.success`, `transfer.failed`, `transfer.reversed`, `refund.processed`, `refund.failed`. Unknown events are stored as IGNORED. |
-| POST | `/webhooks/bills` | Provider callbacks for airtime and voucher status. Same pattern. |
-| POST | `/webhooks/media` | Optional moderation provider callback. |
+| Method | Path                 | Notes                                                                                                                                                                                                                                                                                                                                                                              |
+| ------ | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/webhooks/paystack` | Verify `x-paystack-signature` (HMAC SHA-512 of the raw body with the secret key) BEFORE parsing. Store a `WebhookEvent` (unique on `provider + eventKey`), respond `200` immediately, process in a queue. Events handled: `charge.success`, `transfer.success`, `transfer.failed`, `transfer.reversed`, `refund.processed`, `refund.failed`. Unknown events are stored as IGNORED. |
+| POST   | `/webhooks/bills`    | Provider callbacks for airtime and voucher status. Same pattern.                                                                                                                                                                                                                                                                                                                   |
+| POST   | `/webhooks/media`    | Optional moderation provider callback.                                                                                                                                                                                                                                                                                                                                             |
 
 The raw body MUST be preserved (`rawBody: true` in Nest) for signature verification. Never verify against a re-serialized object.
 
@@ -801,30 +801,30 @@ The raw body MUST be preserved (`rawBody: true` in Nest) for signature verificat
 
 ### 7.1 Roles and guards
 
-| Guard | Purpose |
-| --- | --- |
-| `JwtAuthGuard` | Reads `givvly_at`, rejects missing or expired tokens (401 `UNAUTHENTICATED` or `TOKEN_EXPIRED`) |
-| `CsrfGuard` | On POST, PUT, PATCH, DELETE with cookie auth, requires `X-CSRF-Token` equal to the `givvly_csrf` cookie (403 `CSRF_INVALID`). Webhooks and unauthenticated public POSTs are exempt but rate-limited. |
-| `RolesGuard` | `@Roles('ADMIN')` etc. |
-| `EmailVerifiedGuard` | Required for creating and publishing events |
-| `OwnershipGuard` | Loads the resource and verifies `ownerId` equals the user (events and children), `buyerUserId` (orders), or vendor membership. Returns 404, not 403, for resources the user must not know exist. |
-| `EventAccessGuard` | For `/public/events/:slug/*`: PUBLISHED required (CLOSED allowed read-only); PRIVATE requires a valid signed unlock cookie or being the owner |
-| `ThrottlerGuard` | Per-route limits (Section 15.3) |
-| `IdempotencyInterceptor` | Applies to routes marked `@Idempotent()` |
+| Guard                    | Purpose                                                                                                                                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JwtAuthGuard`           | Reads `givvly_at`, rejects missing or expired tokens (401 `UNAUTHENTICATED` or `TOKEN_EXPIRED`)                                                                                                      |
+| `CsrfGuard`              | On POST, PUT, PATCH, DELETE with cookie auth, requires `X-CSRF-Token` equal to the `givvly_csrf` cookie (403 `CSRF_INVALID`). Webhooks and unauthenticated public POSTs are exempt but rate-limited. |
+| `RolesGuard`             | `@Roles('ADMIN')` etc.                                                                                                                                                                               |
+| `EmailVerifiedGuard`     | Required for creating and publishing events                                                                                                                                                          |
+| `OwnershipGuard`         | Loads the resource and verifies `ownerId` equals the user (events and children), `buyerUserId` (orders), or vendor membership. Returns 404, not 403, for resources the user must not know exist.     |
+| `EventAccessGuard`       | For `/public/events/:slug/*`: PUBLISHED required (CLOSED allowed read-only); PRIVATE requires a valid signed unlock cookie or being the owner                                                        |
+| `ThrottlerGuard`         | Per-route limits (Section 15.3)                                                                                                                                                                      |
+| `IdempotencyInterceptor` | Applies to routes marked `@Idempotent()`                                                                                                                                                             |
 
 Every controller method declares its access explicitly with decorators (`@Public()`, `@Roles()`). Default is **deny**: a global `JwtAuthGuard` applies unless `@Public()` is present.
 
 ### 7.2 Access summary
 
-| Area | Public | USER | VENDOR | ADMIN |
-| --- | --- | --- | --- | --- |
-| Auth endpoints | Yes | Yes | Yes | Yes |
-| `/public/*`, `/catalog/*`, `/payments/:ref`, `/reports`, webhooks | Yes | Yes | Yes | Yes |
-| `/me`, `/payout-accounts`, `/notifications`, `/uploads` | No | Own | Own | Own |
-| `/events/*` (owner) | No | Own only | No | Read and moderate via `/admin` |
-| `/orders/*` | No | Own only | No | Via `/admin` |
-| `/vendor/*` | No | No | Own vendor only | Yes (read) |
-| `/admin/*` | No | No | No | Yes |
+| Area                                                              | Public | USER     | VENDOR          | ADMIN                          |
+| ----------------------------------------------------------------- | ------ | -------- | --------------- | ------------------------------ |
+| Auth endpoints                                                    | Yes    | Yes      | Yes             | Yes                            |
+| `/public/*`, `/catalog/*`, `/payments/:ref`, `/reports`, webhooks | Yes    | Yes      | Yes             | Yes                            |
+| `/me`, `/payout-accounts`, `/notifications`, `/uploads`           | No     | Own      | Own             | Own                            |
+| `/events/*` (owner)                                               | No     | Own only | No              | Read and moderate via `/admin` |
+| `/orders/*`                                                       | No     | Own only | No              | Via `/admin`                   |
+| `/vendor/*`                                                       | No     | No       | Own vendor only | Yes (read)                     |
+| `/admin/*`                                                        | No     | No       | No              | Yes                            |
 
 ### 7.3 Ownership and data-visibility rules
 
@@ -845,47 +845,47 @@ Every controller method declares its access explicitly with decorators (`@Public
 
 ### 8.2 Rules by endpoint
 
-| Endpoint | Field | Rule |
-| --- | --- | --- |
-| `POST /auth/register` | name | 2 to 60 chars |
-|  | email | Valid, max 254, unique (409 `EMAIL_TAKEN` returned with the same timing as success to limit enumeration) |
-|  | password | 10 to 72 chars, letter and number, not in the common password list |
-|  | acceptTerms | Must be `true` |
-| `POST /auth/login` | email, password | Required; after 5 failures lock the account 15 minutes (`ACCOUNT_LOCKED`) |
-| `POST /events` | type | Enum |
-|  | name | 3 to 80 |
-|  | date | Not in the past (Lagos), at most 3 years ahead |
-|  | story | Max 1500 |
-|  | visibility, accessCode | PRIVATE requires 6 to 12 alphanumeric code (stored hashed) |
-|  | coverMediaId | Must be READY, owned by the user, purpose EVENT\_COVER |
-|  | registry | At most 50 items; price 50,000 to 500,000,000 kobo |
-| `PATCH /events/:id` | any | Cannot change `type`, `slug` after publish; cannot set date in the past; CLOSED or ARCHIVED events are read-only |
-| `POST /payout-accounts` | accountNumber | Exactly 10 digits; bankCode in the cached bank list |
-|  | confirmedName | Must equal the name returned by resolve for this bank and number (re-resolved server side) |
-|  | limit | Max 3 accounts per user |
-| `POST .../gifts/money` | amountKobo | Integer, 50,000 to 100,000,000 (configurable `MIN_GIFT_KOBO`, `MAX_GIFT_KOBO`) |
-|  | giverName | Required unless anonymous, 2 to 60 |
-|  | email | Required, valid |
-|  | message | Max 500, profanity filtered |
-|  | event state | PUBLISHED, `moneyGiftsEnabled`, not past close date plus grace (default 30 days) |
-|  | velocity | Max 10 initiated payments per IP per hour, 5 per email per hour |
-| `POST .../gifts/pool` | amountKobo | Min 50,000; not more than remaining unless `allowOverfund`; pool OPEN and before deadline |
-| `POST .../registry/:id/reserve` | item | AVAILABLE, or RESERVED by the same `reservationToken`; hold is 10 minutes |
-| `POST .../gifts/item` | reservationToken | Must match a live reservation on the item |
-| `POST .../rsvps` | response | Enum; `plusOneName` only if event `allowPlusOne`; one of email or phone required |
-| `POST .../wall` | text | 1 to 500 chars, or media present |
-|  | mediaIds | Up to 3, READY, purpose WALL\_POST, owned by this uploader |
-| `POST /uploads/presign` | mime | Allowlist `image/jpeg`, `image/png`, `image/webp` |
-|  | sizeBytes | Max 5 MB (cover) or 8 MB (wall); server enforces on the presigned URL conditions |
-| `POST /orders` | productId | Active, in stock, vendor active |
-|  | recipient.name | 2 to 60; phone required for physical goods |
-|  | address | Required for physical; street, area, city, state; max 200 each |
-|  | giftNote | Max 300 |
-| `PATCH /vendor/orders/:id/status` | status | Must be the next legal transition (Section 9.6) |
-| `POST /orders/:id/review` | rating | Integer 1 to 5; order DELIVERED; one review per order |
-| `POST /orders/:id/disputes` | description | 20 to 1000 chars; order SHIPPED or DELIVERED; within 14 days of delivery |
-| `POST /reports` | reason | Enum; note max 300; max 10 reports per IP per hour |
-| `POST /admin/refunds` | amountKobo | Positive, not more than refundable amount; reason required |
+| Endpoint                          | Field                  | Rule                                                                                                             |
+| --------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/register`             | name                   | 2 to 60 chars                                                                                                    |
+|                                   | email                  | Valid, max 254, unique (409 `EMAIL_TAKEN` returned with the same timing as success to limit enumeration)         |
+|                                   | password               | 10 to 72 chars, letter and number, not in the common password list                                               |
+|                                   | acceptTerms            | Must be `true`                                                                                                   |
+| `POST /auth/login`                | email, password        | Required; after 5 failures lock the account 15 minutes (`ACCOUNT_LOCKED`)                                        |
+| `POST /events`                    | type                   | Enum                                                                                                             |
+|                                   | name                   | 3 to 80                                                                                                          |
+|                                   | date                   | Not in the past (Lagos), at most 3 years ahead                                                                   |
+|                                   | story                  | Max 1500                                                                                                         |
+|                                   | visibility, accessCode | PRIVATE requires 6 to 12 alphanumeric code (stored hashed)                                                       |
+|                                   | coverMediaId           | Must be READY, owned by the user, purpose EVENT_COVER                                                            |
+|                                   | registry               | At most 50 items; price 50,000 to 500,000,000 kobo                                                               |
+| `PATCH /events/:id`               | any                    | Cannot change `type`, `slug` after publish; cannot set date in the past; CLOSED or ARCHIVED events are read-only |
+| `POST /payout-accounts`           | accountNumber          | Exactly 10 digits; bankCode in the cached bank list                                                              |
+|                                   | confirmedName          | Must equal the name returned by resolve for this bank and number (re-resolved server side)                       |
+|                                   | limit                  | Max 3 accounts per user                                                                                          |
+| `POST .../gifts/money`            | amountKobo             | Integer, 50,000 to 100,000,000 (configurable `MIN_GIFT_KOBO`, `MAX_GIFT_KOBO`)                                   |
+|                                   | giverName              | Required unless anonymous, 2 to 60                                                                               |
+|                                   | email                  | Required, valid                                                                                                  |
+|                                   | message                | Max 500, profanity filtered                                                                                      |
+|                                   | event state            | PUBLISHED, `moneyGiftsEnabled`, not past close date plus grace (default 30 days)                                 |
+|                                   | velocity               | Max 10 initiated payments per IP per hour, 5 per email per hour                                                  |
+| `POST .../gifts/pool`             | amountKobo             | Min 50,000; not more than remaining unless `allowOverfund`; pool OPEN and before deadline                        |
+| `POST .../registry/:id/reserve`   | item                   | AVAILABLE, or RESERVED by the same `reservationToken`; hold is 10 minutes                                        |
+| `POST .../gifts/item`             | reservationToken       | Must match a live reservation on the item                                                                        |
+| `POST .../rsvps`                  | response               | Enum; `plusOneName` only if event `allowPlusOne`; one of email or phone required                                 |
+| `POST .../wall`                   | text                   | 1 to 500 chars, or media present                                                                                 |
+|                                   | mediaIds               | Up to 3, READY, purpose WALL_POST, owned by this uploader                                                        |
+| `POST /uploads/presign`           | mime                   | Allowlist `image/jpeg`, `image/png`, `image/webp`                                                                |
+|                                   | sizeBytes              | Max 5 MB (cover) or 8 MB (wall); server enforces on the presigned URL conditions                                 |
+| `POST /orders`                    | productId              | Active, in stock, vendor active                                                                                  |
+|                                   | recipient.name         | 2 to 60; phone required for physical goods                                                                       |
+|                                   | address                | Required for physical; street, area, city, state; max 200 each                                                   |
+|                                   | giftNote               | Max 300                                                                                                          |
+| `PATCH /vendor/orders/:id/status` | status                 | Must be the next legal transition (Section 9.6)                                                                  |
+| `POST /orders/:id/review`         | rating                 | Integer 1 to 5; order DELIVERED; one review per order                                                            |
+| `POST /orders/:id/disputes`       | description            | 20 to 1000 chars; order SHIPPED or DELIVERED; within 14 days of delivery                                         |
+| `POST /reports`                   | reason                 | Enum; note max 300; max 10 reports per IP per hour                                                               |
+| `POST /admin/refunds`             | amountKobo             | Positive, not more than refundable amount; reason required                                                       |
 
 ### 8.3 Business invariants (enforced in code and database)
 
@@ -921,13 +921,13 @@ The API always returns `amountKobo`, `feeKobo`, `totalKobo` so the frontend neve
 5. **Payout job**: see 9.3.
 6. **Frontend poll** `GET /payments/:reference` returns SUCCESS once step 4.3 commits.
 
-**Ledger entries for a captured money gift (GUEST\_PAYS, amount A, fee F, total T = A + F):**
+**Ledger entries for a captured money gift (GUEST_PAYS, amount A, fee F, total T = A + F):**
 
-| Account | Debit | Credit |
-| --- | --- | --- |
-| `PROVIDER_CLEARING` (asset) | T |  |
-| `OWNER_PAYABLE:<ownerId>` (liability) |  | A |
-| `PLATFORM_REVENUE` (revenue) |  | F |
+| Account                               | Debit | Credit |
+| ------------------------------------- | ----- | ------ |
+| `PROVIDER_CLEARING` (asset)           | T     |        |
+| `OWNER_PAYABLE:<ownerId>` (liability) |       | A      |
+| `PLATFORM_REVENUE` (revenue)          |       | F      |
 
 Payout of A: debit `OWNER_PAYABLE`, credit `PROVIDER_CLEARING` for A. Provider charges (collection fee `p`, transfer fee `t`): debit `PROVIDER_FEES`, credit `PROVIDER_CLEARING`. Ledger transaction references are deterministic (`payment:<id>:capture`, `payout:<id>:sent`, `payout:<id>:fee`) so a replay cannot double-post (unique `reference`). Pool escrow uses `POOL_ESCROW:<poolId>` in place of `OWNER_PAYABLE`. Order captures credit `VENDOR_PAYABLE:<vendorId>` and `PLATFORM_REVENUE` for commission and service fee.
 
@@ -958,17 +958,17 @@ Payout of A: debit `OWNER_PAYABLE`, credit `PROVIDER_CLEARING` for A. Provider c
 
 ### 9.6 Order state machine
 
-| From | To | Actor | Conditions and side effects |
-| --- | --- | --- | --- |
-| (none) | PENDING\_PAYMENT | Buyer | Order and payment created; stock soft-reserved 20 min |
-| PENDING\_PAYMENT | CONFIRMED | System | Payment SUCCESS; stock decremented; notify buyer, vendor, recipient |
-| PENDING\_PAYMENT | CANCELLED | System or buyer | Payment failed, expired (1 h) or user cancel; stock released |
-| CONFIRMED | PACKED | Vendor | Vendor note optional |
-| CONFIRMED | CANCELLED | Buyer or admin | Only before PACKED; triggers refund |
-| PACKED | SHIPPED | Vendor | Requires delivery partner or tracking note; notify buyer and recipient |
-| SHIPPED | DELIVERED | Vendor or admin | Sets `deliveredAt`; opens review window; vendor settlement becomes due after the dispute window |
-| SHIPPED or DELIVERED | DISPUTED | Buyer | Dispute opened within 14 days of delivery |
-| DISPUTED | REFUNDED or DELIVERED | Admin | Refund creates a refund ledger transaction; rejection returns the status |
+| From                 | To                    | Actor           | Conditions and side effects                                                                     |
+| -------------------- | --------------------- | --------------- | ----------------------------------------------------------------------------------------------- |
+| (none)               | PENDING_PAYMENT       | Buyer           | Order and payment created; stock soft-reserved 20 min                                           |
+| PENDING_PAYMENT      | CONFIRMED             | System          | Payment SUCCESS; stock decremented; notify buyer, vendor, recipient                             |
+| PENDING_PAYMENT      | CANCELLED             | System or buyer | Payment failed, expired (1 h) or user cancel; stock released                                    |
+| CONFIRMED            | PACKED                | Vendor          | Vendor note optional                                                                            |
+| CONFIRMED            | CANCELLED             | Buyer or admin  | Only before PACKED; triggers refund                                                             |
+| PACKED               | SHIPPED               | Vendor          | Requires delivery partner or tracking note; notify buyer and recipient                          |
+| SHIPPED              | DELIVERED             | Vendor or admin | Sets `deliveredAt`; opens review window; vendor settlement becomes due after the dispute window |
+| SHIPPED or DELIVERED | DISPUTED              | Buyer           | Dispute opened within 14 days of delivery                                                       |
+| DISPUTED             | REFUNDED or DELIVERED | Admin           | Refund creates a refund ledger transaction; rejection returns the status                        |
 
 Any other transition returns 409 `INVALID_STATUS_TRANSITION`. Every change writes `OrderStatusHistory` and emits `order.status_changed`. Digital products skip PACKED and SHIPPED: they go CONFIRMED to DELIVERED when the bills provider confirms.
 
@@ -991,39 +991,39 @@ Daily at 02:00 Lagos time: pull Paystack transactions and transfers for the prev
 
 ### 9.10 Scheduled jobs
 
-| Job | Schedule | Action |
-| --- | --- | --- |
-| `release-expired-reservations` | every minute | Free held items and unpaid soft stock |
-| `stuck-payment-sweeper` | every 5 minutes | Verify INITIATED or PENDING payments older than 15 minutes with Paystack |
-| `payout-sweeper` | every 5 minutes | Reconcile PROCESSING over 30 minutes; enqueue due retries |
-| `pool-deadline-check` | hourly | Expire pools, notify owners, auto-refund after grace |
-| `abandoned-orders` | every 15 minutes | Cancel PENDING\_PAYMENT older than 1 hour |
-| `close-past-events` | daily | Set events CLOSED 7 days after the date; allow gifts for a grace period if configured |
-| `reconcile-paystack` | daily 02:00 | See 9.9 |
-| `ledger-integrity` | daily | Trial balance and orphan checks |
-| `notification-retry` | every 5 minutes | Retry FAILED notifications under 3 attempts |
-| `cleanup` | daily | Purge expired tokens, sessions, idempotency records, old webhook payloads |
-| `event-reminders` | daily | Remind RSVP-yes guests one day before |
+| Job                            | Schedule         | Action                                                                                |
+| ------------------------------ | ---------------- | ------------------------------------------------------------------------------------- |
+| `release-expired-reservations` | every minute     | Free held items and unpaid soft stock                                                 |
+| `stuck-payment-sweeper`        | every 5 minutes  | Verify INITIATED or PENDING payments older than 15 minutes with Paystack              |
+| `payout-sweeper`               | every 5 minutes  | Reconcile PROCESSING over 30 minutes; enqueue due retries                             |
+| `pool-deadline-check`          | hourly           | Expire pools, notify owners, auto-refund after grace                                  |
+| `abandoned-orders`             | every 15 minutes | Cancel PENDING_PAYMENT older than 1 hour                                              |
+| `close-past-events`            | daily            | Set events CLOSED 7 days after the date; allow gifts for a grace period if configured |
+| `reconcile-paystack`           | daily 02:00      | See 9.9                                                                               |
+| `ledger-integrity`             | daily            | Trial balance and orphan checks                                                       |
+| `notification-retry`           | every 5 minutes  | Retry FAILED notifications under 3 attempts                                           |
+| `cleanup`                      | daily            | Purge expired tokens, sessions, idempotency records, old webhook payloads             |
+| `event-reminders`              | daily            | Remind RSVP-yes guests one day before                                                 |
 
 Scheduled jobs run only on the worker and use a Redis lock so two workers never run the same schedule.
 
 ## 10. Success criteria
 
-| Flow | Success means | Verified by |
-| --- | --- | --- |
-| Register and verify | User row created, verification email sent in under 60 s, token single-use, login works after verification | Integration test; email provider logs |
-| Login and refresh | Cookies set with correct flags; refresh rotates; token reuse revokes the family | Integration tests |
-| Create and publish event | Event DRAFT then PUBLISHED, unique slug, public GET returns data, private event locked without cookie | Integration test |
-| Payout account setup | Name resolved, encrypted account stored, recipient code created, status VERIFIED or PENDING\_REVIEW as per rules | Integration test with Paystack fake |
-| Money gift | Payment SUCCESS exactly once, gift PAID, ledger balanced, payout created, owner notified within 30 s, public page updated within 60 s | E2E test; metric `gift_paid_to_notified_seconds` |
-| Payout | Transfer reference unique, final status SUCCESS via webhook, ledger posted, no duplicate transfers under retries | Fault-injection tests; daily reconciliation shows zero mismatches |
-| Duplicate webhook or double submit | State unchanged on the second delivery; one gift, one payout | Concurrency tests |
-| Reservation | At most one buyer per item under 50 concurrent attempts; holds expire on time | Concurrency test |
-| Pool | `raisedKobo` equals the sum of PAID contributions; no overshoot; refund path returns every contribution | Property and integration tests |
-| Order | Legal transitions only; each change notifies buyer and recipient; history complete | State machine unit tests |
-| Moderation | PENDING content never appears publicly; hide takes effect within 60 s | Integration test |
-| Reconciliation | Daily run completes; mismatches below 0.1% of volume and all explained | Job output and dashboard |
-| Performance | Public event GET p95 under 200 ms (cached); gift initialize p95 under 800 ms excluding Paystack time | k6 load test |
+| Flow                               | Success means                                                                                                                         | Verified by                                                       |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Register and verify                | User row created, verification email sent in under 60 s, token single-use, login works after verification                             | Integration test; email provider logs                             |
+| Login and refresh                  | Cookies set with correct flags; refresh rotates; token reuse revokes the family                                                       | Integration tests                                                 |
+| Create and publish event           | Event DRAFT then PUBLISHED, unique slug, public GET returns data, private event locked without cookie                                 | Integration test                                                  |
+| Payout account setup               | Name resolved, encrypted account stored, recipient code created, status VERIFIED or PENDING_REVIEW as per rules                       | Integration test with Paystack fake                               |
+| Money gift                         | Payment SUCCESS exactly once, gift PAID, ledger balanced, payout created, owner notified within 30 s, public page updated within 60 s | E2E test; metric `gift_paid_to_notified_seconds`                  |
+| Payout                             | Transfer reference unique, final status SUCCESS via webhook, ledger posted, no duplicate transfers under retries                      | Fault-injection tests; daily reconciliation shows zero mismatches |
+| Duplicate webhook or double submit | State unchanged on the second delivery; one gift, one payout                                                                          | Concurrency tests                                                 |
+| Reservation                        | At most one buyer per item under 50 concurrent attempts; holds expire on time                                                         | Concurrency test                                                  |
+| Pool                               | `raisedKobo` equals the sum of PAID contributions; no overshoot; refund path returns every contribution                               | Property and integration tests                                    |
+| Order                              | Legal transitions only; each change notifies buyer and recipient; history complete                                                    | State machine unit tests                                          |
+| Moderation                         | PENDING content never appears publicly; hide takes effect within 60 s                                                                 | Integration test                                                  |
+| Reconciliation                     | Daily run completes; mismatches below 0.1% of volume and all explained                                                                | Job output and dashboard                                          |
+| Performance                        | Public event GET p95 under 200 ms (cached); gift initialize p95 under 800 ms excluding Paystack time                                  | k6 load test                                                      |
 
 ## 11. Error handling
 
@@ -1031,44 +1031,44 @@ Scheduled jobs run only on the worker and use a Redis lock so two workers never 
 
 A global exception filter converts everything to the error envelope. Domain code throws typed `AppError(code, httpStatus, message, details?)`. Unknown errors become `INTERNAL_ERROR` (500) with the real error logged and sent to Sentry; the client sees only the request id.
 
-| Source | Mapped to |
-| --- | --- |
-| Zod validation | 422 `VALIDATION_FAILED` with field details |
-| Prisma `P2002` unique violation | 409 with a domain code (`EMAIL_TAKEN`, `DUPLICATE_REQUEST`, `ALREADY_EXISTS`) chosen by constraint name |
-| Prisma `P2025` not found | 404 `NOT_FOUND` |
-| Prisma `P2034` serialization or deadlock | Retry the transaction up to 3 times with jitter, then 409 `CONFLICT_RETRY` |
-| Paystack 4xx | 402 `PAYMENT_FAILED` (card errors) or 502 `PROVIDER_ERROR` (our request invalid; alert) |
-| Paystack 5xx or timeout | 503 `PROVIDER_UNAVAILABLE` with `Retry-After`; payment stays INITIATED and the sweeper reconciles |
-| JWT errors | 401 `UNAUTHENTICATED` or `TOKEN_EXPIRED` |
+| Source                                   | Mapped to                                                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Zod validation                           | 422 `VALIDATION_FAILED` with field details                                                              |
+| Prisma `P2002` unique violation          | 409 with a domain code (`EMAIL_TAKEN`, `DUPLICATE_REQUEST`, `ALREADY_EXISTS`) chosen by constraint name |
+| Prisma `P2025` not found                 | 404 `NOT_FOUND`                                                                                         |
+| Prisma `P2034` serialization or deadlock | Retry the transaction up to 3 times with jitter, then 409 `CONFLICT_RETRY`                              |
+| Paystack 4xx                             | 402 `PAYMENT_FAILED` (card errors) or 502 `PROVIDER_ERROR` (our request invalid; alert)                 |
+| Paystack 5xx or timeout                  | 503 `PROVIDER_UNAVAILABLE` with `Retry-After`; payment stays INITIATED and the sweeper reconciles       |
+| JWT errors                               | 401 `UNAUTHENTICATED` or `TOKEN_EXPIRED`                                                                |
 
 ### 11.2 Error catalog
 
-| Code | HTTP | When |
-| --- | --- | --- |
-| `VALIDATION_FAILED` | 422 | Input invalid |
-| `UNAUTHENTICATED`, `TOKEN_EXPIRED` | 401 | No or expired token |
-| `INVALID_CREDENTIALS` | 401 | Wrong email or password |
-| `ACCOUNT_LOCKED` | 423 | Too many failed logins |
-| `EMAIL_NOT_VERIFIED` | 403 | Action needs a verified email |
-| `FORBIDDEN`, `CSRF_INVALID` | 403 | Role or CSRF failure |
-| `NOT_FOUND` | 404 | Missing or not visible to the actor |
-| `EMAIL_TAKEN` | 409 | Registration conflict |
-| `EVENT_LOCKED`, `INVALID_ACCESS_CODE` | 403 | Private event access |
-| `EVENT_NOT_PUBLISHED`, `EVENT_CLOSED` | 409 | Event state forbids the action |
-| `PAYOUT_NOT_READY` | 409 | Owner has no verified payout account |
-| `ITEM_ALREADY_CLAIMED`, `RESERVATION_EXPIRED` | 409 | Registry conflicts |
-| `POOL_OVERFUNDED`, `POOL_CLOSED` | 409 | Pool rules |
-| `AMOUNT_OUT_OF_RANGE` | 422 | Below minimum or above maximum gift |
-| `PAYMENT_FAILED` | 402 | Charge failed |
-| `PAYMENT_PENDING` | 202 | Not yet confirmed |
-| `DUPLICATE_REQUEST`, `IDEMPOTENCY_MISMATCH` | 409, 422 | Idempotency rules (Section 6.1) |
-| `UPLOAD_REJECTED` | 422 | Type, size or scan failure |
-| `CONTENT_FLAGGED` | 202 | Accepted but pending review |
-| `INVALID_STATUS_TRANSITION` | 409 | State machine violation |
-| `OUT_OF_STOCK` | 409 | Product unavailable |
-| `RATE_LIMITED` | 429 | Throttled |
-| `PROVIDER_UNAVAILABLE`, `PROVIDER_ERROR` | 503, 502 | Upstream issue |
-| `INTERNAL_ERROR` | 500 | Unexpected |
+| Code                                          | HTTP     | When                                 |
+| --------------------------------------------- | -------- | ------------------------------------ |
+| `VALIDATION_FAILED`                           | 422      | Input invalid                        |
+| `UNAUTHENTICATED`, `TOKEN_EXPIRED`            | 401      | No or expired token                  |
+| `INVALID_CREDENTIALS`                         | 401      | Wrong email or password              |
+| `ACCOUNT_LOCKED`                              | 423      | Too many failed logins               |
+| `EMAIL_NOT_VERIFIED`                          | 403      | Action needs a verified email        |
+| `FORBIDDEN`, `CSRF_INVALID`                   | 403      | Role or CSRF failure                 |
+| `NOT_FOUND`                                   | 404      | Missing or not visible to the actor  |
+| `EMAIL_TAKEN`                                 | 409      | Registration conflict                |
+| `EVENT_LOCKED`, `INVALID_ACCESS_CODE`         | 403      | Private event access                 |
+| `EVENT_NOT_PUBLISHED`, `EVENT_CLOSED`         | 409      | Event state forbids the action       |
+| `PAYOUT_NOT_READY`                            | 409      | Owner has no verified payout account |
+| `ITEM_ALREADY_CLAIMED`, `RESERVATION_EXPIRED` | 409      | Registry conflicts                   |
+| `POOL_OVERFUNDED`, `POOL_CLOSED`              | 409      | Pool rules                           |
+| `AMOUNT_OUT_OF_RANGE`                         | 422      | Below minimum or above maximum gift  |
+| `PAYMENT_FAILED`                              | 402      | Charge failed                        |
+| `PAYMENT_PENDING`                             | 202      | Not yet confirmed                    |
+| `DUPLICATE_REQUEST`, `IDEMPOTENCY_MISMATCH`   | 409, 422 | Idempotency rules (Section 6.1)      |
+| `UPLOAD_REJECTED`                             | 422      | Type, size or scan failure           |
+| `CONTENT_FLAGGED`                             | 202      | Accepted but pending review          |
+| `INVALID_STATUS_TRANSITION`                   | 409      | State machine violation              |
+| `OUT_OF_STOCK`                                | 409      | Product unavailable                  |
+| `RATE_LIMITED`                                | 429      | Throttled                            |
+| `PROVIDER_UNAVAILABLE`, `PROVIDER_ERROR`      | 503, 502 | Upstream issue                       |
+| `INTERNAL_ERROR`                              | 500      | Unexpected                           |
 
 The frontend document maps these codes to UI behavior. Adding a code requires updating both documents and the `contracts` package.
 
@@ -1094,26 +1094,26 @@ The backend has no screens. Its "UX" is how predictable the API is for developer
 
 ### 12.2 Notification catalog
 
-| Event | Recipient | Channels | Notes |
-| --- | --- | --- | --- |
-| Verify email, password reset | User | Email | Link with single-use token |
-| Gift received | Event owner | In-app, email, WhatsApp or SMS | Shows amount and giver (per anonymity rule); batch if more than 5 per minute |
-| Receipt | Giver | Email | Reference, amount, fee, total, event name |
-| Payout sent | Owner | In-app, email | Amount and bank last four digits |
-| Payout failed or on hold | Owner and admins | In-app, email | Owner told to check bank details; admin alerted with details |
-| RSVP received | Owner | In-app, email digest | Daily digest option |
-| Registry item claimed, pool contribution, pool funded or expired | Owner | In-app, email |  |
-| Wall post pending review | Owner (if their event) | In-app |  |
-| Order confirmed, shipped, delivered | Buyer and recipient | In-app, email, WhatsApp or SMS | Recipient message hides the price |
-| New order | Vendor | Email, dashboard | Contains recipient delivery details |
-| Dispute opened or resolved | Buyer, vendor, admin | Email, in-app |  |
-| Thank-you | Giver | Email, WhatsApp or SMS | From the owner, via bulk thank-you |
-| Security alert (new payout account, password change) | User | Email | Always sent; cannot be disabled |
-| Event reminder | RSVP-yes guests | Email, WhatsApp or SMS | One day before |
+| Event                                                            | Recipient              | Channels                       | Notes                                                                        |
+| ---------------------------------------------------------------- | ---------------------- | ------------------------------ | ---------------------------------------------------------------------------- |
+| Verify email, password reset                                     | User                   | Email                          | Link with single-use token                                                   |
+| Gift received                                                    | Event owner            | In-app, email, WhatsApp or SMS | Shows amount and giver (per anonymity rule); batch if more than 5 per minute |
+| Receipt                                                          | Giver                  | Email                          | Reference, amount, fee, total, event name                                    |
+| Payout sent                                                      | Owner                  | In-app, email                  | Amount and bank last four digits                                             |
+| Payout failed or on hold                                         | Owner and admins       | In-app, email                  | Owner told to check bank details; admin alerted with details                 |
+| RSVP received                                                    | Owner                  | In-app, email digest           | Daily digest option                                                          |
+| Registry item claimed, pool contribution, pool funded or expired | Owner                  | In-app, email                  |                                                                              |
+| Wall post pending review                                         | Owner (if their event) | In-app                         |                                                                              |
+| Order confirmed, shipped, delivered                              | Buyer and recipient    | In-app, email, WhatsApp or SMS | Recipient message hides the price                                            |
+| New order                                                        | Vendor                 | Email, dashboard               | Contains recipient delivery details                                          |
+| Dispute opened or resolved                                       | Buyer, vendor, admin   | Email, in-app                  |                                                                              |
+| Thank-you                                                        | Giver                  | Email, WhatsApp or SMS         | From the owner, via bulk thank-you                                           |
+| Security alert (new payout account, password change)             | User                   | Email                          | Always sent; cannot be disabled                                              |
+| Event reminder                                                   | RSVP-yes guests        | Email, WhatsApp or SMS         | One day before                                                               |
 
 ### 12.3 Message design and delivery rules
 
-- Email: MJML and Handlebars templates, responsive, plain-text alternative, one primary call to action, unsubscribe link on non-transactional mail, sender `Givvly <no-reply@givvly.ng>` with SPF, DKIM and DMARC set. Subject lines under 60 characters and specific ("Chidi sent you a gift").
+- Email: MJML and Handlebars templates, responsive, plain-text alternative, one primary call to action, unsubscribe link on non-transactional mail, sender `Givvly <no-reply@givvly.vercel.app>` with SPF, DKIM and DMARC set. Subject lines under 60 characters and specific ("Chidi sent you a gift").
 - SMS and WhatsApp: short templates (WhatsApp requires pre-approved templates for business-initiated messages), no sensitive data, respect each user's channel preferences and quiet hours (default 22:00 to 07:00 Lagos for non-transactional). Keep an opt-out path.
 - Preferences are stored per channel and category; security alerts bypass preferences.
 - Idempotent sending: a `Notification` row has a deterministic dedupe key (`type:entityId:channel:recipient`) so retries never double-send.
@@ -1127,28 +1127,28 @@ Searchable and filterable tables (user, event, payment reference, payout status)
 
 ### 13.1 Where state lives
 
-| Store | Holds | Rule |
-| --- | --- | --- |
-| PostgreSQL | All durable truth: users, events, gifts, payments, payouts, ledger, orders | Source of truth; all money state transitions happen in transactions |
-| Redis | Queues (BullMQ), rate limit counters, Google OAuth state, caches, distributed locks, short reservation helpers | Ephemeral; losing it never loses money records |
-| Object storage | Media binaries | Referenced by `Media.key` |
-| Request context | Request id, user, locale (AsyncLocalStorage) | Never global mutable state |
+| Store           | Holds                                                                                                          | Rule                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| PostgreSQL      | All durable truth: users, events, gifts, payments, payouts, ledger, orders                                     | Source of truth; all money state transitions happen in transactions |
+| Redis           | Queues (BullMQ), rate limit counters, Google OAuth state, caches, distributed locks, short reservation helpers | Ephemeral; losing it never loses money records                      |
+| Object storage  | Media binaries                                                                                                 | Referenced by `Media.key`                                           |
+| Request context | Request id, user, locale (AsyncLocalStorage)                                                                   | Never global mutable state                                          |
 
 The API is stateless: any instance can serve any request, and sessions live in the database (refresh tokens) and signed cookies.
 
 ### 13.2 Entity state machines
 
-| Entity | States and transitions |
-| --- | --- |
-| Event | DRAFT → PUBLISHED → CLOSED → ARCHIVED (owner may archive from any non-DRAFT state; DRAFT may be deleted) |
-| Payment | INITIATED → PENDING → SUCCESS or FAILED; SUCCESS → REFUNDED or PARTIALLY\_REFUNDED |
-| Gift | PENDING → PAID or FAILED; PAID → REFUNDED |
-| Payout | QUEUED → PROCESSING → SUCCESS, FAILED or REVERSED; QUEUED → ON\_HOLD → QUEUED; FAILED → QUEUED on retry |
-| Registry item | AVAILABLE → RESERVED → CLAIMED; RESERVED → AVAILABLE on expiry or failure |
-| Pool | OPEN → FUNDED, or EXPIRED → CONVERTED or REFUNDED |
-| Order | See 9.6 |
-| Wall post | PENDING → VISIBLE, HIDDEN or REMOVED; VISIBLE ↔ HIDDEN; any → REMOVED |
-| Payout account | PENDING → VERIFIED, PENDING\_REVIEW or REJECTED; PENDING\_REVIEW → VERIFIED or REJECTED |
+| Entity         | States and transitions                                                                                   |
+| -------------- | -------------------------------------------------------------------------------------------------------- |
+| Event          | DRAFT → PUBLISHED → CLOSED → ARCHIVED (owner may archive from any non-DRAFT state; DRAFT may be deleted) |
+| Payment        | INITIATED → PENDING → SUCCESS or FAILED; SUCCESS → REFUNDED or PARTIALLY_REFUNDED                        |
+| Gift           | PENDING → PAID or FAILED; PAID → REFUNDED                                                                |
+| Payout         | QUEUED → PROCESSING → SUCCESS, FAILED or REVERSED; QUEUED → ON_HOLD → QUEUED; FAILED → QUEUED on retry   |
+| Registry item  | AVAILABLE → RESERVED → CLAIMED; RESERVED → AVAILABLE on expiry or failure                                |
+| Pool           | OPEN → FUNDED, or EXPIRED → CONVERTED or REFUNDED                                                        |
+| Order          | See 9.6                                                                                                  |
+| Wall post      | PENDING → VISIBLE, HIDDEN or REMOVED; VISIBLE ↔ HIDDEN; any → REMOVED                                    |
+| Payout account | PENDING → VERIFIED, PENDING_REVIEW or REJECTED; PENDING_REVIEW → VERIFIED or REJECTED                    |
 
 Each machine is implemented as one pure function (`canTransition(from, to, actor)`) with unit tests for every allowed and forbidden pair. Services call it; controllers never set status directly.
 
@@ -1161,27 +1161,27 @@ Each machine is implemented as one pure function (`canTransition(from, to, actor
 
 ### 13.4 Queues
 
-| Queue | Jobs | Concurrency | Attempts and backoff |
-| --- | --- | --- | --- |
-| `webhooks` | Process Paystack and bills events | 10 | 8, exponential from 10 s |
-| `payouts` | Initiate transfers, retries | 5 (and provider rate limit) | 5, per 9.3 schedule |
-| `notifications` | Email, SMS, WhatsApp, in-app | 20 | 3, exponential from 30 s |
-| `media` | Scan, resize, moderate | 5 | 3 |
-| `orders` | Vendor notifications, stock, digital fulfilment | 5 | 5 |
-| `revalidate` | Call the web app revalidation endpoint | 10 | 5, short backoff |
-| `reconcile` | Daily reconciliation and checks | 1 | 2 |
+| Queue           | Jobs                                            | Concurrency                 | Attempts and backoff     |
+| --------------- | ----------------------------------------------- | --------------------------- | ------------------------ |
+| `webhooks`      | Process Paystack and bills events               | 10                          | 8, exponential from 10 s |
+| `payouts`       | Initiate transfers, retries                     | 5 (and provider rate limit) | 5, per 9.3 schedule      |
+| `notifications` | Email, SMS, WhatsApp, in-app                    | 20                          | 3, exponential from 30 s |
+| `media`         | Scan, resize, moderate                          | 5                           | 3                        |
+| `orders`        | Vendor notifications, stock, digital fulfilment | 5                           | 5                        |
+| `revalidate`    | Call the web app revalidation endpoint          | 10                          | 5, short backoff         |
+| `reconcile`     | Daily reconciliation and checks                 | 1                           | 2                        |
 
 Job payloads contain IDs only, never full records or secrets. Job names and payload types live in `jobs/` and are covered by unit tests.
 
 ### 13.5 Caching
 
-| Key | TTL | Invalidated by |
-| --- | --- | --- |
-| `banks:v1` | 24 h | Manual or daily refresh |
-| `event:public:<slug>` | 30 s | Gift paid, wall change, event edit (also tells the web app to revalidate) |
-| `catalog:list:<hash>` | 5 min | Product changes |
-| `ratelimit:*` | Window length | Expiry |
-| `lock:<name>` | Short with renewal | Release or expiry |
+| Key                   | TTL                | Invalidated by                                                            |
+| --------------------- | ------------------ | ------------------------------------------------------------------------- |
+| `banks:v1`            | 24 h               | Manual or daily refresh                                                   |
+| `event:public:<slug>` | 30 s               | Gift paid, wall change, event edit (also tells the web app to revalidate) |
+| `catalog:list:<hash>` | 5 min              | Product changes                                                           |
+| `ratelimit:*`         | Window length      | Expiry                                                                    |
+| `lock:<name>`         | Short with renewal | Release or expiry                                                         |
 
 Cache only public, non-sensitive data. Never cache per-user data keyed loosely. Redis keys use the prefix `givvly:<env>:`.
 
@@ -1189,18 +1189,18 @@ Cache only public, non-sensitive data. Never cache per-user data keyed loosely. 
 
 ### 14.1 Strategy and targets
 
-| Level | Tools | Scope | Target |
-| --- | --- | --- | --- |
-| Unit | Jest | Services with mocked repositories, fee calculation, state machines (`canTransition`), ledger posting builders, validators, encryption helpers, slug and reference generators | 90% on `payments`, `payouts`, `ledger`, `gifts`, `orders`; 80% overall |
-| Integration | Jest + Supertest + Testcontainers (real Postgres and Redis) | Every endpoint: success, validation failure, unauthenticated, wrong role, wrong owner, wrong state | 100% of endpoints have an authorization-matrix test |
-| Provider contract | nock or msw fakes of Paystack, bills, messaging, moderation | Request shapes, signature checks, error and timeout behavior | Recorded fixtures reviewed when providers change |
-| Concurrency | Jest with parallel promises | Reservation races, pool overfunding, duplicate webhooks, double submit with the same idempotency key | No double-credit, no oversell in 100 runs |
-| Property | fast-check | Ledger always balances; fee mode math: owner net plus fee equals charged amount; state machines never reach illegal states | Run in CI |
-| Migration | Script in CI | Apply all migrations to an empty database and to a snapshot of the previous release; run seed | Zero errors; no destructive change without an approved plan |
-| End-to-end | Playwright against the full stack (shared with the frontend repo) | P0 journeys from the Frontend document, plus payout success through the Paystack test environment | Green on every release |
-| Load | k6 | Public event page, gift initialize, webhook burst, wall reads | Section 10 performance targets |
-| Security | OWASP ZAP baseline, `pnpm audit`, secret scanning, authz tests | Whole API | No high findings at release |
-| Fault injection | Scripts | Kill the worker mid-job, drop Redis, delay Paystack, deliver webhooks out of order | System converges to the correct state |
+| Level             | Tools                                                             | Scope                                                                                                                                                                        | Target                                                                 |
+| ----------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Unit              | Jest                                                              | Services with mocked repositories, fee calculation, state machines (`canTransition`), ledger posting builders, validators, encryption helpers, slug and reference generators | 90% on `payments`, `payouts`, `ledger`, `gifts`, `orders`; 80% overall |
+| Integration       | Jest + Supertest + Testcontainers (real Postgres and Redis)       | Every endpoint: success, validation failure, unauthenticated, wrong role, wrong owner, wrong state                                                                           | 100% of endpoints have an authorization-matrix test                    |
+| Provider contract | nock or msw fakes of Paystack, bills, messaging, moderation       | Request shapes, signature checks, error and timeout behavior                                                                                                                 | Recorded fixtures reviewed when providers change                       |
+| Concurrency       | Jest with parallel promises                                       | Reservation races, pool overfunding, duplicate webhooks, double submit with the same idempotency key                                                                         | No double-credit, no oversell in 100 runs                              |
+| Property          | fast-check                                                        | Ledger always balances; fee mode math: owner net plus fee equals charged amount; state machines never reach illegal states                                                   | Run in CI                                                              |
+| Migration         | Script in CI                                                      | Apply all migrations to an empty database and to a snapshot of the previous release; run seed                                                                                | Zero errors; no destructive change without an approved plan            |
+| End-to-end        | Playwright against the full stack (shared with the frontend repo) | P0 journeys from the Frontend document, plus payout success through the Paystack test environment                                                                            | Green on every release                                                 |
+| Load              | k6                                                                | Public event page, gift initialize, webhook burst, wall reads                                                                                                                | Section 10 performance targets                                         |
+| Security          | OWASP ZAP baseline, `pnpm audit`, secret scanning, authz tests    | Whole API                                                                                                                                                                    | No high findings at release                                            |
+| Fault injection   | Scripts                                                           | Kill the worker mid-job, drop Redis, delay Paystack, deliver webhooks out of order                                                                                           | System converges to the correct state                                  |
 
 ### 14.2 Must-have test cases (money paths)
 
@@ -1210,7 +1210,7 @@ Cache only public, non-sensitive data. Never cache per-user data keyed loosely. 
 4. `transfer.success` arriving before our PROCESSING update is committed still ends in SUCCESS exactly once.
 5. Payout timeout then retry reuses the same reference; only one transfer exists at the provider.
 6. `transfer.failed` leaves the ledger consistent, notifies the owner, and allows admin retry.
-7. Fee modes: GUEST\_PAYS, OWNER\_PAYS, SPLIT produce correct totals and ledger lines for small and large amounts and rounding edge cases (for example 1 kobo remainder).
+7. Fee modes: GUEST_PAYS, OWNER_PAYS, SPLIT produce correct totals and ledger lines for small and large amounts and rounding edge cases (for example 1 kobo remainder).
 8. 50 parallel `reserve` calls on one item: exactly one succeeds. Expired hold can be taken by another buyer; the late payer of the old hold is refunded or rejected.
 9. Pool: concurrent contributions near the target never overshoot when overfunding is off; deadline expiry plus refund returns every contribution; convert-to-cash creates the right payouts.
 10. Stuck payment sweeper repairs a payment whose webhook was never received.
@@ -1257,21 +1257,21 @@ Cache only public, non-sensitive data. Never cache per-user data keyed loosely. 
 
 ### 15.3 Rate limiting and abuse controls
 
-| Route | Limit |
-| --- | --- |
-| `POST /auth/login` | 10 per minute per IP; 5 failures per 15 minutes per account |
-| `POST /auth/register` | 5 per hour per IP |
-| `POST /auth/forgot-password` | 3 per hour per email, 10 per hour per IP |
-| `POST /auth/resend-verification` | 1 per minute per user |
-| `POST /public/events/:slug/unlock` | 5 per 15 minutes per IP and slug |
-| `POST /public/events/:slug/gifts/*` | 10 per hour per IP, 5 per hour per email |
-| `POST /public/events/:slug/rsvps` | 20 per hour per IP |
-| `POST /public/events/:slug/wall` | 10 per hour per IP |
-| `POST /reports` | 10 per hour per IP |
-| `POST /uploads/presign` | 20 per hour per user or per IP for guests (with captcha) |
-| Public GETs | 120 per minute per IP |
-| Authenticated API (default) | 300 per minute per user |
-| Webhooks | Exempt from throttling, protected by signature verification |
+| Route                               | Limit                                                       |
+| ----------------------------------- | ----------------------------------------------------------- |
+| `POST /auth/login`                  | 10 per minute per IP; 5 failures per 15 minutes per account |
+| `POST /auth/register`               | 5 per hour per IP                                           |
+| `POST /auth/forgot-password`        | 3 per hour per email, 10 per hour per IP                    |
+| `POST /auth/resend-verification`    | 1 per minute per user                                       |
+| `POST /public/events/:slug/unlock`  | 5 per 15 minutes per IP and slug                            |
+| `POST /public/events/:slug/gifts/*` | 10 per hour per IP, 5 per hour per email                    |
+| `POST /public/events/:slug/rsvps`   | 20 per hour per IP                                          |
+| `POST /public/events/:slug/wall`    | 10 per hour per IP                                          |
+| `POST /reports`                     | 10 per hour per IP                                          |
+| `POST /uploads/presign`             | 20 per hour per user or per IP for guests (with captcha)    |
+| Public GETs                         | 120 per minute per IP                                       |
+| Authenticated API (default)         | 300 per minute per user                                     |
+| Webhooks                            | Exempt from throttling, protected by signature verification |
 
 Use Redis-backed counters. Return 429 with `Retry-After`. Add CAPTCHA (Cloudflare Turnstile or hCaptcha) to guest wall posts with media and to registration under suspicious conditions. Maintain an IP and email blocklist managed from admin.
 
@@ -1323,12 +1323,12 @@ Use Redis-backed counters. Return 429 with `Retry-After`. Add CAPTCHA (Cloudflar
 
 ### 16.1 Environments
 
-| Env | Purpose | Data | Providers |
-| --- | --- | --- | --- |
-| Local | Development via Docker Compose (Postgres, Redis, Mailpit, MinIO) | Seed data | Fakes and Paystack test keys |
-| CI | Tests with Testcontainers | Ephemeral | Fakes |
-| Staging | Integration, QA, demos, e2e | Synthetic | Paystack test, sandbox providers |
-| Production | Live | Real | Live keys |
+| Env        | Purpose                                                          | Data      | Providers                        |
+| ---------- | ---------------------------------------------------------------- | --------- | -------------------------------- |
+| Local      | Development via Docker Compose (Postgres, Redis, Mailpit, MinIO) | Seed data | Fakes and Paystack test keys     |
+| CI         | Tests with Testcontainers                                        | Ephemeral | Fakes                            |
+| Staging    | Integration, QA, demos, e2e                                      | Synthetic | Paystack test, sandbox providers |
+| Production | Live                                                             | Real      | Live keys                        |
 
 ### 16.2 Runtime architecture
 
@@ -1343,26 +1343,26 @@ Hosting is a team decision (container platform such as Railway, Render, Fly.io, 
 
 ### 16.3 Environment variables
 
-| Variable | Notes |
-| --- | --- |
-| `NODE_ENV`, `PORT`, `LOG_LEVEL` | Runtime |
-| `APP_URL`, `API_URL`, `CORS_ORIGINS`, `COOKIE_DOMAIN` | URLs and cookie scope |
-| `DATABASE_URL`, `DIRECT_URL` | Pooled and direct (migrations) connections |
-| `REDIS_URL` | Queues, cache, throttling |
-| `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, `JWT_KEY_ID` | RS256 signing and rotation |
-| `ENCRYPTION_KEY`, `ENCRYPTION_KEY_ID`, `ACCOUNT_HASH_KEY` | Field encryption and HMAC |
-| `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, `PAYSTACK_BASE_URL` | Payments, transfers, webhook signature |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Nodemailer |
-| `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `CDN_URL` | Media |
-| `SMS_API_KEY`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID` | Messaging |
-| `BILLS_API_KEY`, `BILLS_BASE_URL` | Digital gifts |
-| `MODERATION_API_KEY` | Image moderation |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | OAuth |
-| `REVALIDATE_URL`, `REVALIDATE_SECRET` | Web app cache revalidation |
-| `FEE_MODE`, `FEE_BPS`, `FEE_FLAT_KOBO`, `FEE_CAP_KOBO`, `MIN_GIFT_KOBO`, `MAX_GIFT_KOBO` | Business rules |
-| `PAYOUT_NEW_ACCOUNT_HOLD_HOURS`, `PAYOUT_LARGE_GIFT_KOBO`, `RESERVATION_MINUTES` | Risk and timing rules |
-| `SENTRY_DSN`, `OTEL_EXPORTER_OTLP_ENDPOINT` | Observability |
-| `TURNSTILE_SECRET` | CAPTCHA |
+| Variable                                                                                 | Notes                                      |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `NODE_ENV`, `PORT`, `LOG_LEVEL`                                                          | Runtime                                    |
+| `APP_URL`, `API_URL`, `CORS_ORIGINS`, `COOKIE_DOMAIN`                                    | URLs and cookie scope                      |
+| `DATABASE_URL`, `DIRECT_URL`                                                             | Pooled and direct (migrations) connections |
+| `REDIS_URL`                                                                              | Queues, cache, throttling                  |
+| `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, `JWT_KEY_ID`                                        | RS256 signing and rotation                 |
+| `ENCRYPTION_KEY`, `ENCRYPTION_KEY_ID`, `ACCOUNT_HASH_KEY`                                | Field encryption and HMAC                  |
+| `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, `PAYSTACK_BASE_URL`                        | Payments, transfers, webhook signature     |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`                          | Nodemailer                                 |
+| `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `CDN_URL`     | Media                                      |
+| `SMS_API_KEY`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`                                     | Messaging                                  |
+| `BILLS_API_KEY`, `BILLS_BASE_URL`                                                        | Digital gifts                              |
+| `MODERATION_API_KEY`                                                                     | Image moderation                           |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                               | OAuth                                      |
+| `REVALIDATE_URL`, `REVALIDATE_SECRET`                                                    | Web app cache revalidation                 |
+| `FEE_MODE`, `FEE_BPS`, `FEE_FLAT_KOBO`, `FEE_CAP_KOBO`, `MIN_GIFT_KOBO`, `MAX_GIFT_KOBO` | Business rules                             |
+| `PAYOUT_NEW_ACCOUNT_HOLD_HOURS`, `PAYOUT_LARGE_GIFT_KOBO`, `RESERVATION_MINUTES`         | Risk and timing rules                      |
+| `SENTRY_DSN`, `OTEL_EXPORTER_OTLP_ENDPOINT`                                              | Observability                              |
+| `TURNSTILE_SECRET`                                                                       | CAPTCHA                                    |
 
 Validate all variables with zod at boot; the process exits with a clear message if one is missing or malformed. Provide `.env.example` without secrets.
 
@@ -1384,9 +1384,9 @@ Validate all variables with zod at boot; the process exits with a clear message 
 
 ### 16.6 First-time setup and go-live checklist
 
-- Provision environments, secrets, DNS (`api.givvly.ng`), TLS, email domain (SPF, DKIM, DMARC), storage and CDN.
+- Provision environments, secrets, DNS (`api.givvly.vercel.app`), TLS, email domain (SPF, DKIM, DMARC), storage and CDN.
 - Run migrations and seed system data: ledger accounts (`PROVIDER_CLEARING`, `PLATFORM_REVENUE`, `PROVIDER_FEES`, `REFUNDS`), invite templates, collections, an admin user with 2FA.
-- Configure Paystack: live keys, webhook URL `https://api.givvly.ng/api/v1/webhooks/paystack`, transfers enabled on the account (and confirm any OTP requirement for transfers is disabled for API-initiated payouts), IP allowlist if offered.
+- Configure Paystack: live keys, webhook URL `https://api.givvly.vercel.app/api/v1/webhooks/paystack`, transfers enabled on the account (and confirm any OTP requirement for transfers is disabled for API-initiated payouts), IP allowlist if offered.
 - Verify: signature check with a live test event, a real small payment end to end, payout lands, reconciliation job passes, refund path works.
 - Alerts and dashboards live (Section 17); on-call rota and runbooks published; legal pages and consent in place; penetration test findings closed.
 
@@ -1400,17 +1400,17 @@ Validate all variables with zod at boot; the process exits with a clear message 
 
 ### 17.2 Alerts (page on call)
 
-| Alert | Condition |
-| --- | --- |
-| Payment success rate drop | Below 85% over 15 minutes (tune after launch) |
-| Webhook backlog | Oldest unprocessed `WebhookEvent` older than 5 minutes |
-| Payout failures | More than 3 FAILED in 15 minutes, or any payout PROCESSING over 30 minutes |
-| Payouts ON\_HOLD | Count above 0 for more than 4 hours |
-| Reconciliation mismatch | Any unexplained difference |
-| Ledger imbalance | Trial balance not zero (critical) |
-| API errors | 5xx rate above 2% for 5 minutes; p95 above 1.5 s |
-| Queue depth | Notifications or payouts older than 10 minutes |
-| Infrastructure | Database CPU or connections above 80%, Redis memory above 80%, disk above 80% |
+| Alert                     | Condition                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| Payment success rate drop | Below 85% over 15 minutes (tune after launch)                                 |
+| Webhook backlog           | Oldest unprocessed `WebhookEvent` older than 5 minutes                        |
+| Payout failures           | More than 3 FAILED in 15 minutes, or any payout PROCESSING over 30 minutes    |
+| Payouts ON_HOLD           | Count above 0 for more than 4 hours                                           |
+| Reconciliation mismatch   | Any unexplained difference                                                    |
+| Ledger imbalance          | Trial balance not zero (critical)                                             |
+| API errors                | 5xx rate above 2% for 5 minutes; p95 above 1.5 s                              |
+| Queue depth               | Notifications or payouts older than 10 minutes                                |
+| Infrastructure            | Database CPU or connections above 80%, Redis memory above 80%, disk above 80% |
 
 ### 17.3 Runbooks (write before launch)
 
