@@ -77,6 +77,11 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
       router.replace(destination);
       router.refresh();
+
+      // In production browser, trigger full page navigation to ensure fresh cookie propagation
+      if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+        window.location.href = destination;
+      }
     } catch (error) {
       console.error("[LoginForm] Sign in error:", error);
       const mapped = mapAuthErrorToForm(error, form.setError, [

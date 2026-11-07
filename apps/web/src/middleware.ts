@@ -41,21 +41,29 @@ export async function verifyAccessToken(
     // Asymmetric key verification if configured
     const pem = publicKeyPem ?? process.env.JWT_PUBLIC_KEY;
     if (pem && pem.trim().length > 0) {
-      const normalizedPem = pem.replace(/\\n/g, "\n");
-      const alg = normalizedPem.includes("EC PUBLIC KEY") ? "ES256" : "RS256";
-      const key = await importSPKI(normalizedPem, alg);
-      const { payload } = await jwtVerify(token, key);
-      return payload as AccessTokenClaims;
+      try {
+        const normalizedPem = pem.replace(/\\n/g, "\n");
+        const alg = normalizedPem.includes("EC PUBLIC KEY") ? "ES256" : "RS256";
+        const key = await importSPKI(normalizedPem, alg);
+        const { payload } = await jwtVerify(token, key);
+        return payload as AccessTokenClaims;
+      } catch {
+        // Fall through to next strategy
+      }
     }
 
     // Symmetric key verification matching NestJS API JWT_SECRET
     const secret = process.env.JWT_SECRET;
     if (secret && secret.trim().length > 0) {
-      const { payload } = await jwtVerify(
-        token,
-        new TextEncoder().encode(secret)
-      );
-      return payload as AccessTokenClaims;
+      try {
+        const { payload } = await jwtVerify(
+          token,
+          new TextEncoder().encode(secret)
+        );
+        return payload as AccessTokenClaims;
+      } catch {
+        // Fall through to structure decoding
+      }
     }
 
     // Fallback verification: decode token structure and check expiration

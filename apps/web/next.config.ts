@@ -47,6 +47,9 @@ const nextConfig: NextConfig = {
     const backendUrl =
       process.env.API_INTERNAL_URL ||
       process.env.BACKEND_API_URL ||
+      (process.env.NEXT_PUBLIC_API_URL?.startsWith("http")
+        ? process.env.NEXT_PUBLIC_API_URL
+        : "") ||
       "";
 
     if (!backendUrl || !backendUrl.startsWith("http")) {

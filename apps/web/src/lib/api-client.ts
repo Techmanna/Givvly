@@ -80,11 +80,35 @@ export function readCookie(name: string, cookieSource?: string): string | undefi
 
 function getBaseUrl(): string {
   if (typeof window === "undefined") {
-    return "API_INTERNAL_URL" in env && typeof env.API_INTERNAL_URL === "string"
-      ? env.API_INTERNAL_URL
-      : env.NEXT_PUBLIC_API_URL;
+    const internal = process.env.API_INTERNAL_URL || process.env.BACKEND_API_URL;
+    if (internal && internal.startsWith("http")) {
+      return internal.replace(/\/$/, "");
+    }
+    const publicUrl = process.env.NEXT_PUBLIC_API_URL || env.NEXT_PUBLIC_API_URL;
+    if (publicUrl && publicUrl.startsWith("http")) {
+      return publicUrl.replace(/\/$/, "");
+    }
+    if ("API_INTERNAL_URL" in env && typeof env.API_INTERNAL_URL === "string") {
+      return env.API_INTERNAL_URL.replace(/\/$/, "");
+    }
+    return "http://localhost:4000/api/v1";
   }
-  return env.NEXT_PUBLIC_API_URL;
+
+  if (env.NEXT_PUBLIC_API_URL.startsWith("/")) {
+    return env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+  }
+
+  // When deployed (e.g. on Vercel), route via the first-party proxy "/api/v1"
+  // so all auth cookies are set as first-party on the current domain
+  if (
+    typeof window !== "undefined" &&
+    (window.location.hostname.endsWith("vercel.app") ||
+      !env.NEXT_PUBLIC_API_URL.includes(window.location.hostname))
+  ) {
+    return "/api/v1";
+  }
+
+  return env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
 }
 
 async function getServerCookieHeader(): Promise<string | undefined> {
