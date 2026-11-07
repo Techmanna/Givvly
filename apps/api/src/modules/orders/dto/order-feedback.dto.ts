@@ -12,6 +12,7 @@ import {
 } from "class-validator";
 import { z } from "zod";
 import { DisputeStatus } from "@prisma/client";
+import { isSafeMediaUrl } from "../../../infra/storage/file-security.util";
 
 export const reviewOrderSchema = z.object({
   rating: z.number().int().min(1).max(5),
@@ -35,7 +36,17 @@ export class ReviewOrderDto {
 export const disputeOrderSchema = z.object({
   type: z.enum(["DAMAGED", "WRONG_ITEM", "NOT_DELIVERED", "OTHER"]),
   description: z.string().trim().min(20).max(1000),
-  photos: z.array(z.string().url()).max(5).optional(),
+  photos: z
+    .array(
+      z
+        .string()
+        .trim()
+        .refine((v) => isSafeMediaUrl(v), {
+          message: "Each evidence file must be a valid uploaded media URL",
+        })
+    )
+    .max(5)
+    .optional(),
 });
 
 export class DisputeOrderDto {

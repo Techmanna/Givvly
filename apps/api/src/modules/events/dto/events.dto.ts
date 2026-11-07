@@ -50,6 +50,16 @@ export class CreateEventRequestDto {
   @IsString()
   templateKey?: string;
 
+  @ApiPropertyOptional({ example: "uploads/cover_image/a0000000.jpg", description: "Uploaded cover storage key" })
+  @IsOptional()
+  @IsString()
+  coverKey?: string;
+
+  @ApiPropertyOptional({ example: "https://cdn.givvly.ng/uploads/cover_image/a0000000.jpg", description: "Uploaded cover media URL" })
+  @IsOptional()
+  @IsString()
+  coverUrl?: string;
+
   @ApiPropertyOptional({ example: "NGN", default: "NGN" })
   @IsOptional()
   @IsString()
@@ -105,6 +115,16 @@ export class UpdateEventRequestDto {
   @IsOptional()
   @IsEnum(EventStatus)
   status?: EventStatus;
+
+  @ApiPropertyOptional({ example: "uploads/cover_image/a0000000.jpg" })
+  @IsOptional()
+  @IsString()
+  coverKey?: string;
+
+  @ApiPropertyOptional({ example: "https://cdn.givvly.ng/uploads/cover_image/a0000000.jpg" })
+  @IsOptional()
+  @IsString()
+  coverUrl?: string;
 }
 
 export class UpdateInviteTemplateRequestDto {

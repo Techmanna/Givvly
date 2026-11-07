@@ -25,6 +25,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PaginationBar } from "@/components/shared/PaginationBar";
 import { ApiClientError } from "@/lib/api-client";
+import {
+  uploadFileToPresignedUrl,
+  validateClientMediaFile,
+} from "@/features/events/api";
+import type { AllowedMediaMimeType } from "@/features/events/types";
 import { presignWallPhoto } from "../api";
 import {
   useCreateWallPostMutation,
@@ -42,14 +47,20 @@ export type WallOfLoveProps = {
 type UploadedPhoto = {
   name: string;
   url: string;
+  type: "IMAGE" | "VIDEO";
 };
 
 const MAX_WALL_PHOTOS = 3;
-const MAX_PHOTO_SIZE_BYTES = 8 * 1024 * 1024; // 8 MB (Section 8.1)
+const MAX_PHOTO_SIZE_BYTES = 8 * 1024 * 1024; // 8 MB for images
+const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB for videos
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
 ]);
 
 export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
@@ -79,17 +90,24 @@ export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
 
     const files = Array.from(fileList);
     if (photos.length + files.length > MAX_WALL_PHOTOS) {
-      setPhotoError("You can attach up to 3 photos per message.");
+      setPhotoError("You can attach up to 3 photos or videos per message.");
       return;
     }
 
     for (const file of files) {
       if (!ALLOWED_MIME_TYPES.has(file.type)) {
-        setPhotoError("Only JPG, PNG, and WebP photos are allowed.");
+        setPhotoError(
+          "Only JPG, PNG, WebP, GIF photos and MP4, WebM, MOV videos are allowed."
+        );
         return;
       }
-      if (file.size > MAX_PHOTO_SIZE_BYTES) {
+      const isVideo = file.type.startsWith("video/");
+      if (!isVideo && file.size > MAX_PHOTO_SIZE_BYTES) {
         setPhotoError("Each photo must be 8 MB or smaller.");
+        return;
+      }
+      if (isVideo && file.size > MAX_VIDEO_SIZE_BYTES) {
+        setPhotoError("Each video must be 50 MB or smaller.");
         return;
       }
     }
@@ -98,25 +116,40 @@ export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
     try {
       const nextUploaded: UploadedPhoto[] = [];
       for (const file of files) {
+        await validateClientMediaFile(file, {
+          allowVideo: true,
+          maxImageBytes: MAX_PHOTO_SIZE_BYTES,
+          maxVideoBytes: MAX_VIDEO_SIZE_BYTES,
+        });
+        const contentType = file.type as AllowedMediaMimeType;
         const presign = await presignWallPhoto({
           fileName: file.name,
-          contentType: file.type as "image/jpeg" | "image/png" | "image/webp",
+          contentType,
+          mime: contentType,
           sizeBytes: file.size,
           purpose: "WALL_PHOTO",
         });
+
+        await uploadFileToPresignedUrl(presign, file);
+
         const previewUrl =
           presign.publicUrl ??
-          (typeof URL !== "undefined" && "createObjectURL" in URL
-            ? URL.createObjectURL(file)
-            : `https://images.givvly.ng/${presign.key}`);
+          presign.url ??
+          `https://cdn.givvly.ng/${presign.key}`;
         nextUploaded.push({
           name: file.name,
           url: previewUrl,
+          type:
+            presign.kind ?? (file.type.startsWith("video/") ? "VIDEO" : "IMAGE"),
         });
       }
       setPhotos((prev) => [...prev, ...nextUploaded]);
-    } catch {
-      setPhotoError("Could not upload photo. Please try again.");
+    } catch (err) {
+      setPhotoError(
+        err instanceof Error
+          ? err.message
+          : "Could not upload media. Please try again."
+      );
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -128,7 +161,7 @@ export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
       const created = await createMutation.mutateAsync({
         authorName: values.authorName.trim(),
         text: values.text.trim(),
-        media: photos.map((p) => ({ url: p.url, type: "IMAGE" as const })),
+        media: photos.map((p) => ({ url: p.url, type: p.type })),
       });
 
       form.reset();
@@ -286,13 +319,13 @@ export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
                 >
                   <ImagePlus className="h-4 w-4" aria-hidden="true" />
                   <span>
-                    Add photos ({photos.length}/{MAX_WALL_PHOTOS}, max 8 MB)
+                    Add photos or videos ({photos.length}/{MAX_WALL_PHOTOS}, photos max 8 MB, videos max 50 MB)
                   </span>
                 </Label>
                 <input
                   id="wall-photo-input"
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
                   multiple
                   disabled={
                     isUploadingPhoto || photos.length >= MAX_WALL_PHOTOS

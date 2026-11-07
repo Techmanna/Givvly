@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { NIGERIAN_PHONE_REGEX } from "./auth";
+import { SAFE_MEDIA_URL_REGEX } from "./events";
 import type { OrderStatus, PoolItem, RegistryItem } from "./index";
 
 export type CatalogProduct = {
@@ -222,8 +223,15 @@ export const disputeFormSchema = z.object({
     .min(20, "Describe the issue in at least 20 characters")
     .max(1000, "Description must be 1,000 characters or fewer"),
   photos: z
-    .array(z.string().url())
-    .max(5, "You can attach up to 5 photos")
+    .array(
+      z
+        .string()
+        .trim()
+        .refine((v) => SAFE_MEDIA_URL_REGEX.test(v), {
+          message: "Invalid evidence media URL",
+        })
+    )
+    .max(5, "You can attach up to 5 media files")
     .optional(),
 });
 
@@ -282,6 +290,14 @@ export const vendorProductSchema = z.object({
   description: z.string().trim().min(10, "Enter a description").max(500),
   priceNaira: z.coerce.number().int().min(1000).max(5_000_000),
   category: z.string().trim().min(2).max(40),
+  imageUrl: z
+    .string()
+    .trim()
+    .refine((v) => !v || SAFE_MEDIA_URL_REGEX.test(v), {
+      message: "Invalid product media URL",
+    })
+    .optional()
+    .or(z.literal("")),
   inStock: z.boolean().default(true),
 });
 

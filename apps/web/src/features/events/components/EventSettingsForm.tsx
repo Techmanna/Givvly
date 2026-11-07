@@ -18,8 +18,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { FileDropzone } from "@/components/shared/FileDropzone";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { generateAccessCodeSuggestion } from "@/stores/event-wizard-store";
+import { uploadMediaFile } from "../api";
 import {
   useEventDetail,
   useUpdateEventSettingsMutation,
@@ -38,6 +40,36 @@ export function EventSettingsForm({ initialEvent }: EventSettingsFormProps) {
   );
   const updateMutation = useUpdateEventSettingsMutation(event.id);
   const [confirmAction, setConfirmAction] = useState<EventStatus | null>(null);
+  const [coverUrl, setCoverUrl] = useState<string | undefined>(event.coverUrl);
+  const [coverKey, setCoverKey] = useState<string | undefined>(undefined);
+  const [coverKind, setCoverKind] = useState<"IMAGE" | "VIDEO">("IMAGE");
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverUploadProgress, setCoverUploadProgress] = useState(0);
+
+  const handleCoverUpload = async (file: File) => {
+    setIsUploadingCover(true);
+    setCoverUploadProgress(5);
+    setCoverKind(file.type.startsWith("video/") ? "VIDEO" : "IMAGE");
+    try {
+      const uploaded = await uploadMediaFile(file, "EVENT_COVER", (pct) =>
+        setCoverUploadProgress(pct)
+      );
+      setCoverKey(uploaded.key);
+      setCoverUrl(uploaded.url);
+      setCoverKind(uploaded.kind);
+      toast.success(
+        uploaded.kind === "VIDEO"
+          ? "Cover video uploaded"
+          : "Cover image uploaded"
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not upload cover media"
+      );
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
 
   const form = useForm<EventSettingsInput>({
     resolver: zodResolver(eventSettingsSchema),
@@ -71,6 +103,8 @@ export function EventSettingsForm({ initialEvent }: EventSettingsFormProps) {
             ? values.accessCode?.trim().toUpperCase()
             : undefined,
         allowPlusOne: values.allowPlusOne,
+        ...(coverKey ? { coverKey } : {}),
+        ...(coverUrl !== undefined ? { coverUrl } : {}),
       });
       toast.success("Event settings updated.");
     } catch {
@@ -138,6 +172,23 @@ export function EventSettingsForm({ initialEvent }: EventSettingsFormProps) {
                   {form.formState.errors.story.message}
                 </p>
               ) : null}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Cover image or video</Label>
+              <FileDropzone
+                allowVideo={true}
+                previewUrl={coverUrl}
+                previewKind={coverKind}
+                label="Tap or drag to upload cover image or video"
+                isUploading={isUploadingCover}
+                uploadProgress={coverUploadProgress}
+                onSelectFile={handleCoverUpload}
+                onRemove={() => {
+                  setCoverUrl("");
+                  setCoverKey(undefined);
+                }}
+              />
             </div>
 
             <div className="flex items-center justify-between gap-4 rounded-control border border-border p-4">

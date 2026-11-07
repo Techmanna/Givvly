@@ -78,9 +78,19 @@ export const eventStep1Schema = z
 
 export type EventStep1Input = z.infer<typeof eventStep1Schema>;
 
+export const SAFE_MEDIA_URL_REGEX =
+  /^(https?:\/\/[^\s"'<>]+|\/(?:api\/v1\/)?uploads\/[a-zA-Z0-9/_.-]+)$/i;
+
 export const eventStep2Schema = z.object({
   coverKey: z.string().optional(),
-  coverUrl: z.string().url().optional().or(z.literal("")),
+  coverUrl: z
+    .string()
+    .trim()
+    .refine((v) => !v || SAFE_MEDIA_URL_REGEX.test(v), {
+      message: "Invalid cover media URL",
+    })
+    .optional()
+    .or(z.literal("")),
   story: z
     .string()
     .max(1500, "Story must be 1,500 characters or fewer")
@@ -162,19 +172,62 @@ export const payoutSetupSchema = z.object({
 
 export type PayoutSetupInput = z.infer<typeof payoutSetupSchema>;
 
-// API Response Types for Step 3
+export const ALLOWED_MEDIA_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+] as const;
+
+export type AllowedMediaMimeType = (typeof ALLOWED_MEDIA_MIME_TYPES)[number];
+
+export type MediaUploadPurpose =
+  | "EVENT_COVER"
+  | "WALL_PHOTO"
+  | "DISPUTE_PHOTO"
+  | "PRODUCT_MEDIA"
+  | "COVER_IMAGE"
+  | "WALL_POST"
+  | "PRODUCT"
+  | "DISPUTE"
+  | "AVATAR"
+  | "REGISTRY_ITEM";
+
+// API Response Types for Media Uploads
 export type PresignUploadRequest = {
-  fileName: string;
-  contentType: "image/jpeg" | "image/png" | "image/webp";
+  fileName?: string;
+  contentType?: AllowedMediaMimeType;
+  mime?: AllowedMediaMimeType;
   sizeBytes: number;
-  purpose: "EVENT_COVER" | "WALL_PHOTO" | "DISPUTE_PHOTO";
+  purpose: MediaUploadPurpose;
+  provider?: "DISK" | "CLOUDINARY" | "S3";
 };
 
 export type PresignUploadResponse = {
+  mediaId?: string;
   uploadUrl: string;
   key: string;
   publicUrl?: string;
+  url?: string;
+  method?: "PUT" | "POST" | string;
+  headers?: Record<string, string>;
   fields?: Record<string, string>;
+  expiresIn?: number;
+  provider?: string;
+  kind?: "IMAGE" | "VIDEO";
+};
+
+export type CompleteUploadResponse = {
+  mediaId: string;
+  key: string;
+  status: "PENDING" | "READY" | "DELETED";
+  url: string;
+  publicUrl: string;
+  purpose: string;
+  kind: "IMAGE" | "VIDEO";
 };
 
 export type CreateEventRequest = {
@@ -182,6 +235,7 @@ export type CreateEventRequest = {
   name: string;
   date: string;
   coverKey?: string;
+  coverUrl?: string;
   story?: string;
   visibility: EventVisibility;
   accessCode?: string;
@@ -278,6 +332,8 @@ export type UpdateEventRequest = {
   accessCode?: string;
   allowPlusOne?: boolean;
   status?: EventStatus;
+  coverKey?: string;
+  coverUrl?: string;
 };
 
 export type KeepsakeSummary = {

@@ -54,6 +54,31 @@ export const envSchema = z.object({
   SMTP_USER: z.string().optional().default(""),
   SMTP_PASS: z.string().optional().default(""),
   MAIL_FROM: z.string().default("Givvly <no-reply@givvly.ng>"),
+
+  // File Storage (Multi-Provider: DISK, CLOUDINARY, S3)
+  STORAGE_PROVIDER: z
+    .enum(["DISK", "CLOUDINARY", "S3"])
+    .default("DISK"),
+  STORAGE_DISK_DIR: z.string().default("uploads"),
+  CDN_BASE_URL: z.string().optional().default(""),
+  PRESIGN_SECRET_KEY: z
+    .string()
+    .min(16)
+    .default("givvly_presign_hmac_secret_key_32b"),
+
+  // Cloudinary Storage Adapter
+  CLOUDINARY_CLOUD_NAME: z.string().optional().default(""),
+  CLOUDINARY_API_KEY: z.string().optional().default(""),
+  CLOUDINARY_API_SECRET: z.string().optional().default(""),
+  CLOUDINARY_FOLDER: z.string().default("givvly"),
+
+  // S3 / R2 / Spaces Storage Adapter
+  S3_BUCKET: z.string().optional().default(""),
+  S3_REGION: z.string().default("us-east-1"),
+  S3_ENDPOINT: z.string().optional().default(""),
+  S3_ACCESS_KEY_ID: z.string().optional().default(""),
+  S3_SECRET_ACCESS_KEY: z.string().optional().default(""),
+  S3_PUBLIC_BASE_URL: z.string().optional().default(""),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

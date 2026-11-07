@@ -6,6 +6,7 @@ import { PrismaModule } from "./infra/prisma/prisma.module";
 import { RedisModule } from "./infra/redis/redis.module";
 import { PaystackModule } from "./infra/paystack/paystack.module";
 import { PaymentsInfraModule } from "./infra/payments/payments-infra.module";
+import { StorageInfraModule } from "./infra/storage/storage-infra.module";
 import { HealthModule } from "./modules/health/health.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { EventsModule } from "./modules/events/events.module";
@@ -41,6 +42,7 @@ import { WalletModule } from "./modules/wallet/wallet.module";
     RedisModule,
     PaystackModule,
     PaymentsInfraModule,
+    StorageInfraModule,
     HealthModule,
     AuthModule,
     EventsModule,

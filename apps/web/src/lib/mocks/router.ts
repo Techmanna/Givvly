@@ -364,16 +364,50 @@ export async function handleMockApiRequest<T>(
     return wrapSuccess({ message: "Signed out" } as unknown as T);
   }
 
-  // --- UPLOADS PRESIGN ---
+  // --- UPLOADS PRESIGN & COMPLETE ---
   if (method === "POST" && normalizedPath === "/uploads/presign") {
-    const body = (opts.body ?? {}) as { fileName?: string };
-    const safeName = (body.fileName ?? "upload.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
-    const key = `uploads/mock_${Date.now()}_${safeName}`;
+    const body = (opts.body ?? {}) as {
+      fileName?: string;
+      contentType?: string;
+      mime?: string;
+      purpose?: string;
+    };
+    const resolvedMime = body.mime ?? body.contentType ?? "image/jpeg";
+    const isVideo = resolvedMime.startsWith("video/");
+    const safeName = (body.fileName ?? (isVideo ? "upload.mp4" : "upload.jpg")).replace(
+      /[^a-zA-Z0-9._-]/g,
+      "_"
+    );
+    const mediaId = `med_${Date.now()}`;
+    const key = `uploads/${(body.purpose ?? "cover_image").toLowerCase()}/${mediaId}_${safeName}`;
+    const publicUrl = `https://cdn.givvly.ng/${key}`;
     const res: PresignUploadResponse = {
+      mediaId,
       uploadUrl: `mock://upload/${key}`,
       key,
+      publicUrl,
+      url: publicUrl,
+      method: "PUT",
+      provider: "DISK",
+      kind: isVideo ? "VIDEO" : "IMAGE",
     };
     return wrapSuccess(res as unknown as T);
+  }
+
+  const uploadCompleteMatch = /^\/uploads\/([^/]+)\/complete$/.exec(normalizedPath);
+  if (method === "POST" && uploadCompleteMatch) {
+    const mediaId = decodeURIComponent(uploadCompleteMatch[1]!);
+    const key = `uploads/completed/${mediaId}.jpg`;
+    const publicUrl = `https://cdn.givvly.ng/${key}`;
+    return wrapSuccess({
+      mediaId,
+      key,
+      status: "READY",
+      url: publicUrl,
+      publicUrl,
+      purpose: "COVER_IMAGE",
+      kind: "IMAGE",
+    } as unknown as T);
   }
 
   // --- BANKS & PAYOUT ACCOUNTS ---
@@ -468,6 +502,9 @@ export async function handleMockApiRequest<T>(
       name: body.name,
       type: body.type,
       date: body.date,
+      coverUrl:
+        body.coverUrl ||
+        (body.coverKey ? `https://cdn.givvly.ng/${body.coverKey}` : undefined),
       visibility: body.visibility,
       accessCode: body.accessCode,
       status: "DRAFT",

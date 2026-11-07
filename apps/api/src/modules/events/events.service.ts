@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import {
   Injectable,
   NotFoundException,
@@ -8,6 +9,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "@/infra/prisma/prisma.service";
 import { PaystackService } from "@/infra/paystack/paystack.service";
+import { StorageProviderRegistry } from "@/infra/storage/storage-provider.registry";
+import { isSafeMediaUrl } from "@/infra/storage/file-security.util";
 import { encryptAesGcm, hmacString } from "@/common/utils/crypto";
 import {
   EventStatus,
@@ -15,6 +18,7 @@ import {
   Visibility,
   PostStatus,
   RsvpResponse,
+  MediaStatus,
 } from "@prisma/client";
 import {
   SubmitRsvpRequestDto,
@@ -29,6 +33,8 @@ export interface CreateEventDto {
   visibility: Visibility;
   accessCode?: string;
   allowPlusOne?: boolean;
+  coverKey?: string;
+  coverUrl?: string;
   registryItems?: Array<{
     productId?: string;
     title: string;
@@ -45,6 +51,8 @@ export interface UpdateEventDto {
   accessCode?: string;
   allowPlusOne?: boolean;
   status?: EventStatus;
+  coverKey?: string;
+  coverUrl?: string;
 }
 
 export interface CreatePayoutAccountDto {
@@ -70,12 +78,82 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-    @Optional() private readonly paystack?: PaystackService
+    @Optional() private readonly paystack?: PaystackService,
+    @Optional() private readonly storageRegistry?: StorageProviderRegistry
   ) {}
+
+  private resolveCoverStorageValue(
+    coverUrl?: string,
+    coverKey?: string
+  ): string | null | undefined {
+    const candidate = coverUrl !== undefined ? coverUrl : coverKey;
+    if (candidate === undefined) return undefined;
+    const trimmed = candidate.trim();
+    if (!trimmed) return null;
+
+    if (trimmed.startsWith("uploads/")) {
+      try {
+        return (
+          this.storageRegistry?.getProvider().getPublicUrl(trimmed) ??
+          `${(this.configService.get<string>("API_URL") || "http://localhost:4000").replace(/\/$/, "")}/api/v1/uploads/files/${trimmed}`
+        );
+      } catch {
+        throw new BadRequestException("Invalid cover storage key");
+      }
+    }
+
+    if (!isSafeMediaUrl(trimmed)) {
+      throw new BadRequestException("Invalid or unsafe cover media URL");
+    }
+    return trimmed;
+  }
+
+  private formatCoverUrl(stored?: string | null): string | undefined {
+    if (!stored) return undefined;
+    if (stored.startsWith("uploads/")) {
+      try {
+        return (
+          this.storageRegistry?.getProvider().getPublicUrl(stored) ??
+          `${(this.configService.get<string>("API_URL") || "http://localhost:4000").replace(/\/$/, "")}/api/v1/uploads/files/${stored}`
+        );
+      } catch {
+        return undefined;
+      }
+    }
+    return stored;
+  }
+
+  private formatWallMedia(
+    media?: Array<{ key?: string; mime?: string; kind?: string; url?: string }>
+  ): Array<{ url: string; type: "IMAGE" | "VIDEO" }> {
+    if (!Array.isArray(media) || media.length === 0) return [];
+    return media
+      .map((m) => {
+        const type: "IMAGE" | "VIDEO" =
+          m.kind === "VIDEO" || m.mime?.startsWith("video/") ? "VIDEO" : "IMAGE";
+        let url = m.url || "";
+        if (!url && m.key) {
+          if (m.key.startsWith("http") || m.key.startsWith("/")) {
+            url = m.key;
+          } else {
+            try {
+              url =
+                this.storageRegistry?.getProvider().getPublicUrl(m.key, type) ??
+                `${(this.configService.get<string>("API_URL") || "http://localhost:4000").replace(/\/$/, "")}/api/v1/uploads/files/${m.key}`;
+            } catch {
+              url = m.key;
+            }
+          }
+        }
+        return { url, type };
+      })
+      .filter((m) => Boolean(m.url));
+  }
 
   async createEvent(userId: string, dto: CreateEventDto) {
     const slug = slugify(dto.name);
     const date = new Date(dto.date);
+    const coverMediaId = this.resolveCoverStorageValue(dto.coverUrl, dto.coverKey) ?? null;
 
     const runCreate = async (tx: any) => {
       const created = await tx.event.create({
@@ -86,6 +164,7 @@ export class EventsService {
           type: dto.type,
           date,
           story: dto.story?.trim() || null,
+          coverMediaId,
           visibility: dto.visibility || "PUBLIC",
           accessCodeHash: dto.accessCode ? dto.accessCode.trim() : null,
           allowPlusOne: dto.allowPlusOne ?? true,
@@ -121,6 +200,7 @@ export class EventsService {
       type: event.type,
       date: event.date,
       story: event.story,
+      coverUrl: this.formatCoverUrl(event.coverMediaId),
       visibility: event.visibility,
       status: event.status,
       allowPlusOne: event.allowPlusOne,
@@ -162,6 +242,7 @@ export class EventsService {
         name: ev.name,
         type: ev.type,
         date: ev.date,
+        coverUrl: this.formatCoverUrl(ev.coverMediaId),
         visibility: ev.visibility,
         status: ev.status,
         totalReceivedKobo,
@@ -199,6 +280,7 @@ export class EventsService {
 
     return {
       ...event,
+      coverUrl: this.formatCoverUrl(event.coverMediaId),
       totalReceivedKobo,
       giftCount: event.gifts.length,
       rsvpYesCount,
@@ -237,6 +319,7 @@ export class EventsService {
       type: updated.type,
       date: updated.date,
       story: updated.story,
+      coverUrl: this.formatCoverUrl(updated.coverMediaId),
       visibility: updated.visibility,
       status: updated.status,
       allowPlusOne: updated.allowPlusOne,
@@ -260,6 +343,8 @@ export class EventsService {
       throw new NotFoundException("Event not found");
     }
 
+    const resolvedCover = this.resolveCoverStorageValue(dto.coverUrl, dto.coverKey);
+
     await this.prisma.event.update({
       where: { id: existing.id },
       data: {
@@ -267,6 +352,7 @@ export class EventsService {
         ...(dto.type ? { type: dto.type } : {}),
         ...(dto.date ? { date: new Date(dto.date) } : {}),
         ...(dto.story !== undefined ? { story: dto.story?.trim() || null } : {}),
+        ...(resolvedCover !== undefined ? { coverMediaId: resolvedCover } : {}),
         ...(dto.visibility ? { visibility: dto.visibility } : {}),
         ...(dto.accessCode !== undefined
           ? { accessCodeHash: dto.accessCode ? dto.accessCode.trim() : null }
@@ -320,18 +406,19 @@ export class EventsService {
       }),
       this.prisma.wallPost.findMany({
         where: { eventId: event.id, status: PostStatus.VISIBLE },
+        include: { media: true },
         orderBy: { createdAt: "desc" },
         take: 10,
       }),
     ]);
 
-    const highlights = posts.map((p) => ({
+    const highlights = posts.map((p: any) => ({
       id: p.id,
       authorName: p.authorName,
       authorEmail: p.authorEmail || undefined,
       text: p.text,
       status: p.status,
-      media: [],
+      media: this.formatWallMedia(p.media),
       createdAt: p.createdAt,
     }));
 
@@ -516,7 +603,7 @@ export class EventsService {
       name: event.name,
       type: event.type,
       date: event.date.toISOString(),
-      coverUrl: event.coverMediaId || undefined,
+      coverUrl: this.formatCoverUrl(event.coverMediaId),
       visibility: event.visibility,
       status: event.status,
       moneyGiftsEnabled: Boolean(event.payoutAccountId),
@@ -587,7 +674,7 @@ export class EventsService {
       name: ev.name,
       type: ev.type,
       date: ev.date.toISOString(),
-      coverUrl: ev.coverMediaId || undefined,
+      coverUrl: this.formatCoverUrl(ev.coverMediaId),
       visibility: ev.visibility,
       status: ev.status,
       moneyGiftsEnabled: Boolean(ev.payoutAccountId),
@@ -637,16 +724,17 @@ export class EventsService {
         eventId: event.id,
         status: PostStatus.VISIBLE,
       },
+      include: { media: true },
       orderBy: { createdAt: "desc" },
       take,
     });
 
-    return posts.map((p) => ({
+    return posts.map((p: any) => ({
       id: p.id,
       authorName: p.authorName,
       text: p.text,
       status: p.status,
-      media: [],
+      media: this.formatWallMedia(p.media),
       createdAt: p.createdAt,
     }));
   }
@@ -661,6 +749,21 @@ export class EventsService {
       throw new NotFoundException("Event not found");
     }
 
+    const sanitizedMedia: Array<{ url: string; type: "IMAGE" | "VIDEO" }> = [];
+    if (Array.isArray(dto.media) && dto.media.length > 0) {
+      if (dto.media.length > 3) {
+        throw new BadRequestException("You can attach at most 3 media files per wall post");
+      }
+      for (const item of dto.media) {
+        if (!item?.url || !isSafeMediaUrl(item.url)) {
+          throw new BadRequestException("Invalid or unsafe wall post media URL");
+        }
+        const mediaType: "IMAGE" | "VIDEO" =
+          item.type === "VIDEO" ? "VIDEO" : "IMAGE";
+        sanitizedMedia.push({ url: item.url.trim(), type: mediaType });
+      }
+    }
+
     const post = await this.prisma.wallPost.create({
       data: {
         eventId: event.id,
@@ -668,7 +771,23 @@ export class EventsService {
         authorEmail: dto.authorEmail?.trim() || null,
         text: dto.text?.trim() || null,
         status: PostStatus.VISIBLE,
+        ...(sanitizedMedia.length > 0
+          ? {
+              media: {
+                create: sanitizedMedia.map((m) => ({
+                  id: crypto.randomUUID(),
+                  key: m.url,
+                  mime: m.type === "VIDEO" ? "video/mp4" : "image/jpeg",
+                  sizeBytes: 0,
+                  kind: m.type,
+                  purpose: "WALL_POST",
+                  status: MediaStatus.READY,
+                })),
+              },
+            }
+          : {}),
       },
+      include: { media: true },
     });
 
     return {
@@ -676,7 +795,10 @@ export class EventsService {
       authorName: post.authorName,
       text: post.text,
       status: post.status,
-      media: [],
+      media:
+        sanitizedMedia.length > 0
+          ? sanitizedMedia
+          : this.formatWallMedia((post as any).media),
       createdAt: post.createdAt,
     };
   }
@@ -792,6 +914,7 @@ export class EventsService {
       }),
       this.prisma.wallPost.findMany({
         where: { eventId },
+        include: { media: true },
         orderBy: { createdAt: "desc" },
       }),
     ]);
@@ -800,12 +923,12 @@ export class EventsService {
       throw new NotFoundException("Event not found");
     }
 
-    return posts.map((p) => ({
+    return posts.map((p: any) => ({
       id: p.id,
       authorName: p.authorName,
       text: p.text,
       status: p.status,
-      media: [],
+      media: this.formatWallMedia(p.media),
       createdAt: p.createdAt,
     }));
   }
@@ -838,6 +961,7 @@ export class EventsService {
     const post = await this.prisma.wallPost.update({
       where: { id: postId },
       data: { status: status as PostStatus },
+      include: { media: true },
     });
 
     return {
@@ -845,7 +969,7 @@ export class EventsService {
       authorName: post.authorName,
       text: post.text,
       status: post.status,
-      media: [],
+      media: this.formatWallMedia((post as any).media),
       createdAt: post.createdAt,
     };
   }

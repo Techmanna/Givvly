@@ -13,6 +13,14 @@ import {
   IsUUID,
 } from "class-validator";
 import { z } from "zod";
+import { isSafeMediaUrl } from "../../../infra/storage/file-security.util";
+
+const safeMediaUrlSchema = z
+  .string()
+  .trim()
+  .refine((val) => !val || isSafeMediaUrl(val), {
+    message: "Invalid or unsafe media URL",
+  });
 
 export const createProductSchema = z
   .object({
@@ -23,8 +31,8 @@ export const createProductSchema = z
     category: z.string().optional(),
     occasions: z.array(z.string()).default([]),
     relationships: z.array(z.string()).default([]),
-    images: z.array(z.string()).optional(),
-    imageUrl: z.string().optional(),
+    images: z.array(safeMediaUrlSchema).max(10).optional(),
+    imageUrl: safeMediaUrlSchema.optional(),
     stock: z.coerce.number().int().min(0).nullable().optional(),
     inStock: z.boolean().optional(),
     isCombo: z.boolean().optional(),
@@ -126,8 +134,8 @@ export const updateProductSchema = z
     category: z.string().optional(),
     occasions: z.array(z.string()).optional(),
     relationships: z.array(z.string()).optional(),
-    images: z.array(z.string()).optional(),
-    imageUrl: z.string().optional(),
+    images: z.array(safeMediaUrlSchema).max(10).optional(),
+    imageUrl: safeMediaUrlSchema.optional(),
     stock: z.coerce.number().int().min(0).nullable().optional(),
     inStock: z.boolean().optional(),
     isCombo: z.boolean().optional(),

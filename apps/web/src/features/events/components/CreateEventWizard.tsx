@@ -52,7 +52,7 @@ import {
   getLagosDateBounds,
   wizardRegistryItemSchema,
 } from "../schemas";
-import type { EventDetail, EventType } from "../types";
+import type { AllowedMediaMimeType, EventDetail, EventType } from "../types";
 
 const WIZARD_STEPS = [
   { step: 1, label: "Basics" },
@@ -189,13 +189,11 @@ export function CreateEventWizard() {
     setStepErrors({});
 
     try {
-      const contentType = file.type as
-        | "image/jpeg"
-        | "image/png"
-        | "image/webp";
+      const contentType = (file.type || "image/jpeg") as AllowedMediaMimeType;
       const presigned = await presignMutation.mutateAsync({
         fileName: file.name,
         contentType,
+        mime: contentType,
         sizeBytes: file.size,
         purpose: "EVENT_COVER",
       });
@@ -205,17 +203,23 @@ export function CreateEventWizard() {
       );
 
       const previewUrl =
-        presigned.publicUrl ?? URL.createObjectURL(file);
+        presigned.publicUrl ?? presigned.url ?? URL.createObjectURL(file);
       updateDraft({
         coverKey: presigned.key,
         coverUrl: previewUrl,
       });
-      toast.success("Cover image uploaded");
+      toast.success(
+        contentType.startsWith("video/")
+          ? "Cover video uploaded"
+          : "Cover image uploaded"
+      );
     } catch (error) {
       const message =
         error instanceof ApiClientError
           ? error.message
-          : "Could not upload cover image. Please try again.";
+          : error instanceof Error
+            ? error.message
+            : "Could not upload cover media. Please try again.";
       setStepErrors({ cover: message });
     } finally {
       setIsUploading(false);
@@ -260,6 +264,10 @@ export function CreateEventWizard() {
         name: draft.name.trim(),
         date: draft.date,
         coverKey: draft.coverKey,
+        coverUrl:
+          draft.coverUrl && !draft.coverUrl.startsWith("blob:")
+            ? draft.coverUrl
+            : undefined,
         story: draft.story.trim() || undefined,
         visibility: draft.visibility,
         accessCode:

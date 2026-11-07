@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
@@ -12,6 +13,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Money } from "@/components/shared/Money";
 import { Badge } from "@/components/ui/badge";
+import { FileDropzone } from "@/components/shared/FileDropzone";
+import { uploadMediaFile } from "@/features/events/api";
 import { vendorProductSchema } from "../schemas";
 import {
   useCreateVendorProduct,
@@ -28,6 +31,10 @@ export function VendorProductsView() {
   const { data: products = [], isLoading } = useVendorProducts();
   const createMutation = useCreateVendorProduct();
   const toggleStockMutation = useToggleVendorProductStock();
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string>("");
+  const [mediaKind, setMediaKind] = useState<"IMAGE" | "VIDEO">("IMAGE");
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const form = useForm<VendorProductFormValues, unknown, VendorProductInput>({
     resolver: zodResolver(vendorProductSchema),
@@ -36,20 +43,59 @@ export function VendorProductsView() {
       description: "",
       priceNaira: 45_000,
       category: "Hampers",
+      imageUrl: "",
       inStock: true,
     },
   });
 
   const inStock = useWatch({ control: form.control, name: "inStock" }) ?? true;
+  const imageUrl = useWatch({ control: form.control, name: "imageUrl" }) ?? "";
+
+  const handleSelectProductMedia = async (file: File) => {
+    const objectUrl = URL.createObjectURL(file);
+    setMediaPreviewUrl(objectUrl);
+    setMediaKind(file.type.startsWith("video/") ? "VIDEO" : "IMAGE");
+    setIsUploadingMedia(true);
+    setUploadProgress(5);
+    try {
+      const uploaded = await uploadMediaFile(file, "PRODUCT", (pct) =>
+        setUploadProgress(pct)
+      );
+      form.setValue("imageUrl", uploaded.url, { shouldValidate: true });
+      setMediaKind(uploaded.kind);
+      toast.success(
+        uploaded.kind === "VIDEO"
+          ? "Product video uploaded"
+          : "Product image uploaded"
+      );
+    } catch (err) {
+      setMediaPreviewUrl("");
+      form.setValue("imageUrl", "");
+      toast.error(
+        err instanceof Error ? err.message : "Could not upload product media"
+      );
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
+  const handleRemoveProductMedia = () => {
+    setMediaPreviewUrl("");
+    form.setValue("imageUrl", "");
+    setUploadProgress(0);
+  };
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       await createMutation.mutateAsync(values);
+      setMediaPreviewUrl("");
+      setUploadProgress(0);
       form.reset({
         name: "",
         description: "",
         priceNaira: 45_000,
         category: "Hampers",
+        imageUrl: "",
         inStock: true,
       });
       toast.success("Product added to catalog");
@@ -119,6 +165,20 @@ export function VendorProductsView() {
               )}
             </div>
 
+            <div className="space-y-1.5">
+              <Label>Product Image or Video</Label>
+              <FileDropzone
+                allowVideo={true}
+                previewUrl={mediaPreviewUrl || imageUrl || undefined}
+                previewKind={mediaKind}
+                label="Tap or drag to upload product image or video"
+                isUploading={isUploadingMedia}
+                uploadProgress={uploadProgress}
+                onSelectFile={handleSelectProductMedia}
+                onRemove={handleRemoveProductMedia}
+              />
+            </div>
+
             <div className="flex items-center justify-between rounded-xl border border-border bg-surface-subtle p-3">
               <Label htmlFor="vendor-prod-stock" className="text-sm">
                 Available in stock
@@ -135,10 +195,14 @@ export function VendorProductsView() {
             <Button
               type="submit"
               className="w-full gap-1.5"
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || isUploadingMedia}
             >
               <Plus className="h-4 w-4" />
-              {createMutation.isPending ? "Saving..." : "Publish Product"}
+              {isUploadingMedia
+                ? "Uploading Media..."
+                : createMutation.isPending
+                  ? "Saving..."
+                  : "Publish Product"}
             </Button>
           </form>
         </CardContent>

@@ -25,6 +25,8 @@ import { Money } from "@/components/shared/Money";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PaginationBar } from "@/components/shared/PaginationBar";
+import { FileDropzone } from "@/components/shared/FileDropzone";
+import { isVideoMediaUrl, uploadMediaFile } from "@/features/events/api";
 import {
   useAdminProducts,
   useCreateAdminProduct,
@@ -64,11 +66,52 @@ export function ProductManagementView() {
     description: "",
     priceNaira: "",
     category: "Wedding Gifts",
-    imageUrl: "/images/gifts/box-luxury.jpg",
+    imageUrl: "",
     inStock: true,
     isCombo: false,
     comboItems: "",
   });
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string>("");
+  const [mediaKind, setMediaKind] = useState<"IMAGE" | "VIDEO">("IMAGE");
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const handleSelectProductMedia = async (file: File) => {
+    const objectUrl = URL.createObjectURL(file);
+    setMediaPreviewUrl(objectUrl);
+    setMediaKind(file.type.startsWith("video/") ? "VIDEO" : "IMAGE");
+    setIsUploadingMedia(true);
+    setUploadProgress(5);
+    try {
+      const uploaded = await uploadMediaFile(file, "PRODUCT", (pct) =>
+        setUploadProgress(pct)
+      );
+      setFormData((prev) => ({
+        ...prev,
+        imageUrl: uploaded.url,
+      }));
+      setMediaKind(uploaded.kind);
+      toast.success(
+        uploaded.kind === "VIDEO"
+          ? "Product video uploaded"
+          : "Product image uploaded"
+      );
+    } catch (err) {
+      setMediaPreviewUrl("");
+      setFormData((prev) => ({ ...prev, imageUrl: "" }));
+      toast.error(
+        err instanceof Error ? err.message : "Could not upload product media"
+      );
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
+  const handleRemoveProductMedia = () => {
+    setMediaPreviewUrl("");
+    setFormData((prev) => ({ ...prev, imageUrl: "" }));
+    setUploadProgress(0);
+  };
 
   const products = productsQuery.data ?? [];
 
@@ -155,12 +198,14 @@ export function ProductManagementView() {
       await createProductMutation.mutateAsync(input);
       toast.success("Product added to catalog successfully");
       setIsAddOpen(false);
+      setMediaPreviewUrl("");
+      setUploadProgress(0);
       setFormData({
         name: "",
         description: "",
         priceNaira: "",
         category: "Wedding Gifts",
-        imageUrl: "/images/gifts/box-luxury.jpg",
+        imageUrl: "",
         inStock: true,
         isCombo: false,
         comboItems: "",
@@ -276,19 +321,19 @@ export function ProductManagementView() {
                 </div>
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-foreground">
-                  Image URL / Asset Path
+                  Product Image or Video
                 </label>
-                <Input
-                  placeholder="/images/gifts/box-luxury.jpg"
-                  value={formData.imageUrl}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      imageUrl: e.target.value,
-                    }))
-                  }
+                <FileDropzone
+                  allowVideo={true}
+                  previewUrl={mediaPreviewUrl || formData.imageUrl || undefined}
+                  previewKind={mediaKind}
+                  label="Tap or drag to upload product image or video"
+                  isUploading={isUploadingMedia}
+                  uploadProgress={uploadProgress}
+                  onSelectFile={handleSelectProductMedia}
+                  onRemove={handleRemoveProductMedia}
                 />
               </div>
 
@@ -351,9 +396,13 @@ export function ProductManagementView() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createProductMutation.isPending}
+                  disabled={createProductMutation.isPending || isUploadingMedia}
                 >
-                  {createProductMutation.isPending ? "Creating..." : "Save Product"}
+                  {isUploadingMedia
+                    ? "Uploading Media..."
+                    : createProductMutation.isPending
+                      ? "Creating..."
+                      : "Save Product"}
                 </Button>
               </DialogFooter>
             </form>

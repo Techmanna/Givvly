@@ -1,5 +1,7 @@
 export type {
+  AllowedMediaMimeType,
   Bank,
+  CompleteUploadResponse,
   CreateEventRequest,
   EventDetail,
   EventSettingsInput,
@@ -16,6 +18,7 @@ export type {
   InviteTemplateData,
   InviteTemplateId,
   KeepsakeSummary,
+  MediaUploadPurpose,
   PayoutAccount,
   PayoutAccountStatus,
   PayoutSetupInput,

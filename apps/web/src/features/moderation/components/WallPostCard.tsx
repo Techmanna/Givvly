@@ -5,6 +5,7 @@ import { Eye, EyeOff, Flag, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { isVideoMediaUrl } from "@/features/events/api";
 import { formatDate } from "@/lib/format";
 import type { WallModerationPatch, WallPost } from "../types";
 import { ReportDialog } from "./ReportDialog";
@@ -68,20 +69,33 @@ export function WallPostCard({
 
           {post.media.length > 0 ? (
             <div className="grid grid-cols-3 gap-2 pt-1">
-              {post.media.map((item, idx) => (
-                <div
-                  key={`${post.id}_media_${idx}`}
-                  className="overflow-hidden rounded-control border border-border bg-muted/40"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.url}
-                    alt={`Photo ${idx + 1} from ${post.authorName}`}
-                    className="h-24 w-full object-cover"
-                    loading="lazy"
-                  />
-                </div>
-              ))}
+              {post.media.map((item, idx) => {
+                const isVideo = isVideoMediaUrl(item.url, item.type);
+                return (
+                  <div
+                    key={`${post.id}_media_${idx}`}
+                    className="overflow-hidden rounded-control border border-border bg-muted/40"
+                  >
+                    {isVideo ? (
+                      <video
+                        src={item.url}
+                        controls
+                        preload="metadata"
+                        playsInline
+                        className="h-24 w-full object-cover"
+                      />
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={item.url}
+                        alt={`Photo ${idx + 1} from ${post.authorName}`}
+                        className="h-24 w-full object-cover"
+                        loading="lazy"
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : null}
 

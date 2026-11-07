@@ -8,6 +8,7 @@ import {
   unlockEventSchema,
 } from "./schemas";
 import { eventKeys } from "./keys";
+import { isVideoMediaUrl, validateClientMediaFile } from "./api";
 
 describe("eventKeys", () => {
   it("constructs deterministic keys", () => {
@@ -111,6 +112,42 @@ describe("eventStep4Schema & payoutSetupSchema", () => {
         confirmedOwnership: true,
       }).success
     ).toBe(false);
+  });
+});
+
+describe("validateClientMediaFile & isVideoMediaUrl", () => {
+  it("accepts valid image and video files", async () => {
+    const imgFile = new File(["binary-jpeg-content"], "celebration.jpg", {
+      type: "image/jpeg",
+    });
+    const vidFile = new File(["binary-mp4-content"], "celebration.mp4", {
+      type: "video/mp4",
+    });
+
+    await expect(validateClientMediaFile(imgFile)).resolves.toBeUndefined();
+    await expect(validateClientMediaFile(vidFile)).resolves.toBeUndefined();
+    expect(isVideoMediaUrl("https://cdn.givvly.ng/uploads/clip.mp4")).toBe(true);
+    expect(isVideoMediaUrl("https://cdn.givvly.ng/uploads/photo.jpg")).toBe(
+      false
+    );
+  });
+
+  it("blocks SVG, HTML, script extensions and embedded script polyglots", async () => {
+    const svgFile = new File(["<svg></svg>"], "malicious.svg", {
+      type: "image/svg+xml",
+    });
+    await expect(validateClientMediaFile(svgFile)).rejects.toThrow(
+      /Executable, script, HTML, and SVG files are strictly prohibited/
+    );
+
+    const polyglotFile = new File(
+      ["\xff\xd8\xff\xe0<script>alert(1)</script>"],
+      "spoofed.jpg",
+      { type: "image/jpeg" }
+    );
+    await expect(validateClientMediaFile(polyglotFile)).rejects.toThrow(
+      /detected embedded script/
+    );
   });
 });
 

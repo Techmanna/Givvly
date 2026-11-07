@@ -1,12 +1,15 @@
 import { api } from "@/lib/api-client";
 import type {
+  AllowedMediaMimeType,
   Bank,
+  CompleteUploadResponse,
   CreateEventRequest,
   EventDetail,
   EventStats,
   EventSummary,
   InviteTemplateData,
   KeepsakeSummary,
+  MediaUploadPurpose,
   PayoutAccount,
   PresignUploadRequest,
   PresignUploadResponse,
@@ -74,43 +77,197 @@ export function updateEventSummary(
   });
 }
 
+export const ALLOWED_CLIENT_IMAGE_MIMES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+] as const;
+
+export const ALLOWED_CLIENT_VIDEO_MIMES = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+] as const;
+
+export const ALLOWED_CLIENT_MEDIA_MIMES = [
+  ...ALLOWED_CLIENT_IMAGE_MIMES,
+  ...ALLOWED_CLIENT_VIDEO_MIMES,
+] as const;
+
+const DISALLOWED_FILE_EXTENSIONS = /\.(svg|svgz|html|htm|xhtml|js|mjs|cjs|ts|tsx|php|phtml|sh|bat|cmd|exe|dll|jsp|asp|aspx|xml)$/i;
+const SCRIPT_POLYGLOT_PATTERNS = [
+  /<script\b/i,
+  /javascript:/i,
+  /vbscript:/i,
+  /<\?php/i,
+  /<!doctype\s+html/i,
+  /<html\b/i,
+  /<svg\b/i,
+  /onload\s*=/i,
+  /onerror\s*=/i,
+];
+
+export function isVideoMediaUrl(
+  url?: string | null,
+  mimeOrKind?: string | null
+): boolean {
+  if (mimeOrKind === "VIDEO" || mimeOrKind?.startsWith("video/")) {
+    return true;
+  }
+  if (!url) return false;
+  return /\.(mp4|webm|mov)(\?.*|#.*)?$/i.test(url);
+}
+
+/**
+ * Validates a client File before initiating any upload:
+ * - Blocks null bytes, control chars, and executable/script/SVG extensions
+ * - Enforces strict MIME allowlist (JPEG, PNG, WebP, GIF, MP4, WebM, MOV)
+ * - Enforces image and video byte-size limits
+ * - Scans file header for embedded script/SVG/HTML polyglot payloads
+ */
+export async function validateClientMediaFile(
+  file: File,
+  options?: {
+    allowVideo?: boolean;
+    maxImageBytes?: number;
+    maxVideoBytes?: number;
+  }
+): Promise<void> {
+  const allowVideo = options?.allowVideo ?? true;
+  const maxImageBytes = options?.maxImageBytes ?? 10 * 1024 * 1024;
+  const maxVideoBytes = options?.maxVideoBytes ?? 50 * 1024 * 1024;
+
+  if (!file || file.size <= 0) {
+    throw new Error("Selected file is empty.");
+  }
+
+  if (/[\u0000-\u001F\u007F]/.test(file.name)) {
+    throw new Error("File name contains invalid control characters.");
+  }
+
+  if (DISALLOWED_FILE_EXTENSIONS.test(file.name)) {
+    throw new Error(
+      "Executable, script, HTML, and SVG files are strictly prohibited."
+    );
+  }
+
+  const mime = file.type as AllowedMediaMimeType;
+  const isImage = (ALLOWED_CLIENT_IMAGE_MIMES as readonly string[]).includes(mime);
+  const isVideo = (ALLOWED_CLIENT_VIDEO_MIMES as readonly string[]).includes(mime);
+
+  if (!isImage && !isVideo) {
+    throw new Error(
+      allowVideo
+        ? "Only JPG, PNG, WebP, GIF images and MP4, WebM, MOV videos are allowed."
+        : "Only JPG, PNG, WebP, and GIF images are allowed."
+    );
+  }
+
+  if (isVideo && !allowVideo) {
+    throw new Error("Video files are not allowed for this field.");
+  }
+
+  const maxBytes = isVideo ? maxVideoBytes : maxImageBytes;
+  if (file.size > maxBytes) {
+    throw new Error(
+      `File exceeds the ${Math.round(maxBytes / (1024 * 1024))} MB maximum size limit.`
+    );
+  }
+
+  if (typeof file.slice === "function") {
+    try {
+      const headSlice = file.slice(0, Math.min(file.size, 512));
+      if (typeof headSlice.text === "function") {
+        const textSample = await headSlice.text();
+        for (const pattern of SCRIPT_POLYGLOT_PATTERNS) {
+          if (pattern.test(textSample)) {
+            throw new Error(
+              "File rejected: detected embedded script or markup signature."
+            );
+          }
+        }
+      }
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message.includes("detected embedded script")
+      ) {
+        throw err;
+      }
+    }
+  }
+}
+
 export function requestUploadPresign(
   payload: PresignUploadRequest
 ): Promise<PresignUploadResponse> {
   return api<PresignUploadResponse>("/uploads/presign", {
     method: "POST",
-    body: payload,
+    body: {
+      ...payload,
+      mime: payload.mime ?? payload.contentType,
+      contentType: payload.contentType ?? payload.mime,
+    },
   });
+}
+
+export function completeMediaUpload(
+  mediaId: string
+): Promise<CompleteUploadResponse> {
+  return api<CompleteUploadResponse>(
+    `/uploads/${encodeURIComponent(mediaId)}/complete`,
+    {
+      method: "POST",
+    }
+  );
 }
 
 /**
  * Uploads a file directly to storage using the presigned URL (PUT binary or POST fields)
- * and reports progress (0 to 100).
+ * and reports progress (0 to 100). Automatically marks the media record READY if mediaId is present.
  */
-export function uploadFileToPresignedUrl(
+export async function uploadFileToPresignedUrl(
   presign: PresignUploadResponse,
   file: File,
   onProgress?: (percent: number) => void
 ): Promise<void> {
+  await validateClientMediaFile(file);
+
   if (presign.uploadUrl.startsWith("mock://")) {
-    return new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
       onProgress?.(45);
       setTimeout(() => {
         onProgress?.(100);
         resolve();
       }, 150);
     });
+    if (presign.mediaId) {
+      try {
+        await completeMediaUpload(presign.mediaId);
+      } catch {
+        // Ignore in isolated mock tests that only stub /uploads/presign
+      }
+    }
+    return;
   }
 
-  return new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const isFormPost =
-      presign.fields && Object.keys(presign.fields).length > 0;
+      presign.method === "POST" ||
+      Boolean(presign.fields && Object.keys(presign.fields).length > 0);
 
     xhr.open(isFormPost ? "POST" : "PUT", presign.uploadUrl);
 
-    if (!isFormPost && file.type) {
-      xhr.setRequestHeader("Content-Type", file.type);
+    if (!isFormPost) {
+      if (presign.headers) {
+        for (const [headerName, headerVal] of Object.entries(presign.headers)) {
+          xhr.setRequestHeader(headerName, headerVal);
+        }
+      } else if (file.type) {
+        xhr.setRequestHeader("Content-Type", file.type);
+      }
     }
 
     if (onProgress && xhr.upload) {
@@ -146,6 +303,57 @@ export function uploadFileToPresignedUrl(
       xhr.send(file);
     }
   });
+
+  if (presign.mediaId) {
+    await completeMediaUpload(presign.mediaId);
+  }
+}
+
+/**
+ * Full end-to-end file upload workflow:
+ * 1. Validates file MIME, extension, size, and header safety on the client
+ * 2. Requests a presigned upload session from the backend File Management Service
+ * 3. Uploads the binary to the active storage provider (Disk, S3, or Cloudinary)
+ * 4. Completes the upload and returns the canonical URL, storage key, and media kind
+ */
+export async function uploadMediaFile(
+  file: File,
+  purpose: MediaUploadPurpose,
+  onProgress?: (percent: number) => void
+): Promise<{
+  mediaId?: string;
+  key: string;
+  url: string;
+  kind: "IMAGE" | "VIDEO";
+}> {
+  await validateClientMediaFile(file, {
+    allowVideo: purpose !== "AVATAR",
+  });
+
+  const mime = (file.type || "image/jpeg") as AllowedMediaMimeType;
+  const presigned = await requestUploadPresign({
+    fileName: file.name,
+    contentType: mime,
+    mime,
+    sizeBytes: file.size,
+    purpose,
+  });
+
+  await uploadFileToPresignedUrl(presigned, file, onProgress);
+
+  const kind: "IMAGE" | "VIDEO" =
+    presigned.kind ?? (mime.startsWith("video/") ? "VIDEO" : "IMAGE");
+  const resolvedUrl =
+    presigned.publicUrl ||
+    presigned.url ||
+    `https://cdn.givvly.ng/${presigned.key}`;
+
+  return {
+    mediaId: presigned.mediaId,
+    key: presigned.key,
+    url: resolvedUrl,
+    kind,
+  };
 }
 
 export function fetchPublicEvent(slug: string): Promise<PublicEvent> {

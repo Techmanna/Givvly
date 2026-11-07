@@ -1,5 +1,6 @@
 import { CalendarHeart, Gift, GraduationCap, Heart, PartyPopper } from "lucide-react";
 import type { EventType } from "@givvly/contracts";
+import { isVideoMediaUrl } from "@/features/events/api";
 import { cn } from "@/lib/cn";
 
 export type EventCoverProps = {
@@ -31,6 +32,7 @@ export function EventCover({
   className,
 }: EventCoverProps) {
   if (coverUrl) {
+    const isVideo = isVideoMediaUrl(coverUrl);
     return (
       <div
         className={cn(
@@ -38,12 +40,22 @@ export function EventCover({
           className
         )}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={coverUrl}
-          alt={name}
-          className="h-full w-full object-cover"
-        />
+        {isVideo ? (
+          <video
+            src={coverUrl}
+            controls
+            preload="metadata"
+            playsInline
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={coverUrl}
+            alt={name}
+            className="h-full w-full object-cover"
+          />
+        )}
       </div>
     );
   }

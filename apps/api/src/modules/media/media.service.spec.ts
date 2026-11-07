@@ -3,7 +3,11 @@ import { MediaService } from "./media.service";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { ConfigService } from "@nestjs/config";
 import { MediaStatus } from "@prisma/client";
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 
 describe("MediaService", () => {
   let service: MediaService;
@@ -22,6 +26,7 @@ describe("MediaService", () => {
               key: "uploads/cover_image/media-1.jpg",
               ownerUserId: "user-1",
               mime: "image/jpeg",
+              kind: "IMAGE",
               sizeBytes: 1024000,
               purpose: "COVER_IMAGE",
               status: MediaStatus.UPLOADING,
@@ -35,8 +40,11 @@ describe("MediaService", () => {
             key: "uploads/cover_image/media-1.jpg",
             status: data.status,
             purpose: "COVER_IMAGE",
+            kind: "IMAGE",
           })
         ),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        delete: jest.fn().mockResolvedValue({ id: "media-1" }),
       },
     };
 
@@ -47,7 +55,12 @@ describe("MediaService", () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn().mockReturnValue("https://cdn.givvly.ng"),
+            get: jest.fn((key: string) => {
+              if (key === "CDN_BASE_URL") return "https://cdn.givvly.ng";
+              if (key === "STORAGE_PROVIDER") return "DISK";
+              if (key === "STORAGE_DISK_DIR") return "/tmp/givvly-media-spec";
+              return undefined;
+            }),
           },
         },
       ],
@@ -61,7 +74,7 @@ describe("MediaService", () => {
   });
 
   describe("presignUpload", () => {
-    it("generates presigned upload URL and creates media row", async () => {
+    it("generates presigned upload URL for images and creates media row", async () => {
       const result = await service.presignUpload(
         {
           purpose: "COVER_IMAGE",
@@ -77,7 +90,77 @@ describe("MediaService", () => {
       expect(result.key).toContain(".jpg");
       expect(result.uploadUrl).toContain("https://cdn.givvly.ng/raw-upload/");
       expect(result.method).toBe("PUT");
+      expect(result.kind).toBe("IMAGE");
       expect(prisma.media.create).toHaveBeenCalled();
+    });
+
+    it("supports video uploads and purpose aliases (e.g. WALL_PHOTO / video/mp4)", async () => {
+      const result = await service.presignUpload(
+        {
+          purpose: "WALL_PHOTO",
+          contentType: "video/mp4",
+          sizeBytes: 15 * 1024 * 1024,
+        },
+        { id: "user-1" }
+      );
+
+      expect(result.kind).toBe("VIDEO");
+      expect(result.key).toContain("uploads/wall_post/");
+      expect(result.key).toContain(".mp4");
+    });
+
+    it("rejects unsupported MIME types or oversized files", async () => {
+      await expect(
+        service.presignUpload({
+          purpose: "COVER_IMAGE",
+          mime: "image/svg+xml" as any,
+          sizeBytes: 1024,
+        })
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.presignUpload({
+          purpose: "AVATAR",
+          mime: "image/jpeg",
+          sizeBytes: 10 * 1024 * 1024, // Exceeds 2MB avatar limit
+        })
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe("uploadDirectFile", () => {
+    it("validates magic bytes, saves file to storage, and creates READY media record", async () => {
+      const validJpegBuffer = Buffer.from([
+        0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+        0x01, 0x01, 0x00, 0x48,
+      ]);
+
+      const uploaded = await service.uploadDirectFile(
+        {
+          buffer: validJpegBuffer,
+          mime: "image/jpeg",
+          sizeBytes: validJpegBuffer.length,
+          purpose: "PRODUCT",
+        },
+        { id: "admin-1", role: "ADMIN" }
+      );
+
+      expect(uploaded.status).toBe(MediaStatus.READY);
+      expect(uploaded.kind).toBe("IMAGE");
+      expect(uploaded.key).toContain("uploads/product/");
+      expect(uploaded.url).toContain("https://cdn.givvly.ng/uploads/product/");
+    });
+
+    it("blocks direct upload when binary magic bytes do not match declared MIME", async () => {
+      const fakeJpegBuffer = Buffer.from("<html><script>alert(1)</script></html>");
+      await expect(
+        service.uploadDirectFile({
+          buffer: fakeJpegBuffer,
+          mime: "image/jpeg",
+          sizeBytes: fakeJpegBuffer.length,
+          purpose: "PRODUCT",
+        })
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -101,4 +184,3 @@ describe("MediaService", () => {
     });
   });
 });
-
