@@ -175,9 +175,15 @@ export class RegistryService {
     const appUrl = this.config.get<string>("APP_URL", "http://localhost:3000");
     const callbackUrl = dto.callbackUrl ?? `${appUrl}/events/${slug}?payment_ref=${reference}`;
 
+    const giverEmail = (dto.giverEmail || (dto as any).email)?.trim() || "";
+    const isAnonymous = Boolean(dto.isAnonymous ?? (dto as any).anonymous);
+    const giverName = isAnonymous
+      ? "Anonymous"
+      : (dto.giverName || (dto as any).name)?.trim() || "A Friend";
+
     const gatewayResult = await gateway.initializePayment({
-      customerEmail: dto.giverEmail,
-      customerName: dto.isAnonymous ? "Anonymous" : dto.giverName,
+      customerEmail: giverEmail,
+      customerName: giverName,
       amountSubunits: feeResult.totalKobo,
       currency,
       reference,
@@ -190,8 +196,8 @@ export class RegistryService {
         itemTitle: item.title,
         currency,
         provider: gateway.providerName,
-        isAnonymous: dto.isAnonymous,
-        giverName: dto.isAnonymous ? "Anonymous" : dto.giverName ?? "Anonymous",
+        isAnonymous,
+        giverName,
         showOnWall: dto.showOnWall,
       },
     });
@@ -208,7 +214,7 @@ export class RegistryService {
           status: PaymentStatus.INITIATED,
           accessCode: gatewayResult.accessCode,
           authorizationUrl: gatewayResult.authorizationUrl,
-          payerEmail: dto.giverEmail,
+          payerEmail: giverEmail,
           metadata: {
             eventId: event.id,
             eventSlug: event.slug,
@@ -217,7 +223,7 @@ export class RegistryService {
             itemTitle: item.title,
             currency,
             provider: gateway.providerName,
-            isAnonymous: dto.isAnonymous,
+            isAnonymous,
             showOnWall: dto.showOnWall,
           },
         },
@@ -229,9 +235,9 @@ export class RegistryService {
           eventId: event.id,
           registryItemId: item.id,
           giverUserId,
-          giverName: dto.isAnonymous ? "Anonymous" : dto.giverName ?? "A Friend",
-          giverEmail: dto.giverEmail,
-          anonymous: dto.isAnonymous,
+          giverName,
+          giverEmail,
+          anonymous: isAnonymous,
           currency,
           message: dto.message,
           amountKobo: feeResult.payoutKobo,

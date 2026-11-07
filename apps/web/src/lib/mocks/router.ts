@@ -1100,14 +1100,19 @@ export async function handleMockApiRequest<T>(
       throwMockError(404, "NOT_FOUND", "Event not found");
     }
     const body = opts.body as {
-      itemId: string;
+      itemId?: string;
+      registryItemId?: string;
       name?: string;
-      email: string;
+      giverName?: string;
+      email?: string;
+      giverEmail?: string;
       message?: string;
       anonymous?: boolean;
+      isAnonymous?: boolean;
     };
+    const targetItemId = body.registryItemId ?? body.itemId;
     const items = db.registryByEvent[ev.id] ?? [];
-    const idx = items.findIndex((i) => i.id === body.itemId);
+    const idx = items.findIndex((i) => i.id === targetItemId);
     if (idx < 0) {
       throwMockError(404, "NOT_FOUND", "Registry item not found");
     }
@@ -1151,8 +1156,10 @@ export async function handleMockApiRequest<T>(
       totalKobo: item.priceKobo + serviceFeeKobo,
       status: "SUCCESS",
       eventSlug: slug,
-      giverName: body.anonymous ? null : (body.name ?? "Guest"),
-      anonymous: Boolean(body.anonymous),
+      giverName: (body.isAnonymous ?? body.anonymous)
+        ? null
+        : (body.giverName ?? body.name ?? "Guest"),
+      anonymous: Boolean(body.isAnonymous ?? body.anonymous),
       message: body.message,
       createdAt: new Date().toISOString(),
     };
@@ -1193,9 +1200,12 @@ export async function handleMockApiRequest<T>(
       poolId: string;
       amountKobo: number;
       name?: string;
-      email: string;
+      giverName?: string;
+      email?: string;
+      giverEmail?: string;
       message?: string;
       anonymous?: boolean;
+      isAnonymous?: boolean;
     };
     const pools = db.poolsByEvent[ev.id] ?? [];
     const idx = pools.findIndex((p) => p.id === body.poolId);
@@ -1233,8 +1243,10 @@ export async function handleMockApiRequest<T>(
       totalKobo: body.amountKobo + serviceFeeKobo,
       status: "SUCCESS",
       eventSlug: slug,
-      giverName: body.anonymous ? null : (body.name ?? "Guest"),
-      anonymous: Boolean(body.anonymous),
+      giverName: (body.isAnonymous ?? body.anonymous)
+        ? null
+        : (body.giverName ?? body.name ?? "Guest"),
+      anonymous: Boolean(body.isAnonymous ?? body.anonymous),
       message: body.message,
       createdAt: new Date().toISOString(),
     };
@@ -1282,9 +1294,12 @@ export async function handleMockApiRequest<T>(
     const body = opts.body as {
       amountKobo: number;
       name?: string;
-      email: string;
+      giverName?: string;
+      email?: string;
+      giverEmail?: string;
       message?: string;
       anonymous?: boolean;
+      isAnonymous?: boolean;
     };
 
     const reference = `PAY_GIV_${Date.now()}`;
@@ -1298,8 +1313,10 @@ export async function handleMockApiRequest<T>(
       totalKobo: body.amountKobo + serviceFeeKobo,
       status: "SUCCESS",
       eventSlug: slug,
-      giverName: body.anonymous ? null : (body.name ?? "Guest"),
-      anonymous: Boolean(body.anonymous),
+      giverName: (body.isAnonymous ?? body.anonymous)
+        ? null
+        : (body.giverName ?? body.name ?? "Guest"),
+      anonymous: Boolean(body.isAnonymous ?? body.anonymous),
       message: body.message,
       createdAt: new Date().toISOString(),
     };

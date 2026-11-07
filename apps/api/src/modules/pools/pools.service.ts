@@ -131,10 +131,16 @@ export class PoolsService {
     const callbackUrl =
       dto.callbackUrl ?? `${appUrl}/events/${slug}?payment_ref=${reference}`;
 
+    const giverEmail = (dto.giverEmail || (dto as any).email)?.trim() || "";
+    const isAnonymous = Boolean(dto.isAnonymous ?? (dto as any).anonymous);
+    const giverName = isAnonymous
+      ? "Anonymous"
+      : (dto.giverName || (dto as any).name)?.trim() || "A Friend";
+
     // Initialize payment outside DB transaction to avoid holding DB connections during network I/O
     const gatewayResult = await gateway.initializePayment({
-      customerEmail: dto.giverEmail,
-      customerName: dto.isAnonymous ? "Anonymous" : dto.giverName,
+      customerEmail: giverEmail,
+      customerName: giverName,
       amountSubunits: feeResult.totalKobo,
       currency,
       reference,
@@ -148,8 +154,8 @@ export class PoolsService {
         poolMode: pool.mode,
         currency,
         provider: gateway.providerName,
-        isAnonymous: dto.isAnonymous,
-        giverName: dto.isAnonymous ? "Anonymous" : dto.giverName ?? "Anonymous",
+        isAnonymous,
+        giverName,
         showOnWall: dto.showOnWall,
       },
     });
@@ -178,7 +184,7 @@ export class PoolsService {
           status: PaymentStatus.INITIATED,
           accessCode: gatewayResult.accessCode,
           authorizationUrl: gatewayResult.authorizationUrl,
-          payerEmail: dto.giverEmail,
+          payerEmail: giverEmail,
           metadata: {
             eventId: event.id,
             eventSlug: event.slug,
@@ -187,7 +193,7 @@ export class PoolsService {
             poolTitle: pool.title,
             poolMode: pool.mode,
             currency,
-            isAnonymous: dto.isAnonymous,
+            isAnonymous,
             showOnWall: dto.showOnWall,
           },
         },
@@ -199,9 +205,9 @@ export class PoolsService {
           eventId: event.id,
           poolId: pool.id,
           giverUserId,
-          giverName: dto.isAnonymous ? "Anonymous" : dto.giverName ?? "A Friend",
-          giverEmail: dto.giverEmail,
-          anonymous: dto.isAnonymous,
+          giverName,
+          giverEmail,
+          anonymous: isAnonymous,
           currency,
           message: dto.message,
           amountKobo: feeResult.payoutKobo,

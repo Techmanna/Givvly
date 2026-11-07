@@ -12,37 +12,78 @@ import {
 import { z } from "zod";
 import { PaymentInitDetailsDto } from "../../payments/dto/create-money-gift.dto";
 
-export const purchaseItemGiftSchema = z.object({
-  registryItemId: z.string().uuid("Invalid registry item ID"),
-  reservationToken: z.string().min(10, "Valid reservation token is required"),
-  giverName: z.string().trim().min(2, "Name must be at least 2 characters").max(60).optional(),
-  giverEmail: z.string().trim().email("Please provide a valid email address"),
-  message: z.string().trim().max(500, "Message cannot exceed 500 characters").optional(),
-  isAnonymous: z.boolean().default(false),
-  showOnWall: z.boolean().default(true),
-  callbackUrl: z.string().url().optional(),
-});
+export const purchaseItemGiftSchema = z
+  .object({
+    registryItemId: z.string().uuid("Invalid registry item ID").optional(),
+    itemId: z.string().uuid("Invalid registry item ID").optional(),
+    reservationToken: z.string().min(10, "Valid reservation token is required").optional(),
+    giverName: z.string().trim().max(60).optional().or(z.literal("")),
+    name: z.string().trim().max(60).optional().or(z.literal("")),
+    giverEmail: z.string().trim().email("Please provide a valid email address").optional(),
+    email: z.string().trim().email("Please provide a valid email address").optional(),
+    message: z.string().trim().max(500, "Message cannot exceed 500 characters").optional(),
+    isAnonymous: z.boolean().optional(),
+    anonymous: z.boolean().optional(),
+    showOnWall: z.boolean().default(true),
+    callbackUrl: z.string().url().optional(),
+  })
+  .transform((data) => {
+    const isAnon = data.isAnonymous ?? data.anonymous ?? false;
+    const resolvedName = (data.giverName ?? data.name)?.trim() || undefined;
+    const resolvedEmail = (data.giverEmail ?? data.email)?.trim();
+    return {
+      ...data,
+      registryItemId: (data.registryItemId ?? data.itemId)!,
+      giverName: isAnon ? undefined : resolvedName,
+      giverEmail: resolvedEmail!,
+      isAnonymous: isAnon,
+    };
+  })
+  .refine((data) => Boolean(data.registryItemId), {
+    path: ["registryItemId"],
+    message: "registryItemId is required",
+  })
+  .refine((data) => Boolean(data.giverEmail), {
+    path: ["giverEmail"],
+    message: "giverEmail must be an email",
+  });
 
 export class PurchaseItemGiftDto {
   @ApiProperty({ example: "a0000000-0000-0000-0000-000000000001", description: "Registry item ID" })
   @IsUUID()
   registryItemId: string;
 
-  @ApiProperty({ example: "res_74a7aec1c74a5e6915221531", description: "Active 10-minute hold reservation token" })
+  @ApiPropertyOptional({ example: "a0000000-0000-0000-0000-000000000001" })
+  @IsOptional()
+  @IsUUID()
+  itemId?: string;
+
+  @ApiPropertyOptional({ example: "res_74a7aec1c74a5e6915221531", description: "Active 10-minute hold reservation token" })
+  @IsOptional()
   @IsString()
-  @MinLength(10)
-  reservationToken: string;
+  reservationToken?: string;
 
   @ApiPropertyOptional({ example: "Chidi Obi" })
   @IsOptional()
   @IsString()
-  @MinLength(2)
   @MaxLength(60)
   giverName?: string;
 
-  @ApiProperty({ example: "chidi@example.com" })
+  @ApiPropertyOptional({ example: "Chidi Obi" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  name?: string;
+
+  @ApiPropertyOptional({ example: "chidi@example.com" })
+  @IsOptional()
   @IsEmail()
-  giverEmail: string;
+  giverEmail?: string;
+
+  @ApiPropertyOptional({ example: "chidi@example.com" })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
   @ApiPropertyOptional({ example: "Enjoy your new espresso maker!" })
   @IsOptional()
@@ -54,6 +95,11 @@ export class PurchaseItemGiftDto {
   @IsOptional()
   @IsBoolean()
   isAnonymous?: boolean = false;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  anonymous?: boolean;
 
   @ApiPropertyOptional({ example: true, default: true })
   @IsOptional()

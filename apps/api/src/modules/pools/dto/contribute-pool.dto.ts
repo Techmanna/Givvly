@@ -15,16 +15,35 @@ import { z } from "zod";
 import { PaymentInitDetailsDto } from "../../payments/dto/create-money-gift.dto";
 import { PoolMode, PoolStatus } from "@prisma/client";
 
-export const contributePoolSchema = z.object({
-  poolId: z.string().uuid("Invalid pool ID"),
-  amountKobo: z.number().int().positive("Contribution amount must be positive"),
-  giverName: z.string().trim().min(2, "Name must be at least 2 characters").max(60).optional(),
-  giverEmail: z.string().trim().email("Please provide a valid email address"),
-  message: z.string().trim().max(500, "Message cannot exceed 500 characters").optional(),
-  isAnonymous: z.boolean().default(false),
-  showOnWall: z.boolean().default(true),
-  callbackUrl: z.string().url().optional(),
-});
+export const contributePoolSchema = z
+  .object({
+    poolId: z.string().uuid("Invalid pool ID"),
+    amountKobo: z.number().int().positive("Contribution amount must be positive"),
+    giverName: z.string().trim().max(60).optional().or(z.literal("")),
+    name: z.string().trim().max(60).optional().or(z.literal("")),
+    giverEmail: z.string().trim().email("Please provide a valid email address").optional(),
+    email: z.string().trim().email("Please provide a valid email address").optional(),
+    message: z.string().trim().max(500, "Message cannot exceed 500 characters").optional(),
+    isAnonymous: z.boolean().optional(),
+    anonymous: z.boolean().optional(),
+    showOnWall: z.boolean().default(true),
+    callbackUrl: z.string().url().optional(),
+  })
+  .transform((data) => {
+    const isAnon = data.isAnonymous ?? data.anonymous ?? false;
+    const resolvedName = (data.giverName ?? data.name)?.trim() || undefined;
+    const resolvedEmail = (data.giverEmail ?? data.email)?.trim();
+    return {
+      ...data,
+      giverName: isAnon ? undefined : resolvedName,
+      giverEmail: resolvedEmail!,
+      isAnonymous: isAnon,
+    };
+  })
+  .refine((data) => Boolean(data.giverEmail), {
+    path: ["giverEmail"],
+    message: "giverEmail must be an email",
+  });
 
 export class ContributePoolDto {
   @ApiProperty({ example: "a0000000-0000-0000-0000-000000000001", description: "Pool UUID" })
@@ -39,13 +58,24 @@ export class ContributePoolDto {
   @ApiPropertyOptional({ example: "Chidi Obi" })
   @IsOptional()
   @IsString()
-  @MinLength(2)
   @MaxLength(60)
   giverName?: string;
 
-  @ApiProperty({ example: "chidi@example.com" })
+  @ApiPropertyOptional({ example: "Chidi Obi" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  name?: string;
+
+  @ApiPropertyOptional({ example: "chidi@example.com" })
+  @IsOptional()
   @IsEmail()
-  giverEmail: string;
+  giverEmail?: string;
+
+  @ApiPropertyOptional({ example: "chidi@example.com" })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
   @ApiPropertyOptional({ example: "Excited to support your dream honeymoon!" })
   @IsOptional()
@@ -57,6 +87,11 @@ export class ContributePoolDto {
   @IsOptional()
   @IsBoolean()
   isAnonymous?: boolean = false;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  anonymous?: boolean;
 
   @ApiPropertyOptional({ example: true, default: true })
   @IsOptional()

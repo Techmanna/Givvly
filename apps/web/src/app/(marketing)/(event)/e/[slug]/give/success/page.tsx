@@ -30,7 +30,7 @@ export default async function PublicGiveSuccessPage({
       <GiveReceiptView
         slug={event.slug}
         eventName={event.name}
-        ownerFirstName={event.ownerFirstName}
+        ownerFirstName={event.hostName || event.ownerFirstName}
         reference={normalizedRef}
       />
     </main>

@@ -156,15 +156,29 @@ export type Order = {
 export const giveMoneySchema = z
   .object({
     amountNaira: z.coerce.number().int().min(500).max(1_000_000),
-    name: z.string().trim().min(2).max(60).optional(),
-    email: z.string().email().max(254),
-    message: z.string().max(500).optional(),
+    name: z
+      .string()
+      .trim()
+      .max(60, "Name must be 60 characters or fewer")
+      .optional()
+      .or(z.literal("")),
+    email: z.string().email("Enter a valid email address").max(254),
+    message: z
+      .string()
+      .max(500, "Message must be 500 characters or fewer")
+      .optional()
+      .or(z.literal("")),
     anonymous: z.boolean().default(false),
   })
-  .refine((v) => v.anonymous || !!v.name, {
-    path: ["name"],
-    message: "Enter your name or give anonymously",
-  });
+  .refine(
+    (v) =>
+      v.anonymous ||
+      (typeof v.name === "string" && v.name.trim().length >= 2),
+    {
+      path: ["name"],
+      message: "Enter your name (at least 2 characters) or give anonymously",
+    }
+  );
 
 export type GiveMoneyInput = z.infer<typeof giveMoneySchema>;
 

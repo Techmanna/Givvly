@@ -28,11 +28,22 @@ export function initiateMoneyGift(
   payload: GiveMoneyRequest,
   idempotencyKey: string
 ): Promise<PaymentInitResponse> {
+  const body = {
+    ...payload,
+    giverEmail: payload.giverEmail ?? payload.email,
+    giverName:
+      payload.giverName !== undefined
+        ? payload.giverName
+        : payload.anonymous || payload.isAnonymous
+          ? undefined
+          : payload.name,
+    isAnonymous: Boolean(payload.isAnonymous ?? payload.anonymous),
+  };
   return api<PaymentInitResponse>(
     `/public/events/${encodeURIComponent(slug)}/gifts/money`,
     {
       method: "POST",
-      body: payload,
+      body,
       idempotencyKey,
     }
   );

@@ -224,11 +224,15 @@ export function PoolCard({ slug, pool }: PoolCardProps) {
               <Checkbox
                 id={`pool-anon-${pool.id}`}
                 checked={watchedAnonymous}
-                onCheckedChange={(checked) =>
-                  form.setValue("anonymous", Boolean(checked), {
+                onCheckedChange={(checked) => {
+                  const isAnon = Boolean(checked);
+                  form.setValue("anonymous", isAnon, {
                     shouldValidate: true,
-                  })
-                }
+                  });
+                  if (isAnon) {
+                    form.clearErrors("name");
+                  }
+                }}
               />
               <Label
                 htmlFor={`pool-anon-${pool.id}`}

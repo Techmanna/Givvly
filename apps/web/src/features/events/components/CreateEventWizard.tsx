@@ -1162,7 +1162,7 @@ export function CreateEventWizard() {
             {step === 1 && "Choose the occasion, celebration title, and date. You can edit everything later."}
             {step === 2 && "Add a cover photo or pick a 1-tap story starter to welcome your guests."}
             {step === 3 && "Choose whether anyone with your link can view or require a private guest code."}
-            {step === 4 && "Tap a popular Nigerian gift fund below or add custom items you would love to receive."}
+            {step === 4 && "Share what you would love to receive (Airtime, Data, catalog gifts, or cash funds)—guests can still gift you anything even if you skip this."}
             {step === 5 && "Confirm everything looks right before publishing your celebration link."}
           </CardDescription>
         </CardHeader>
@@ -1538,6 +1538,67 @@ export function CreateEventWizard() {
 
           {step === 4 ? (
             <div className="space-y-4">
+              {/* Reassurance Banner: Registry is a wishlist, not a restriction */}
+              <div className="rounded-xl border border-border/80 bg-muted/40 p-3.5 text-xs text-muted-foreground">
+                <p className="font-semibold text-foreground">
+                  Your registry is a wishlist, not a restriction
+                </p>
+                <p className="mt-0.5 leading-relaxed">
+                  Whether you add items below or skip this step, guests can
+                  always gift you <strong>Cash</strong>,{" "}
+                  <strong>Airtime &amp; Data</strong>, or{" "}
+                  <strong>any gift from the Givvly Catalog</strong>. Adding
+                  items simply lets guests know what you would love most.
+                </p>
+              </div>
+
+              {/* 1-Tap Airtime, Data & Open Gift Wishes (No amount, bundle, or quantity required) */}
+              <div className="space-y-2.5 rounded-xl border border-accent/45 bg-accent/10 p-3.5">
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    Airtime, Data &amp; Open Gift Wishes (no amount or bundle
+                    needed):
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Let guests know you welcome airtime, mobile data, or a
+                    surprise gift—they pick the network, bundle, or amount when
+                    gifting.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {FLEXIBLE_GIFT_PREFERENCES.map((pref) => {
+                    const alreadyAdded = draft.registryItems.some(
+                      (i) => i.title.toLowerCase() === pref.title.toLowerCase()
+                    );
+                    return (
+                      <button
+                        key={pref.title}
+                        type="button"
+                        disabled={
+                          alreadyAdded || draft.registryItems.length >= 50
+                        }
+                        onClick={() =>
+                          handleAddPresetItem(pref.title, 0, pref.category)
+                        }
+                        className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-left text-xs transition-colors hover:border-primary/40 hover:bg-primary/5 disabled:opacity-50"
+                      >
+                        <div className="min-w-0 flex-1 pr-2">
+                          <span className="block truncate font-semibold text-foreground">
+                            {pref.title}
+                          </span>
+                          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                            {pref.subtitle}
+                          </span>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary">
+                          {alreadyAdded ? "Added ✓" : "+ Add"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Intelligent Backend Catalog Recommendations (tailored by Event type, Name, Date & Story) */}
               <div className="space-y-3 rounded-xl border border-primary/25 bg-primary/5 p-3.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1591,6 +1652,11 @@ export function CreateEventWizard() {
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {intelligentProducts.map(({ product, matchReason }) => {
                       const normalizedTitle = product.name.trim().slice(0, 80);
+                      const isDigitalOrVtu =
+                        Boolean(product.isDigital) ||
+                        /\b(airtime|data|vtu)\b/i.test(
+                          `${product.name} ${product.category}`
+                        );
                       const alreadyAdded = draft.registryItems.some(
                         (i) =>
                           i.productId === product.id ||
@@ -1613,8 +1679,14 @@ export function CreateEventWizard() {
                               {product.name}
                             </span>
                             <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                              <Money amountKobo={product.priceKobo} /> •{" "}
-                              {product.category}
+                              {isDigitalOrVtu ? (
+                                "Flexible • Guest chooses bundle/amount"
+                              ) : (
+                                <>
+                                  <Money amountKobo={product.priceKobo} /> •{" "}
+                                  {product.category}
+                                </>
+                              )}
                             </span>
                             <span className="mt-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
                               {matchReason}
@@ -1649,7 +1721,8 @@ export function CreateEventWizard() {
                           onClick={() =>
                             handleAddPresetItem(
                               preset.title,
-                              preset.targetPriceNaira
+                              preset.targetPriceNaira,
+                              "CASH_FUND"
                             )
                           }
                           className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-left text-xs transition-colors hover:border-primary/40 hover:bg-primary/5 disabled:opacity-50"
@@ -1679,10 +1752,12 @@ export function CreateEventWizard() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
                 <div className="space-y-1.5 sm:col-span-6">
-                  <Label htmlFor="registry-item-title">Item title</Label>
+                  <Label htmlFor="registry-item-title">
+                    Gift wish or item title
+                  </Label>
                   <Input
                     id="registry-item-title"
-                    placeholder="e.g. Deep Freezer or Honeymoon Flights"
+                    placeholder="e.g. Airtime, MTN Data, Deep Freezer, or Honeymoon"
                     value={newItemTitle}
                     maxLength={80}
                     onChange={(e) => setNewItemTitle(e.target.value)}
@@ -1694,11 +1769,13 @@ export function CreateEventWizard() {
                   ) : null}
                 </div>
                 <div className="space-y-1.5 sm:col-span-4">
-                  <Label htmlFor="registry-item-price">Target price (₦)</Label>
+                  <Label htmlFor="registry-item-price">
+                    Target price (₦, optional)
+                  </Label>
                   <Input
                     id="registry-item-price"
                     inputMode="numeric"
-                    placeholder="150000"
+                    placeholder="Leave blank if guest chooses"
                     value={newItemPrice}
                     onChange={(e) =>
                       setNewItemPrice(e.target.value.replace(/\D/g, ""))
@@ -1726,43 +1803,58 @@ export function CreateEventWizard() {
 
               {draft.registryItems.length > 0 ? (
                 <ul className="divide-y divide-border rounded-card border border-border">
-                  {draft.registryItems.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center justify-between px-4 py-3 text-sm"
-                    >
-                      <div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="font-medium text-foreground">
-                            {item.title}
-                          </p>
-                          {item.productId ? (
-                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                              Catalog Gift
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          <Money
-                            amountKobo={nairaToKobo(item.targetPriceNaira)}
-                          />
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Remove ${item.title}`}
-                        onClick={() => removeRegistryItem(item.id)}
+                  {draft.registryItems.map((item) => {
+                    const isAirtimeOrData =
+                      item.category === "AIRTIME_DATA" ||
+                      /\b(airtime|data)\b/i.test(item.title);
+                    return (
+                      <li
+                        key={item.id}
+                        className="flex items-center justify-between px-4 py-3 text-sm"
                       >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </li>
-                  ))}
+                        <div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="font-medium text-foreground">
+                              {item.title}
+                            </p>
+                            {isAirtimeOrData ? (
+                              <span className="rounded-full bg-accent/25 px-2 py-0.5 text-[10px] font-semibold text-foreground">
+                                Airtime &amp; Data
+                              </span>
+                            ) : item.productId ? (
+                              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                Catalog Gift
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {item.targetPriceNaira > 0 ? (
+                              <Money
+                                amountKobo={nairaToKobo(item.targetPriceNaira)}
+                              />
+                            ) : (
+                              "Flexible • Guest chooses amount or bundle"
+                            )}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Remove ${item.title}`}
+                          onClick={() => removeRegistryItem(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  No registry items added yet. Tap a tailored catalog gift or cash fund above, or continue—you can add or edit items anytime after publishing.
+                  No registry wishes added yet. Even if you leave this empty,
+                  guests can still gift you Cash, Airtime &amp; Data, or any
+                  item from the Givvly Catalog.
                 </p>
               )}
             </div>
@@ -1824,7 +1916,9 @@ export function CreateEventWizard() {
                 <div className="flex justify-between py-2">
                   <dt className="text-muted-foreground">Registry items</dt>
                   <dd className="font-medium text-foreground">
-                    {draft.registryItems.length}
+                    {draft.registryItems.length > 0
+                      ? `${draft.registryItems.length} (${draft.registryItems.length === 1 ? "wish" : "wishes"} + open gifting)`
+                      : "Open gifting (Cash, Airtime/Data & Catalog)"}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between py-2">

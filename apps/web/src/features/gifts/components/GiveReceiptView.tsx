@@ -98,7 +98,12 @@ export function GiveReceiptView({
   }
 
   // Still polling (<60s)
-  if (!payment || (payment.status === "PENDING" && !timedOut)) {
+  if (
+    !payment ||
+    (!timedOut &&
+      (payment.status === "PENDING" ||
+        (payment.status as string) === "INITIATED"))
+  ) {
     return (
       <div
         className="mx-auto max-w-lg px-4 py-12"
@@ -130,7 +135,10 @@ export function GiveReceiptView({
   }
 
   // Pending beyond 60 seconds (Section 9.F4)
-  if (payment.status === "PENDING" && timedOut) {
+  if (
+    payment.status === "PENDING" ||
+    (payment.status as string) === "INITIATED"
+  ) {
     return (
       <div
         className="mx-auto max-w-lg px-4 py-12"
@@ -153,9 +161,13 @@ export function GiveReceiptView({
               <span className="text-muted-foreground">Reference</span>
               <div className="flex items-center gap-2">
                 <span className="font-mono font-semibold text-foreground">
-                  {payment.reference}
+                  {payment.reference || reference}
                 </span>
-                <CopyButton value={payment.reference} label="Copy" size="sm" />
+                <CopyButton
+                  value={payment.reference || reference}
+                  label="Copy"
+                  size="sm"
+                />
               </div>
             </div>
             <Button asChild className="w-full" variant="outline">
@@ -229,71 +241,85 @@ export function GiveReceiptView({
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-6">
-          <div className="space-y-2.5 rounded-card border border-border bg-muted/40 p-4 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Gift amount</span>
-              <Money
-                amountKobo={payment.amountKobo}
-                className="font-semibold text-foreground"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Service fee</span>
-              <Money
-                amountKobo={payment.serviceFeeKobo}
-                className="text-foreground"
-              />
-            </div>
-            <div className="flex items-center justify-between border-t border-border pt-2 font-semibold">
-              <span className="text-foreground">Total paid</span>
-              <Money amountKobo={payment.totalKobo} className="text-primary" />
-            </div>
-            <div className="flex items-center justify-between pt-1 text-xs">
-              <span className="text-muted-foreground">From</span>
-              <span className="font-medium text-foreground">
-                {payment.anonymous
-                  ? "Anonymous"
-                  : (payment.giverName ?? "Guest")}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Date</span>
-              <span className="text-foreground">
-                {formatDate(payment.createdAt, "d MMM yyyy, h:mm a")}
-              </span>
-            </div>
-            <div className="flex items-center justify-between border-t border-border pt-2 text-xs">
-              <span className="text-muted-foreground">Payment reference</span>
-              <div className="flex items-center gap-2">
-                <span className="font-mono font-semibold text-foreground">
-                  {payment.reference}
-                </span>
-                <CopyButton
-                  value={payment.reference}
-                  label="Copy"
-                  size="sm"
-                />
+        {(() => {
+          const serviceFeeKobo = payment.serviceFeeKobo ?? (payment as any).feeKobo ?? 0;
+          const totalKobo =
+            payment.totalKobo ?? payment.amountKobo ?? (payment as any).totalKobo ?? 0;
+          const giftAmountKobo =
+            payment.amountKobo && payment.totalKobo && payment.amountKobo !== payment.totalKobo
+              ? payment.amountKobo
+              : Math.max(0, totalKobo - serviceFeeKobo);
+          const paymentDate =
+            payment.createdAt || (payment as any).paidAt || new Date().toISOString();
+
+          return (
+            <CardContent className="space-y-6">
+              <div className="space-y-2.5 rounded-card border border-border bg-muted/40 p-4 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Gift amount</span>
+                  <Money
+                    amountKobo={giftAmountKobo}
+                    className="font-semibold text-foreground"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Service fee</span>
+                  <Money
+                    amountKobo={serviceFeeKobo}
+                    className="text-foreground"
+                  />
+                </div>
+                <div className="flex items-center justify-between border-t border-border pt-2 font-semibold">
+                  <span className="text-foreground">Total paid</span>
+                  <Money amountKobo={totalKobo} className="text-primary" />
+                </div>
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <span className="text-muted-foreground">From</span>
+                  <span className="font-medium text-foreground">
+                    {payment.anonymous
+                      ? "Anonymous"
+                      : (payment.giverName ?? "Guest")}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Date</span>
+                  <span className="text-foreground">
+                    {formatDate(paymentDate, "d MMM yyyy, h:mm a")}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-border pt-2 text-xs">
+                  <span className="text-muted-foreground">Payment reference</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-semibold text-foreground">
+                      {payment.reference}
+                    </span>
+                    <CopyButton
+                      value={payment.reference}
+                      label="Copy"
+                      size="sm"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {payment.message ? (
-            <div className="rounded-control border border-border bg-card p-3 text-xs">
-              <p className="font-medium text-muted-foreground">Your wish:</p>
-              <p className="mt-1 italic text-foreground">
-                &ldquo;{payment.message}&rdquo;
-              </p>
-            </div>
-          ) : null}
+              {payment.message ? (
+                <div className="rounded-control border border-border bg-card p-3 text-xs">
+                  <p className="font-medium text-muted-foreground">Your wish:</p>
+                  <p className="mt-1 italic text-foreground">
+                    &ldquo;{payment.message}&rdquo;
+                  </p>
+                </div>
+              ) : null}
 
-          <Button asChild className="w-full">
-            <Link href={`/e/${slug}`}>
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              <span>Return to {eventName}</span>
-            </Link>
-          </Button>
-        </CardContent>
+              <Button asChild className="w-full">
+                <Link href={`/e/${slug}`}>
+                  <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                  <span>Return to {eventName}</span>
+                </Link>
+              </Button>
+            </CardContent>
+          );
+        })()}
       </Card>
 
       {authStatus !== "authed" ? (

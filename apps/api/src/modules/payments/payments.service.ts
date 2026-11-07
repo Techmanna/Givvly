@@ -95,13 +95,19 @@ export class PaymentsService {
     // Generate unique payment reference
     const reference = `pay_${Date.now()}_${crypto.randomBytes(6).toString("hex")}`;
 
+    const giverEmail = (dto.giverEmail || (dto as any).email)?.trim() || "";
+    const isAnonymous = Boolean(dto.isAnonymous ?? (dto as any).anonymous);
+    const giverName = isAnonymous
+      ? "Anonymous"
+      : (dto.giverName || (dto as any).name)?.trim() || "A Friend";
+
     // Initialize checkout with gateway
     const appUrl = this.config.get<string>("APP_URL", "http://localhost:3000");
     const callbackUrl = dto.callbackUrl ?? `${appUrl}/events/${slug}?payment_ref=${reference}`;
 
     const gatewayResult = await gateway.initializePayment({
-      customerEmail: dto.giverEmail,
-      customerName: dto.isAnonymous ? "Anonymous" : dto.giverName,
+      customerEmail: giverEmail,
+      customerName: giverName,
       amountSubunits: feeResult.totalKobo,
       currency,
       reference,
@@ -112,8 +118,8 @@ export class PaymentsService {
         kind: "MONEY",
         currency,
         provider: gateway.providerName,
-        isAnonymous: dto.isAnonymous,
-        giverName: dto.isAnonymous ? "Anonymous" : dto.giverName ?? "Anonymous",
+        isAnonymous,
+        giverName,
         showOnWall: dto.showOnWall,
       },
     });
@@ -130,14 +136,14 @@ export class PaymentsService {
           status: PaymentStatus.INITIATED,
           accessCode: gatewayResult.accessCode,
           authorizationUrl: gatewayResult.authorizationUrl,
-          payerEmail: dto.giverEmail,
+          payerEmail: giverEmail,
           metadata: {
             eventId: event.id,
             eventSlug: event.slug,
             kind: "MONEY",
             currency,
             provider: gateway.providerName,
-            isAnonymous: dto.isAnonymous,
+            isAnonymous,
             showOnWall: dto.showOnWall,
           },
         },
@@ -148,9 +154,9 @@ export class PaymentsService {
           type: GiftType.MONEY,
           eventId: event.id,
           giverUserId,
-          giverName: dto.isAnonymous ? "Anonymous" : dto.giverName ?? "A Friend",
-          giverEmail: dto.giverEmail,
-          anonymous: dto.isAnonymous,
+          giverName,
+          giverEmail,
+          anonymous: isAnonymous,
           currency,
           message: dto.message,
           amountKobo: feeResult.payoutKobo,
@@ -184,7 +190,7 @@ export class PaymentsService {
    * Get payment status by reference (for guest polling)
    */
   async getPaymentByReference(reference: string) {
-    const payment = await this.prisma.payment.findUnique({
+    let payment = await this.prisma.payment.findUnique({
       where: { reference },
       include: {
         gift: {
@@ -205,13 +211,98 @@ export class PaymentsService {
       throw new NotFoundException(`Payment with reference '${reference}' not found`);
     }
 
+    // If still INITIATED or PENDING, attempt on-demand verification with the gateway
+    if (payment.status === PaymentStatus.INITIATED || payment.status === PaymentStatus.PENDING) {
+      try {
+        const currency = payment.currency || "NGN";
+        const gateway = this.gatewayRegistry.getGatewayForCurrency(currency, payment.provider);
+        const verifyRes = await gateway.verifyPayment(payment.reference);
+        if (verifyRes.status === "success") {
+          if (verifyRes.amountSubunits === undefined || verifyRes.amountSubunits === payment.amountKobo) {
+            await this.prisma.$transaction(async (tx) => {
+              await tx.payment.update({
+                where: { id: payment!.id },
+                data: {
+                  status: PaymentStatus.SUCCESS,
+                  paidAt: verifyRes.paidAt ?? new Date(),
+                  channel: verifyRes.channel || "card",
+                  providerFeeKobo: verifyRes.feesSubunits,
+                },
+              });
+              if (payment!.gift) {
+                await tx.gift.update({
+                  where: { id: payment!.gift.id },
+                  data: { status: GiftStatus.PAID },
+                });
+              }
+            });
+            const refreshed = await this.prisma.payment.findUnique({
+              where: { reference },
+              include: {
+                gift: {
+                  include: {
+                    event: {
+                      select: {
+                        id: true,
+                        slug: true,
+                        name: true,
+                      },
+                    },
+                  },
+                },
+              },
+            });
+            if (refreshed) {
+              payment = refreshed;
+            }
+          }
+        } else if (verifyRes.status === "failed") {
+          await this.prisma.payment.update({
+            where: { id: payment.id },
+            data: { status: PaymentStatus.FAILED },
+          });
+          payment.status = PaymentStatus.FAILED;
+        }
+      } catch (err) {
+        // Verification call error or not yet paid, retain current status
+      }
+    }
+
+    const giftAmountKobo =
+      payment.gift?.amountKobo ?? Math.max(0, payment.amountKobo - payment.feeKobo);
+    const serviceFeeKobo = payment.feeKobo;
+    const totalKobo = payment.amountKobo;
+
+    const mappedStatus =
+      payment.status === PaymentStatus.SUCCESS
+        ? "SUCCESS"
+        : payment.status === PaymentStatus.FAILED
+        ? "FAILED"
+        : "PENDING";
+
+    const isAnonymous = Boolean(payment.gift?.anonymous);
+    const giverName = isAnonymous
+      ? null
+      : payment.gift?.giverName ?? (payment.metadata as any)?.giverName ?? null;
+
     return {
       reference: payment.reference,
-      status: payment.status,
-      amountKobo: payment.amountKobo,
-      feeKobo: payment.feeKobo,
+      accessCode: payment.accessCode ?? "",
+      authorizationUrl: payment.authorizationUrl ?? "",
+      status: mappedStatus,
+      amountKobo: giftAmountKobo,
+      serviceFeeKobo,
+      totalKobo,
+      feeKobo: serviceFeeKobo,
+      currency: payment.currency,
       channel: payment.channel,
-      paidAt: payment.paidAt,
+      paidAt: payment.paidAt?.toISOString() ?? null,
+      createdAt: (payment.createdAt ?? payment.paidAt ?? new Date()).toISOString(),
+      eventSlug: payment.gift?.event?.slug,
+      eventName: payment.gift?.event?.name,
+      giverName,
+      anonymous: isAnonymous,
+      message: payment.gift?.message ?? (payment.metadata as any)?.message ?? null,
       gift: payment.gift
         ? {
             id: payment.gift.id,

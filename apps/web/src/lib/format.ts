@@ -33,13 +33,26 @@ export function nairaToKobo(naira: number): number {
 
 /**
  * Formats an ISO 8601 UTC date string in Africa/Lagos timezone by default.
+ * Safely falls back if the date is invalid, undefined, or missing.
  */
 export function formatDate(
-  isoDate: string | Date,
+  isoDate: string | Date | null | undefined,
   pattern = "d MMM yyyy",
-  timeZone = DEFAULT_TIMEZONE
+  timeZone = DEFAULT_TIMEZONE,
+  fallback = "—"
 ): string {
-  return formatInTimeZone(isoDate, timeZone, pattern);
+  if (!isoDate) {
+    return fallback;
+  }
+  try {
+    const d = typeof isoDate === "string" ? new Date(isoDate) : isoDate;
+    if (isNaN(d.getTime())) {
+      return fallback;
+    }
+    return formatInTimeZone(d, timeZone, pattern);
+  } catch {
+    return fallback;
+  }
 }
 
 /**

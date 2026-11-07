@@ -38,6 +38,14 @@ describe("formatDate", () => {
       "2026-10-28 11:00"
     );
   });
+
+  it("safely handles undefined, null, or invalid dates without throwing", () => {
+    expect(formatDate(undefined)).toBe("—");
+    expect(formatDate(null)).toBe("—");
+    expect(formatDate("not-a-valid-date")).toBe("—");
+    expect(formatDate(new Date(NaN))).toBe("—");
+    expect(formatDate("", "d MMM yyyy", undefined, "N/A")).toBe("N/A");
+  });
 });
 
 describe("sanitizeNextPath", () => {

@@ -98,9 +98,12 @@ export type GiftFilters = {
 export type GiveMoneyRequest = {
   amountKobo: number;
   name?: string;
+  giverName?: string;
   email: string;
+  giverEmail?: string;
   message?: string;
   anonymous: boolean;
+  isAnonymous?: boolean;
 };
 
 export type PaymentInitResponse = {

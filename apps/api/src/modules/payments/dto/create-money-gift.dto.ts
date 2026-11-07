@@ -12,17 +12,36 @@ import {
 } from "class-validator";
 import { z } from "zod";
 
-export const createMoneyGiftSchema = z.object({
-  amountKobo: z.number().int().positive("Gift amount must be positive"),
-  currency: z.string().trim().default("NGN"),
-  provider: z.string().trim().optional(),
-  giverName: z.string().trim().min(2, "Name must be at least 2 characters").max(60).optional(),
-  giverEmail: z.string().trim().email("Please provide a valid email address"),
-  message: z.string().trim().max(500, "Message cannot exceed 500 characters").optional(),
-  isAnonymous: z.boolean().default(false),
-  showOnWall: z.boolean().default(true),
-  callbackUrl: z.string().url().optional(),
-});
+export const createMoneyGiftSchema = z
+  .object({
+    amountKobo: z.number().int().positive("Gift amount must be positive"),
+    currency: z.string().trim().default("NGN"),
+    provider: z.string().trim().optional(),
+    giverName: z.string().trim().max(60).optional().or(z.literal("")),
+    name: z.string().trim().max(60).optional().or(z.literal("")),
+    giverEmail: z.string().trim().email("Please provide a valid email address").optional(),
+    email: z.string().trim().email("Please provide a valid email address").optional(),
+    message: z.string().trim().max(500, "Message cannot exceed 500 characters").optional(),
+    isAnonymous: z.boolean().optional(),
+    anonymous: z.boolean().optional(),
+    showOnWall: z.boolean().default(true),
+    callbackUrl: z.string().url().optional(),
+  })
+  .transform((data) => {
+    const isAnon = data.isAnonymous ?? data.anonymous ?? false;
+    const resolvedName = (data.giverName ?? data.name)?.trim() || undefined;
+    const resolvedEmail = (data.giverEmail ?? data.email)?.trim();
+    return {
+      ...data,
+      giverName: isAnon ? undefined : resolvedName,
+      giverEmail: resolvedEmail!,
+      isAnonymous: isAnon,
+    };
+  })
+  .refine((data) => Boolean(data.giverEmail), {
+    path: ["giverEmail"],
+    message: "giverEmail must be an email",
+  });
 
 export class CreateMoneyGiftDto {
   @ApiProperty({ example: 5000000, description: "Gift amount in currency subunit (5000000 kobo = ₦50,000)" })
@@ -43,13 +62,24 @@ export class CreateMoneyGiftDto {
   @ApiPropertyOptional({ example: "Chidi Obi", description: "Giver name (optional if anonymous)" })
   @IsOptional()
   @IsString()
-  @MinLength(2)
   @MaxLength(60)
   giverName?: string;
 
-  @ApiProperty({ example: "chidi@example.com", description: "Giver email address for receipt" })
+  @ApiPropertyOptional({ example: "Chidi Obi" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  name?: string;
+
+  @ApiPropertyOptional({ example: "chidi@example.com", description: "Giver email address for receipt" })
+  @IsOptional()
   @IsEmail()
-  giverEmail: string;
+  giverEmail?: string;
+
+  @ApiPropertyOptional({ example: "chidi@example.com" })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
   @ApiPropertyOptional({ example: "Congratulations on your new beginning!", description: "Message for the host and Wall of Love" })
   @IsOptional()
@@ -61,6 +91,11 @@ export class CreateMoneyGiftDto {
   @IsOptional()
   @IsBoolean()
   isAnonymous?: boolean = false;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  anonymous?: boolean;
 
   @ApiPropertyOptional({ example: true, default: true, description: "Display gift message on the Wall of Love" })
   @IsOptional()
@@ -108,11 +143,26 @@ export class PaymentStatusResponseDto {
   @ApiProperty({ example: "pay_1793701566791_abc123" })
   reference: string;
 
+  @ApiPropertyOptional({ example: "acc_123" })
+  accessCode?: string;
+
+  @ApiPropertyOptional({ example: "https://checkout.paystack.com/123" })
+  authorizationUrl?: string;
+
   @ApiProperty({ example: "SUCCESS" })
   status: string;
 
-  @ApiProperty({ example: 5000000 })
+  @ApiProperty({ example: 5000000, description: "Net gift amount" })
   amountKobo: number;
+
+  @ApiPropertyOptional({ example: 75000, description: "Service fee" })
+  serviceFeeKobo?: number;
+
+  @ApiPropertyOptional({ example: 5075000, description: "Total amount charged" })
+  totalKobo?: number;
+
+  @ApiPropertyOptional({ example: 75000 })
+  feeKobo?: number;
 
   @ApiProperty({ example: "NGN" })
   currency: string;
@@ -121,5 +171,26 @@ export class PaymentStatusResponseDto {
   channel?: string | null;
 
   @ApiPropertyOptional({ example: "2026-11-03T11:20:00.000Z" })
-  paidAt?: Date | null;
+  paidAt?: Date | string | null;
+
+  @ApiPropertyOptional({ example: "2026-11-03T11:20:00.000Z" })
+  createdAt?: Date | string;
+
+  @ApiPropertyOptional({ example: "adaobi-chidi" })
+  eventSlug?: string;
+
+  @ApiPropertyOptional({ example: "Adaobi & Chidi Wedding" })
+  eventName?: string;
+
+  @ApiPropertyOptional({ example: "Chidi" })
+  giverName?: string | null;
+
+  @ApiPropertyOptional({ example: false })
+  anonymous?: boolean;
+
+  @ApiPropertyOptional({ example: "Congratulations!" })
+  message?: string | null;
+
+  @ApiPropertyOptional()
+  gift?: any;
 }

@@ -77,18 +77,35 @@ export function purchaseRegistryItem(
   slug: string,
   payload: {
     itemId: string;
+    registryItemId?: string;
+    reservationToken?: string;
     name?: string;
+    giverName?: string;
     email: string;
+    giverEmail?: string;
     message?: string;
     anonymous: boolean;
+    isAnonymous?: boolean;
   },
   idempotencyKey: string
 ): Promise<PaymentInitResponse> {
+  const body = {
+    ...payload,
+    registryItemId: payload.registryItemId ?? payload.itemId,
+    giverEmail: payload.giverEmail ?? payload.email,
+    giverName:
+      payload.giverName !== undefined
+        ? payload.giverName
+        : payload.anonymous || payload.isAnonymous
+          ? undefined
+          : payload.name,
+    isAnonymous: Boolean(payload.isAnonymous ?? payload.anonymous),
+  };
   return api<PaymentInitResponse>(
     `/public/events/${encodeURIComponent(slug)}/gifts/item`,
     {
       method: "POST",
-      body: payload,
+      body,
       idempotencyKey,
     }
   );
@@ -100,17 +117,31 @@ export function contributeToPool(
     poolId: string;
     amountKobo: number;
     name?: string;
+    giverName?: string;
     email: string;
+    giverEmail?: string;
     message?: string;
     anonymous: boolean;
+    isAnonymous?: boolean;
   },
   idempotencyKey: string
 ): Promise<PaymentInitResponse> {
+  const body = {
+    ...payload,
+    giverEmail: payload.giverEmail ?? payload.email,
+    giverName:
+      payload.giverName !== undefined
+        ? payload.giverName
+        : payload.anonymous || payload.isAnonymous
+          ? undefined
+          : payload.name,
+    isAnonymous: Boolean(payload.isAnonymous ?? payload.anonymous),
+  };
   return api<PaymentInitResponse>(
     `/public/events/${encodeURIComponent(slug)}/gifts/pool`,
     {
       method: "POST",
-      body: payload,
+      body,
       idempotencyKey,
     }
   );

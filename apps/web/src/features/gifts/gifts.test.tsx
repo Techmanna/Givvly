@@ -114,6 +114,40 @@ describe("Step 4: Money gifts, Wall of Love, and Owner Feed", () => {
     });
   });
 
+  it("submits successfully when 'Give anonymously' is checked without entering a name", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <GiveMoneyForm
+        slug="adaobi-and-chidi-2026"
+        eventName="Adaobi & Chidi's Forever"
+        ownerFirstName="Adaobi"
+        moneyGiftsEnabled={true}
+      />
+    );
+
+    // Name field is visible initially; tick "Give anonymously" which hides it and allows empty name
+    const anonCheckbox = screen.getByLabelText(/give anonymously/i);
+    await user.click(anonCheckbox);
+
+    // Name input should now be hidden
+    expect(screen.queryByLabelText(/your name/i)).not.toBeInTheDocument();
+
+    await user.type(
+      screen.getByLabelText(/email address/i),
+      "anonymous-giver@example.com"
+    );
+
+    await user.click(screen.getByRole("button", { name: /send gift/i }));
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^\/e\/adaobi-and-chidi-2026\/give\/success\?ref=PAY_GIV_/
+        )
+      );
+    });
+  });
+
   it("polls payment status on GiveReceiptView and renders receipt on SUCCESS", async () => {
     renderWithQuery(
       <GiveReceiptView

@@ -442,6 +442,15 @@ export function GiveMoneyForm({
 
       setFormAlert("Check your connection and try again.");
     }
+  }, (errors) => {
+    const firstErrorMessage =
+      errors.amountNaira?.message ||
+      errors.name?.message ||
+      errors.email?.message ||
+      errors.message?.message;
+    if (firstErrorMessage) {
+      setFormAlert(firstErrorMessage);
+    }
   });
 
   return (
@@ -468,6 +477,7 @@ export function GiveMoneyForm({
                 key={curr}
                 type="button"
                 onClick={() => setDisplayCurrency(curr)}
+                disabled={curr !== "NGN"}
                 className={`rounded-sm px-1.5 py-0.5 font-medium ${
                   displayCurrency === curr
                     ? "bg-primary text-primary-foreground"
@@ -576,6 +586,10 @@ export function GiveMoneyForm({
             onCheckedChange={(checked) => {
               const isAnon = Boolean(checked);
               form.setValue("anonymous", isAnon, { shouldValidate: true });
+              if (isAnon) {
+                form.clearErrors("name");
+              }
+              setFormAlert(null);
               updateDraft({ anonymous: isAnon });
             }}
           />
