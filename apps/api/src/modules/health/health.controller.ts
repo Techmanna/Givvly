@@ -13,6 +13,14 @@ export class HealthController {
   ) {}
 
   @Public()
+  @Get()
+  @ApiOperation({ summary: "Default health probe: verifies service is responding" })
+  @ApiOkResponse({ description: "Service is live." })
+  public getHealth(): { status: string; timestamp: string } {
+    return { status: "ok", timestamp: new Date().toISOString() };
+  }
+
+  @Public()
   @Get("live")
   @ApiOperation({ summary: "Liveness probe: verifies process is running" })
   @ApiOkResponse({ description: "Service is live." })

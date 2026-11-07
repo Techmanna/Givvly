@@ -1,0 +1,84 @@
+services:
+  # -------------------------------------------------------------
+  # Givvly NestJS API Web Service
+  # -------------------------------------------------------------
+  - type: web
+    name: givvly-api
+    runtime: docker
+    dockerfilePath: apps/api/Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: starter
+    healthCheckPath: /api/v1/health
+    preDeployCommand: npx prisma db push
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: givvly-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: givvly-redis
+          property: connectionString
+      - key: APP_URL
+        sync: false
+      - key: API_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false # Must be exactly 64 hex characters (e.g. openssl rand -hex 32)
+      - key: ACCOUNT_HASH_KEY
+        generateValue: true
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: PAYSTACK_BASE_URL
+        value: https://api.paystack.co
+      - key: STORAGE_PROVIDER
+        value: CLOUDINARY # or S3
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        value: Givvly <no-reply@givvly.ng>
+
+  # -------------------------------------------------------------
+  # Managed Redis Cache & Mutex Lock
+  # -------------------------------------------------------------
+  - type: redis
+    name: givvly-redis
+    region: oregon
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+# ---------------------------------------------------------------
+# Managed PostgreSQL Database
+# ---------------------------------------------------------------
+databases:
+  - name: givvly-postgres
+    databaseName: givvly_prod
+    user: givvly
+    region: oregon
+    plan: starter
+
