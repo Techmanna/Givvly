@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import {
@@ -10,6 +11,16 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SignupForm } from "@/features/auth";
+
+export const metadata: Metadata = {
+  title: "Create an Account — Wedding & Event Registry",
+  description:
+    "Join Givvly to create your digital invitations, cash gift funds, and curated event registries.",
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
 
 export default async function SignupPage({
   searchParams,

@@ -1,25 +1,75 @@
 import type { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://givvly.ng";
+  const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://givvly.ng").replace(
+    /\/$/,
+    ""
+  );
 
   return {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/gifts", "/e/"],
+        allow: [
+          "/",
+          "/celebrations",
+          "/gifts",
+          "/gifts/*",
+          "/help",
+          "/privacy",
+          "/terms",
+          "/e/*",
+          "/llms.txt",
+          "/llms-full.txt",
+        ],
         disallow: [
           "/dashboard",
-          "/events",
-          "/orders",
+          "/dashboard/*",
           "/account",
-          "/vendor",
+          "/account/*",
           "/admin",
-          "/api/",
+          "/admin/*",
+          "/vendor",
+          "/vendor/*",
+          "/checkout/*",
+          "/track/*",
+          "/api/*",
+          "/e/*/unlock",
+        ],
+      },
+      {
+        userAgent: [
+          "GPTBot",
+          "ChatGPT-User",
+          "PerplexityBot",
+          "ClaudeBot",
+          "Anthropic-AI",
+          "Google-Extended",
+          "Applebot-Extended",
+          "cohere-ai",
+        ],
+        allow: [
+          "/",
+          "/celebrations",
+          "/gifts",
+          "/gifts/*",
+          "/help",
+          "/privacy",
+          "/terms",
+          "/e/*",
+          "/llms.txt",
+          "/llms-full.txt",
+        ],
+        disallow: [
+          "/dashboard",
+          "/account",
+          "/admin",
+          "/vendor",
+          "/checkout",
+          "/api",
         ],
       },
     ],
-    sitemap: `${baseUrl}/sitemap.xml`,
+    sitemap: `${siteUrl}/sitemap.xml`,
   };
 }
-

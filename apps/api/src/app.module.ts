@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { ScheduleModule } from "@nestjs/schedule";
 import { validateEnv } from "./config/env";
 import { PrismaModule } from "./infra/prisma/prisma.module";
 import { RedisModule } from "./infra/redis/redis.module";
@@ -38,6 +39,7 @@ import { WalletModule } from "./modules/wallet/wallet.module";
       ],
       validate: validateEnv,
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     RedisModule,
     PaystackModule,

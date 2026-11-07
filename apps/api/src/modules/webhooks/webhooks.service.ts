@@ -180,9 +180,11 @@ export class WebhooksService {
     const amountSubunits = event.amountSubunits;
 
     let pendingGiftNotification: {
-      payerEmail: string;
+      payerEmail?: string;
       giverDisplayName: string;
       eventName: string;
+      eventSlug?: string;
+      eventId?: string;
       amountKobo: number;
       currency: string;
       reference: string;
@@ -584,17 +586,19 @@ export class WebhooksService {
         }
 
         // 5. Queue post-commit email and in-app notifications (do not block DB transaction with SMTP I/O)
-        if (this.notifications && payment.payerEmail) {
+        if (this.notifications && (payment.payerEmail || owner)) {
           pendingGiftNotification = {
-            payerEmail: payment.payerEmail,
+            payerEmail: payment.payerEmail || undefined,
             giverDisplayName: gift.anonymous ? "A Friend" : gift.giverName || "A Friend",
             eventName: targetEvent?.name || "Celebration",
+            eventSlug: targetEvent?.slug,
+            eventId: targetEvent?.id,
             amountKobo: gift.amountKobo,
             currency,
             reference: payment.reference,
             message: gift.message || undefined,
-            owner: owner?.email
-              ? { id: owner.id, email: owner.email, name: owner.name }
+            owner: owner
+              ? { id: owner.id, email: owner.email || "", name: owner.name || "Host" }
               : undefined,
           };
         }
@@ -722,9 +726,11 @@ export class WebhooksService {
 
     // Post-commit asynchronous side effects (notifications & digital fulfillment)
     const notifTask = pendingGiftNotification as {
-      payerEmail: string;
+      payerEmail?: string;
       giverDisplayName: string;
       eventName: string;
+      eventSlug?: string;
+      eventId?: string;
       amountKobo: number;
       currency: string;
       reference: string;
@@ -735,14 +741,18 @@ export class WebhooksService {
     if (this.notifications && notifTask) {
       try {
         await Promise.all([
-          this.notifications.sendGiftReceiptEmail(
-            notifTask.payerEmail,
-            notifTask.giverDisplayName,
-            notifTask.eventName,
-            notifTask.amountKobo,
-            notifTask.currency,
-            notifTask.reference
-          ),
+          ...(notifTask.payerEmail
+            ? [
+                this.notifications.sendGiftReceiptEmail(
+                  notifTask.payerEmail,
+                  notifTask.giverDisplayName,
+                  notifTask.eventName,
+                  notifTask.amountKobo,
+                  notifTask.currency,
+                  notifTask.reference
+                ),
+              ]
+            : []),
           ...(notifTask.owner
             ? [
                 this.notifications.sendHostGiftReceivedEmail(
@@ -753,7 +763,9 @@ export class WebhooksService {
                   notifTask.amountKobo,
                   notifTask.currency,
                   notifTask.message,
-                  notifTask.eventName
+                  notifTask.eventName,
+                  notifTask.eventSlug,
+                  notifTask.eventId
                 ),
               ]
             : []),

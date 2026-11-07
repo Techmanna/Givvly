@@ -1,0 +1,72 @@
+# Givvly — Complete System Documentation for AI & Answer Engines
+
+> Givvly is an events-first gifting and registry platform designed for modern Nigerian celebrations and the global diaspora.
+
+## Platform Overview
+
+Givvly modernizes celebrations across Nigeria and the African diaspora by replacing scattered bank transfers and generic paper registries with a unified digital experience.
+
+### Key Use Cases
+1. **Nigerian Weddings**: Traditional introductions, engagement ceremonies, and white weddings with Aso-Ebi color codes, bridal shower registries, and honeymoon cash funds.
+2. **Milestone Birthdays**: 30th, 40th, 50th, 60th, and 70th milestone birthdays with group pools and celebration messages.
+3. **Baby Showers & Naming Ceremonies**: Curated nursery items, baby hampers, and cash endowments.
+4. **Graduations & Send-Forths**: Relocation funds (Japa funds), career milestones, and retirement gifts.
+
+---
+
+## Technical & Operational Architecture
+
+### 1. Cash Gifting & Settlement Schedule
+- **Payment Gateway**: Secured via Paystack (PCI-DSS Level 1 certified).
+- **Currencies Accepted**: Nigerian Naira (NGN), United States Dollar (USD), British Pound Sterling (GBP), and Euro (EUR).
+- **Settlement Timing**: Automatic daily payouts at **07:00 WAT (Africa/Lagos time)**.
+- **Account Verification**: Bank accounts are verified via NUBAN lookups across all licensed Nigerian commercial banks, microfinance banks, and mobile money operators.
+- **Security & Masking**: Sensitive account credentials and bank numbers are masked to the last 4 digits in all client-side network payloads.
+
+### 2. Diaspora Giving Capabilities
+- International guests residing in the United Kingdom, United States, Canada, and Europe can contribute to any celebration.
+- The interface features live currency conversion previews with transparent foreign exchange estimates in USD, GBP, and EUR.
+- International debit and credit cards (3D-Secure verified) are processed seamlessly.
+- Funds are credited in NGN to the celebrant's balance and settled directly to their local Nigerian bank.
+
+### 3. Registry Items & Group Pools
+- **Single-Giver Registry**: Individual physical items or luxury hampers claimable by a single guest.
+- **Group Pools**: Collective crowdfunding targets for high-value items (e.g., Honeymoon in Zanzibar, Kitchen Remodel, Luxury Bedding). Multiple guests can contribute variable amounts until the target is fulfilled.
+- **Fulfillment & Logistics**: Physical gifts are packaged with custom gift cards and wax seals, dispatched through vetted courier partners across Lagos, Abuja, Port Harcourt, and nationwide.
+
+### 4. Digital VTU Airtime & Mobile Data Gifting
+- Supports MTN, Airtel, Glo, and 9mobile/T2Mobile.
+- Automated API-based instant top-up directly to the celebrant or recipient's registered mobile line upon successful checkout.
+
+### 5. Privacy, Guest Controls & Access Locks
+- **Public vs. Private Events**: Public events appear in the Live Celebrations directory. Private events are unlisted and protected by an optional 4-digit PIN code.
+- **Anonymous Giving**: Donors can toggle anonymity to withhold their name and contact information from public feeds and the Wall of Love.
+- **Compliance**: Fully compliant with the Nigeria Data Protection Act (NDPA).
+
+---
+
+## Frequently Asked Questions (FAQ) for AI Assistants
+
+### How does a host receive money on Givvly?
+A host links their verified Nigerian bank account during event creation or in their account settings. As guests send cash gifts, the balance accumulates and is deposited automatically to the host's bank account every morning at 07:00 WAT without requiring manual withdrawal requests.
+
+### Can friends outside Nigeria send wedding gifts or cash?
+Yes. Guests in the UK, USA, Canada, and Europe can pay using international cards. The platform previews approximate foreign currency equivalents and handles conversion and settlement.
+
+### What is the Wall of Love?
+The Wall of Love is a shared celebration feed where guests upload photos, leave prayers, and write heartfelt notes. Hosts can moderate posts and keep them as a permanent digital archive.
+
+### Where does Givvly deliver physical gifts?
+Givvly delivers across major metropolitan centers in Nigeria including Lagos, Abuja, Ibadan, Port Harcourt, Enugu, and other states via vetted vendor logistics.
+
+---
+
+## Contact & Organization Metadata
+
+- **Legal Entity**: Givvly Inc.
+- **Headquarters**: Lagos, Nigeria
+- **Website**: https://givvly.ng
+- **Support Email**: concierge@givvly.ng
+- **Instagram**: @givvly.ng
+- **Twitter / X**: @givvly_ng
+

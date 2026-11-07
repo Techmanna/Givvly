@@ -19,15 +19,23 @@ describe("NotificationBell Component", () => {
   });
 
   it("handles object envelope { notifications: [...], unreadCount: 1 } without throwing filter error", async () => {
-    vi.spyOn(notifApi, "fetchNotifications").mockResolvedValue([
-      {
-        id: "notif_1",
-        title: "Gift Received! 🎁",
-        body: "Adaobi sent ₦25,000 to your Wedding Registry",
-        read: false,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+    vi.spyOn(notifApi, "fetchNotifications").mockResolvedValue({
+      notifications: [
+        {
+          id: "notif_1",
+          title: "Gift Received! 🎁",
+          body: "Adaobi sent ₦25,000 to your Wedding Registry",
+          read: false,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      unreadCount: 1,
+      total: 1,
+      page: 1,
+      limit: 8,
+      totalPages: 1,
+      hasMore: false,
+    });
 
     renderWithQuery(<NotificationBell />);
 
@@ -38,7 +46,15 @@ describe("NotificationBell Component", () => {
   });
 
   it("handles empty notification list gracefully", async () => {
-    vi.spyOn(notifApi, "fetchNotifications").mockResolvedValue([]);
+    vi.spyOn(notifApi, "fetchNotifications").mockResolvedValue({
+      notifications: [],
+      unreadCount: 0,
+      total: 0,
+      page: 1,
+      limit: 8,
+      totalPages: 1,
+      hasMore: false,
+    });
 
     renderWithQuery(<NotificationBell />);
 

@@ -76,6 +76,12 @@ export class NotificationResponseDto {
   @ApiProperty({ enum: NotifStatus, example: NotifStatus.SENT })
   status: NotifStatus;
 
+  @ApiPropertyOptional({ example: false })
+  read?: boolean;
+
+  @ApiPropertyOptional({ example: "/events/my-slug" })
+  href?: string;
+
   @ApiPropertyOptional({ example: "2026-11-03T11:30:00.000Z" })
   readAt?: Date | null;
 
@@ -89,4 +95,19 @@ export class NotificationsListResponseDto {
 
   @ApiProperty({ example: 3, description: "Number of unread notifications" })
   unreadCount: number;
+
+  @ApiPropertyOptional({ example: 25 })
+  total?: number;
+
+  @ApiPropertyOptional({ example: 1 })
+  page?: number;
+
+  @ApiPropertyOptional({ example: 20 })
+  limit?: number;
+
+  @ApiPropertyOptional({ example: 2 })
+  totalPages?: number;
+
+  @ApiPropertyOptional({ example: true })
+  hasMore?: boolean;
 }

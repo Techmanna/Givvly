@@ -1,5 +1,16 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
+
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description:
+    "Rules, policies, and terms governing celebrations, cash gifts, and physical gift orders on Givvly.",
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
 
 export default function TermsOfServicePage() {
   return (
@@ -29,4 +40,3 @@ export default function TermsOfServicePage() {
     </div>
   );
 }
-

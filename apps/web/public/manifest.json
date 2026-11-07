@@ -1,0 +1,31 @@
+{
+  "name": "Givvly — Events-first Gifting & Registry Platform",
+  "short_name": "Givvly",
+  "description": "Create elegant wedding and celebration registries, collect cash gifts, and receive curated gifts across Nigeria and the diaspora.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF7F2",
+  "theme_color": "#8C6A3E",
+  "icons": [
+    {
+      "src": "/images/favicon-icons/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/favicon-icons/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/favicon-icons/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/favicon-icons/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,15 +1,18 @@
 import { AnnouncementBar } from "@/components/shared/AnnouncementBar";
 import { MarketingFooter } from "@/components/shared/MarketingFooter";
 import { MarketingHeader } from "@/components/shared/MarketingHeader";
+import { getSession } from "@/features/auth/server";
 import type { ReactNode } from "react";
 
 interface MarketingLayoutProps {
   children: ReactNode;
 }
 
-export default function MarketingLayout({
+export default async function MarketingLayout({
   children,
 }: MarketingLayoutProps) {
+  const user = await getSession();
+
   return (
     <div className="flex min-h-screen flex-col selection:bg-primary/15 selection:text-primary">
       {/* Full-page gift sketch background */}
@@ -24,7 +27,7 @@ export default function MarketingLayout({
       />
       <AnnouncementBar />
 
-      <MarketingHeader />
+      <MarketingHeader initialUser={user} />
 
       <main className="flex-1">{children}</main>
 

@@ -1,90 +1,105 @@
-
-"use client";
-
-import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/shared/PageHeader";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { HelpFaqAccordion, type FaqItem } from "./HelpFaqAccordion";
 
-const faqs = [
+export const metadata: Metadata = {
+  title: "Help Center & FAQ — Registries, Cash Payouts & Gifting",
+  description:
+    "Find clear answers on creating wedding registries, receiving Naira cash payouts at 07:00 WAT, diaspora payments (USD, GBP, EUR), pooled funds, and physical gift delivery.",
+  openGraph: {
+    title: "Help Center & FAQ — Givvly",
+    description:
+      "Frequently asked questions about Givvly's registries, cash gifts, diaspora payments, and delivery across Nigeria.",
+    images: [
+      {
+        url: "/images/og-preview.jpg",
+        width: 1024,
+        height: 614,
+        alt: "Givvly Help Center & FAQ",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Help Center & FAQ — Givvly",
+    description:
+      "Find answers on wedding registries, 07:00 WAT cash payouts, and diaspora gifting.",
+    images: ["/images/og-preview.jpg"],
+  },
+};
+
+const FAQS: FaqItem[] = [
   {
-    question: "When do cash gifts arrive in my bank account?",
+    question: "What is Givvly and how does it work?",
     answer:
-      "Verified payout accounts receive automatic Paystack settlements every morning at 07:00 WAT (Africa/Lagos). Ensure your payout account is verified and eligible for settlement.",
+      "Givvly is Nigeria's premier events-first gifting and registry platform. Hosts create customized celebration websites for weddings, milestone birthdays, baby showers, and send-forths. Guests can view the love story, RSVP, contribute cash gifts in Naira or foreign currencies, fund group items, or purchase curated physical keepsakes that are delivered directly to the celebrant.",
   },
   {
-    question: "Can diaspora guests give from the UK, US, or Europe?",
+    question: "When and how do cash gifts arrive in my Nigerian bank account?",
     answer:
-      "Yes! Guests can preview approximate USD, GBP, or EUR equivalents on the give screen while Paystack processes supported international cards and settles in NGN.",
+      "All cash gifts are automatically settled to your verified Nigerian bank account every morning at 07:00 WAT (Africa/Lagos) via Paystack. There is no manual withdrawal fee or delay—your funds land securely and punctually.",
+  },
+  {
+    question: "Can guests abroad in the UK, US, Canada, or Europe send gifts?",
+    answer:
+      "Yes! Diaspora guests can easily contribute using international debit or credit cards (Visa and Mastercard). On the give screen, guests can preview real-time approximate conversions in USD ($), GBP (£), and EUR (€). Transactions are processed securely by Paystack and settled in Nigerian Naira (NGN) to the celebrant.",
+  },
+  {
+    question: "How do group gift pools and honeymoon funds work?",
+    answer:
+      "Hosts can create pooled funds for high-ticket items—such as a dream honeymoon, a new home appliance, or a master bedroom makeover. Multiple guests can contribute any amount towards the target. Once the pool is funded, the money settles directly into the celebrant's verified bank account.",
+  },
+  {
+    question: "How does physical gift registry and delivery work in Nigeria?",
+    answer:
+      "Celebrants can select luxury items, bespoke hampers, and kitchenware from verified Nigerian vendors. When a guest purchases a physical gift, Givvly coordinates with the merchant for premium packaging, custom gift cards, and insured doorstep delivery across major Nigerian cities including Lagos, Abuja, and Port Harcourt.",
+  },
+  {
+    question: "Can guests gift mobile airtime or data bundles on Givvly?",
+    answer:
+      "Yes! Givvly provides instant VTU airtime and mobile data gifting for all major Nigerian networks—MTN, Airtel, Glo, and 9mobile/T2Mobile. It is an instant, thoughtful gift that delivers value straight to the recipient's phone number.",
+  },
+  {
+    question: "How does Givvly protect my privacy and financial security?",
+    answer:
+      "Givvly adheres strictly to the Nigeria Data Protection Act (NDPA) and PCI-DSS compliance standards through Paystack. We never store full bank credentials or card numbers. Event hosts can also password-protect their events with private access codes, and guests can choose to give completely anonymously on public feeds.",
+  },
+  {
+    question: "What is the Wall of Love?",
+    answer:
+      "The Wall of Love is a digital guestbook attached to each celebration. Friends and family can leave heartfelt prayers, memorable stories, and congratulatory photos. After the event, hosts can cherish these messages forever or export them into a commemorative keepsake.",
   },
 ];
 
 export default function HelpCenterPage() {
-  const [openItems, setOpenItems] = useState<number[]>([0]);
-
-  const toggleItem = (index: number) => {
-    setOpenItems((current) =>
-      current.includes(index)
-        ? current.filter((item) => item !== index)
-        : [...current, index],
-    );
+  const faqStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: FAQS.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer,
+      },
+    })),
   };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader
-        title="Help & Concierge Support"
-        description="Answers to common questions about cash gifts, payouts, and gift deliveries."
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqStructuredData),
+        }}
       />
 
-      <div className="space-y-4">
-        {faqs.map((faq, index) => {
-          const isOpen = openItems.includes(index);
-          const answerId = `faq-answer-${index}`;
+      <PageHeader
+        title="Help & Concierge Support"
+        description="Answers to common questions about cash gifts, daily bank payouts, diaspora payments, and gift deliveries."
+      />
 
-          return (
-            <Card
-              key={faq.question}
-              className={`overflow-hidden rounded-xl  shadow-none transition-all duration300 ${isOpen ? "border-primary/30" : ""
-                }`}
-            >
-              <CardHeader className="p-0">
-                <button
-                  type="button"
-                  aria-expanded={isOpen}
-                  aria-controls={answerId}
-                  onClick={() => toggleItem(index)}
-                  className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
-                >
-                  <CardTitle className="font-display text-base leading-relaxed sm:text-lg">
-                    {faq.question}
-                  </CardTitle>
-
-                  <ChevronDown
-                    aria-hidden="true"
-                    className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 ${isOpen ? "rotate-180" : ""
-                      }`}
-                  />
-                </button>
-              </CardHeader>
-
-              {isOpen && (
-                <CardContent
-                  id={answerId}
-                  className="px-5 pb-5 pt-0 text-sm leading-7 text-ink-muted"
-                >
-                  {faq.answer}
-                </CardContent>
-              )}
-            </Card>
-          );
-        })}
-      </div>
+      <HelpFaqAccordion faqs={FAQS} />
     </div>
   );
 }

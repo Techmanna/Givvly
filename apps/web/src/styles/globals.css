@@ -278,3 +278,11 @@ body {
     }
   }
 }
+
+/* Ensure Paystack inline payment iframe and overlay are always interactable */
+iframe[name="paystack-iframe"],
+iframe#paystack-iframe,
+div[id*="paystack"],
+.paystack-modal {
+  pointer-events: auto !important;
+}

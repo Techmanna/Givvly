@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import {
@@ -10,6 +11,15 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoginForm } from "@/features/auth";
+
+export const metadata: Metadata = {
+  title: "Sign In",
+  description: "Sign in to manage your events, registries, and gifts on Givvly.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function LoginPage({
   searchParams,

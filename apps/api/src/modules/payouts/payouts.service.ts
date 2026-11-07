@@ -3,12 +3,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { PrismaService } from "@/infra/prisma/prisma.service";
 import { PaymentGatewayRegistry } from "@/infra/payments/payment-gateway.registry";
 import { decryptAesGcm } from "@/common/utils/crypto";
 import { ConfigService } from "@nestjs/config";
 import { PayoutStatus } from "@prisma/client";
+import { NotificationsService } from "../notifications/notifications.service";
 
 @Injectable()
 export class PayoutsService {
@@ -18,7 +20,8 @@ export class PayoutsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly gatewayRegistry: PaymentGatewayRegistry,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
+    @Optional() private readonly notifications?: NotificationsService
   ) {
     this.encryptionKey = this.config.get<string>(
       "ENCRYPTION_KEY",
@@ -155,6 +158,26 @@ export class PayoutsService {
       this.logger.log(
         `Payout ${payout.reference} initiated via ${gateway.providerName}: transferCode=${transferRes.transferCode}`
       );
+
+      if (this.notifications && payout.userId) {
+        const user = await this.prisma.user.findUnique({ where: { id: payout.userId } });
+        if (user) {
+          try {
+            await this.notifications.sendPayoutNotification(
+              user.email,
+              user.id,
+              user.name,
+              payout.amountKobo,
+              "NGN",
+              account.bankName || "Bank",
+              account.accountLast4 || "••••",
+              payout.reference
+            );
+          } catch (notifErr: any) {
+            this.logger.warn(`Could not dispatch payout notification: ${notifErr.message}`);
+          }
+        }
+      }
 
       return updated;
     } catch (err: any) {

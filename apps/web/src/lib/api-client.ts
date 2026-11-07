@@ -281,9 +281,15 @@ export async function apiWithMeta<T>(
     const details = errEnvelope?.error?.details;
     const errRequestId = errEnvelope?.error?.requestId ?? requestId;
 
-    if (
+    const isAuthExpired =
       response.status === 401 &&
-      code === "TOKEN_EXPIRED" &&
+      (code === "TOKEN_EXPIRED" ||
+        code === "Unauthorized" ||
+        code === "UNAUTHORIZED" ||
+        code === "UNAUTHENTICATED");
+
+    if (
+      isAuthExpired &&
       !isRetry &&
       typeof window !== "undefined"
     ) {

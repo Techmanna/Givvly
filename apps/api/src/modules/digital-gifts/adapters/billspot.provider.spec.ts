@@ -272,4 +272,53 @@ describe("BillSpotProvider", () => {
       ).rejects.toThrow("BillSpot VTU failure: Insufficient wallet balance");
     });
   });
+
+  describe("Safe measure when BILLSPOT_API_KEY is not configured", () => {
+    let unconfiguredProvider: BillSpotProvider;
+    let mockFetch: any;
+
+    beforeEach(() => {
+      mockFetch = jest.spyOn(global, "fetch" as any);
+      const emptyConfig = {
+        get: jest.fn((key: string, defaultValue?: any) => {
+          if (key === "BILLSPOT_API_KEY") return "";
+          if (key === "BILLSPOT_BASE_URL") return "https://app.billspot.co/api/v1";
+          return defaultValue;
+        }),
+      };
+      unconfiguredProvider = new BillSpotProvider(
+        emptyConfig as unknown as ConfigService,
+        redis as unknown as RedisService
+      );
+    });
+
+    it("does NOT make outbound HTTP request to Billspot when fetching providers and returns fallback providers", async () => {
+      const result = await unconfiguredProvider.getProviders("airtime");
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result.providers.length).toBeGreaterThan(0);
+      expect(result.providers.some((p) => p.slug === "mtn")).toBe(true);
+      expect(result.type).toBe("airtime");
+    });
+
+    it("does NOT make outbound HTTP request to Billspot when fetching data plans and returns fallback plans", async () => {
+      const result = await unconfiguredProvider.getDataPlans("mtn");
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result.plans.length).toBeGreaterThan(0);
+      expect(result.provider.slug).toBe("mtn");
+    });
+
+    it("does NOT make outbound HTTP request to Billspot on purchase or fulfillTopUp and safely simulates success", async () => {
+      const result = await unconfiguredProvider.fulfillTopUp({
+        phoneNumber: "08166551496",
+        operator: "mtn",
+        amountSubunits: 50000,
+        reference: "safe-mock-ref-001",
+        type: "airtime",
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(result.operatorReference).toMatch(/^BillSpotMOCK_/);
+      expect(result.deliveredTo).toBe("08166551496");
+    });
+  });
 });

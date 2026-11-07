@@ -1,0 +1,26 @@
+# Givvly
+
+> The right gift, for every right moment. Nigeria's modern events-first gifting and registry platform.
+
+Givvly enables couples, celebrants, and event hosts to create bespoke digital invitations, manage multi-currency cash funds, collect group contributions, and curate physical gift wishlists with nationwide doorstep delivery.
+
+## Core Capabilities
+
+- **Digital Event Stationery**: Elegant event pages for Nigerian weddings (traditional & white), milestone birthdays, bridal showers, and send-forths. Supports love stories, schedule timelines, Aso-Ebi color palettes, RSVP tracking, and optional 4-digit PIN access locks. Optimized for sharing on WhatsApp and iMessage.
+- **Cash Blessings & Group Pools**: Guests contribute monetary gifts in Naira or foreign currencies. Collective pools allow multiple guests to contribute towards large-ticket items such as honeymoons or home appliances.
+- **Automated Bank Settlement**: All cash funds automatically settle to the host's verified Nigerian bank account every morning at 07:00 WAT (Africa/Lagos) via Paystack without manual withdrawal friction.
+- **Diaspora Giving (UK, US, Canada, Europe)**: Real-time currency conversion previews in USD ($), GBP (£), and EUR (€). International guests pay via standard Visa/Mastercard, settled to the celebrant in NGN.
+- **Curated Physical Gift Registry**: Luxury celebration hampers, artisanal homeware, and appliances from vetted Nigerian vendors, with custom gift-wrapping and nationwide doorstep delivery in Lagos, Abuja, and Port Harcourt.
+- **Instant VTU Airtime & Mobile Data**: Direct digital connectivity gifts for MTN, Airtel, Glo, and 9mobile/T2Mobile.
+- **Wall of Love**: Interactive digital guestbook where guests post heartfelt prayers, photos, and celebration messages, preserved forever as a commemorative keepsake.
+
+## Key URLs
+
+- Homepage: https://givvly.ng
+- Celebrations Directory: https://givvly.ng/celebrations
+- Curated Gift Catalog: https://givvly.ng/gifts
+- Help Center & FAQ: https://givvly.ng/help
+- Create an Event: https://givvly.ng/events/new
+- Sitemap: https://givvly.ng/sitemap.xml
+- Full Documentation: https://givvly.ng/llms-full.txt
+

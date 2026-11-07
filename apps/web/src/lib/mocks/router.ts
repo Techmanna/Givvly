@@ -923,9 +923,15 @@ export async function handleMockApiRequest<T>(
   if (method === "GET" && normalizedPath === "/public/events") {
     const typeFilter = searchParams.get("type");
     const q = (searchParams.get("q") ?? "").trim().toLowerCase();
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
     let publicEvents = db.events
-      .filter((e) => e.status === "PUBLISHED" && e.visibility === "PUBLIC")
+      .filter((e) => {
+        if (e.status !== "PUBLISHED" || e.visibility !== "PUBLIC") return false;
+        // Archived or past-date events are excluded from the public directory list
+        return new Date(e.date) >= todayStart;
+      })
       .map((e) => buildPublicEventFromDetail(e));
 
     if (typeFilter && typeFilter !== "ALL") {
@@ -996,6 +1002,21 @@ export async function handleMockApiRequest<T>(
         createdAt: new Date().toISOString(),
       };
       db.wallByEvent[ev.id] = [post, ...(db.wallByEvent[ev.id] ?? [])];
+
+      if (db.notificationPrefs.inApp !== false) {
+        const snippet = (body.text ?? "").length > 80
+          ? `${(body.text ?? "").slice(0, 77)}...`
+          : (body.text ?? "Shared a message on your wall");
+        db.notifications.unshift({
+          id: `notif_${Date.now()}_wall`,
+          title: `New Wall Message from ${body.authorName}! 💬`,
+          body: `"${snippet}" on "${ev.name}"`,
+          read: false,
+          createdAt: new Date().toISOString(),
+          href: `/e/${ev.slug}#wall`,
+        });
+      }
+
       if (isFlagged) {
         db.moderationQueue.unshift({
           id: `mod_${post.id}`,
@@ -1050,6 +1071,16 @@ export async function handleMockApiRequest<T>(
       }
     }
     db.rsvpsByEvent[ev.id] = existingList;
+    if (db.notificationPrefs.inApp !== false) {
+      db.notifications.unshift({
+        id: `notif_${Date.now()}_rsvp`,
+        title: `New RSVP: ${body.name} (${body.response}) 💌`,
+        body: `${body.name} responded ${body.response} to "${ev.name}".`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        href: `/events/${ev.id}/rsvps`,
+      });
+    }
     return wrapSuccess(record as unknown as T);
   }
 
@@ -1180,6 +1211,18 @@ export async function handleMockApiRequest<T>(
     ev.totalReceivedKobo += item.priceKobo;
     ev.giftCount += 1;
 
+    if (db.notificationPrefs.inApp !== false) {
+      const giver = payment.anonymous ? "A Friend" : (payment.giverName || "A Friend");
+      db.notifications.unshift({
+        id: `notif_${Date.now()}_item`,
+        title: `Registry Gift: ${item.title} from ${giver}! 🎁`,
+        body: `${giver} just purchased "${item.title}" from your registry for "${ev.name}".`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        href: `/events/${ev.id}`,
+      });
+    }
+
     if (opts.idempotencyKey) {
       db.idempotencyCache[opts.idempotencyKey] = payment;
     }
@@ -1267,6 +1310,19 @@ export async function handleMockApiRequest<T>(
     ev.totalReceivedKobo += body.amountKobo;
     ev.giftCount += 1;
 
+    if (db.notificationPrefs.inApp !== false) {
+      const amountDisplay = `₦${(body.amountKobo / 100).toLocaleString()}`;
+      const giver = payment.anonymous ? "A Friend" : (payment.giverName || "A Friend");
+      db.notifications.unshift({
+        id: `notif_${Date.now()}_pool`,
+        title: `Pool Contribution: ${amountDisplay} from ${giver}! 🎁`,
+        body: `${giver} contributed ${amountDisplay} towards "${pool.title}" for "${ev.name}".`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        href: `/events/${ev.id}`,
+      });
+    }
+
     if (opts.idempotencyKey) {
       db.idempotencyCache[opts.idempotencyKey] = payment;
     }
@@ -1337,6 +1393,19 @@ export async function handleMockApiRequest<T>(
     db.giftsByEvent[ev.id] = [newGift, ...(db.giftsByEvent[ev.id] ?? [])];
     ev.totalReceivedKobo += body.amountKobo;
     ev.giftCount += 1;
+
+    if (db.notificationPrefs.inApp !== false) {
+      const amountDisplay = `₦${(body.amountKobo / 100).toLocaleString()}`;
+      const giver = payment.anonymous ? "A Friend" : (payment.giverName || "A Friend");
+      db.notifications.unshift({
+        id: `notif_${Date.now()}_gift`,
+        title: `New Gift: ${amountDisplay} from ${giver}! 🎁`,
+        body: `${giver} just gifted you ${amountDisplay} for "${ev.name}".`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        href: `/events/${ev.id}`,
+      });
+    }
 
     if (body.message) {
       const wallPost: WallPost = {
@@ -1729,7 +1798,91 @@ export async function handleMockApiRequest<T>(
 
   // --- NOTIFICATIONS ---
   if (method === "GET" && normalizedPath === "/notifications") {
-    return wrapSuccess(db.notifications as unknown as T);
+    // Process event milestone lifecycle in mock mode
+    if (db.notificationPrefs.inApp !== false) {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+      for (const ev of db.events) {
+        const evDate = new Date(ev.date);
+
+        // 1. Celebration day reached
+        if (evDate >= todayStart && evDate <= todayEnd && ev.status === "PUBLISHED") {
+          const alreadyNotified = db.notifications.some(
+            (n) =>
+              n.id === `notif_day_${ev.id}` ||
+              (n.title.includes(ev.name) && n.title.includes("Celebration Day"))
+          );
+          if (!alreadyNotified) {
+            db.notifications.unshift({
+              id: `notif_day_${ev.id}`,
+              title: `It's Celebration Day! 🎉 Today is ${ev.name}`,
+              body: `Wishing you a joyful and memorable day! Your guests can view your story, sign your wall, and gift.`,
+              read: false,
+              createdAt: new Date().toISOString(),
+              href: `/e/${ev.slug}`,
+            });
+          }
+        }
+
+        // 2. Event has ended: archive from public lists and notify host
+        if (evDate < todayStart) {
+          if (ev.status === "PUBLISHED") {
+            ev.status = "ARCHIVED";
+          }
+          const alreadyNotified = db.notifications.some(
+            (n) =>
+              n.id === `notif_ended_${ev.id}` ||
+              (n.title.includes(ev.name) && n.title.includes("Concluded"))
+          );
+          if (!alreadyNotified) {
+            db.notifications.unshift({
+              id: `notif_ended_${ev.id}`,
+              title: `Celebration Concluded: ${ev.name} 🥂`,
+              body: `Your celebration date has ended. It is now archived from public listings, but your celebration page remains active for keepsakes and gifts.`,
+              read: false,
+              createdAt: new Date().toISOString(),
+              href: `/e/${ev.slug}`,
+            });
+          }
+        }
+      }
+    }
+
+    const unreadOnly =
+      searchParams.get("unread") === "true" ||
+      searchParams.get("unread") === "1";
+    const limit = Math.max(1, parseInt(searchParams.get("limit") || "20", 10));
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+
+    let list = db.notifications;
+    if (unreadOnly) {
+      list = list.filter((n) => !n.read);
+    }
+    const unreadCount = db.notifications.filter((n) => !n.read).length;
+    const total = list.length;
+    const skip = (page - 1) * limit;
+    const paginated = list.slice(skip, skip + limit);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const hasMore = page < totalPages;
+
+    return wrapSuccess({
+      notifications: paginated,
+      unreadCount,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasMore,
+    } as unknown as T);
+  }
+
+  if (method === "POST" && normalizedPath === "/notifications/read-all") {
+    db.notifications.forEach((n) => {
+      n.read = true;
+    });
+    return wrapSuccess({ success: true } as unknown as T);
   }
 
   const notifReadMatch = /^\/notifications\/([^/]+)\/read$/.exec(

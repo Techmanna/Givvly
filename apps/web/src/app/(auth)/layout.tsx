@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -9,7 +10,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           href="/"
           className="font-heading text-3xl font-bold tracking-tight text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
-          Givvly
+          <BrandLogo />
         </Link>
       </div>
       <div className="w-full max-w-md">{children}</div>

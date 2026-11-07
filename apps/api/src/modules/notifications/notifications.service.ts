@@ -31,7 +31,10 @@ export class NotificationsService {
   ) { }
 
   /**
-   * Check user preferences for category & channel
+   * Check user preferences for category & channel.
+   * If a specific category preference is set (e.g. GIFTS, EVENTS), it is respected.
+   * If not set, falls back to the channel-level GENERAL preference (e.g. global email/in-app toggle).
+   * Transactional security alerts always bypass preferences.
    */
   private async isNotificationEnabled(
     userId: string | undefined,
@@ -39,8 +42,9 @@ export class NotificationsService {
     category: string
   ): Promise<boolean> {
     if (!userId) return true; // Direct/guest communications are sent by default
+    if (category === "SECURITY") return true; // Security emails are mandatory transactions
 
-    const pref = await this.prisma.notificationPref.findUnique({
+    const specificPref = await this.prisma.notificationPref.findUnique({
       where: {
         userId_channel_category: {
           userId,
@@ -50,7 +54,27 @@ export class NotificationsService {
       },
     });
 
-    return pref ? pref.enabled : true;
+    if (specificPref !== null) {
+      return specificPref.enabled;
+    }
+
+    if (category !== "GENERAL") {
+      const generalPref = await this.prisma.notificationPref.findUnique({
+        where: {
+          userId_channel_category: {
+            userId,
+            channel,
+            category: "GENERAL",
+          },
+        },
+      });
+
+      if (generalPref !== null) {
+        return generalPref.enabled;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -217,38 +241,48 @@ export class NotificationsService {
     amountKobo: number,
     currency = "NGN",
     message?: string,
-    eventName?: string
+    eventName?: string,
+    eventSlug?: string,
+    eventId?: string
   ) {
     const formattedAmount = formatSubunitsToDisplay(amountKobo, currency);
-    const title = `New Gift: ${formattedAmount} from ${giverName}!`;
+    const title = `New Gift: ${formattedAmount} from ${giverName}! 🎁`;
     const body = `${giverName} just gifted you ${formattedAmount} for ${eventName || "your celebration"}.`;
+    const targetUrl = eventSlug ? `/e/${eventSlug}` : eventId ? `/events/${eventId}` : "/dashboard";
     const html = this.emailService.renderTemplate(
       title,
       `
-      <h2>You Received a New Gift! 🥳</h2>
+      <h2>You Received a New Gift! 🥳🎁</h2>
       <p>Hi ${hostName},</p>
-      <p><strong>${giverName}</strong> just sent you a gift of <strong>${formattedAmount}</strong>!</p>
+      <p><strong>${giverName}</strong> just sent you a gift of <strong>${formattedAmount}</strong> for <strong>${eventName || "your celebration"}</strong>!</p>
       ${message
         ? `<blockquote style="border-left: 3px solid #d97706; margin: 20px 0; padding-left: 16px; color: #44403c; font-style: italic;">"${message}"</blockquote>`
         : ""
       }
-      <p>Check your celebration dashboard to send a thank-you note or track your payout.</p>
+      <p style="text-align: center;">
+        <a href="${targetUrl}" class="btn">View Celebration</a>
+      </p>
+      <p style="font-size: 13px; color: #78716c; margin-top: 24px;">Check your celebration dashboard to send a thank-you note or track your payout.</p>
       `
     );
 
     // Dispatch email and in-app notifications concurrently
     await Promise.all([
-      this.notify({
-        userId: hostUserId,
-        toAddress: to,
-        channel: Channel.EMAIL,
-        type: "HOST_GIFT_RECEIVED",
-        category: "GIFTS",
-        title,
-        body,
-        html,
-        data: { giverName, amountKobo, currency, message, eventName },
-      }),
+      ...(to
+        ? [
+            this.notify({
+              userId: hostUserId,
+              toAddress: to,
+              channel: Channel.EMAIL,
+              type: "HOST_GIFT_RECEIVED",
+              category: "GIFTS",
+              title,
+              body,
+              html,
+              data: { giverName, amountKobo, currency, message, eventName, eventId, eventSlug, href: targetUrl },
+            }),
+          ]
+        : []),
       this.notify({
         userId: hostUserId,
         channel: Channel.IN_APP,
@@ -256,7 +290,259 @@ export class NotificationsService {
         category: "GIFTS",
         title,
         body,
-        data: { giverName, amountKobo, currency, message, eventName },
+        data: { giverName, amountKobo, currency, message, eventName, eventId, eventSlug, href: targetUrl },
+      }),
+    ]);
+  }
+
+  async sendHostWallPostEmail(
+    to: string,
+    hostUserId: string,
+    hostName: string,
+    authorName: string,
+    text: string,
+    eventName: string,
+    eventSlug: string,
+    eventId: string
+  ) {
+    const title = `New Wall Message from ${authorName}! 💬`;
+    const snippet = text.length > 120 ? `${text.slice(0, 117)}...` : text;
+    const body = `${authorName} left a message on "${eventName}": "${snippet}"`;
+    const eventUrl = `/e/${eventSlug}#wall`;
+
+    const html = this.emailService.renderTemplate(
+      title,
+      `
+      <h2>New Message on Your Celebration Wall! 💬</h2>
+      <p>Hi ${hostName},</p>
+      <p><strong>${authorName}</strong> just posted a new message on your celebration <strong>${eventName}</strong>:</p>
+      <blockquote style="border-left: 3px solid #d97706; margin: 20px 0; padding-left: 16px; color: #44403c; font-style: italic;">
+        "${text}"
+      </blockquote>
+      <p style="text-align: center;">
+        <a href="${eventUrl}" class="btn">View Celebration Wall</a>
+      </p>
+      `
+    );
+
+    await Promise.all([
+      ...(to
+        ? [
+            this.notify({
+              userId: hostUserId,
+              toAddress: to,
+              channel: Channel.EMAIL,
+              type: "WALL_POST_CREATED",
+              category: "EVENTS",
+              title,
+              body,
+              html,
+              data: { authorName, text, eventName, eventSlug, eventId, href: eventUrl },
+            }),
+          ]
+        : []),
+      this.notify({
+        userId: hostUserId,
+        channel: Channel.IN_APP,
+        type: "WALL_POST_CREATED",
+        category: "EVENTS",
+        title,
+        body,
+        data: { authorName, text, eventName, eventSlug, eventId, href: eventUrl },
+      }),
+    ]);
+  }
+
+  async sendEventDayNotification(
+    to: string,
+    hostUserId: string,
+    hostName: string,
+    eventName: string,
+    eventSlug: string,
+    eventId: string
+  ) {
+    const title = `It's Celebration Day! 🎉 Today is ${eventName}`;
+    const body = `Wishing you a joyful and memorable celebration today! Your guests can view your story, sign your wall, and gift.`;
+    const eventUrl = `/e/${eventSlug}`;
+
+    const html = this.emailService.renderTemplate(
+      title,
+      `
+      <h2>It's Your Big Day! 🎈🥳</h2>
+      <p>Hi ${hostName},</p>
+      <p>Today is the day! Wishing you the most joyful, vibrant, and unforgettable celebration for <strong>${eventName}</strong>.</p>
+      <p>Your celebration page is live for guests to view your story, post blessings on your wall, and send gifts.</p>
+      <p style="text-align: center;">
+        <a href="${eventUrl}" class="btn">Open Celebration Page</a>
+      </p>
+      `
+    );
+
+    await Promise.all([
+      ...(to
+        ? [
+            this.notify({
+              userId: hostUserId,
+              toAddress: to,
+              channel: Channel.EMAIL,
+              type: "EVENT_DAY_REACHED",
+              category: "EVENTS",
+              title,
+              body,
+              html,
+              data: { eventName, eventSlug, eventId, href: eventUrl },
+            }),
+          ]
+        : []),
+      this.notify({
+        userId: hostUserId,
+        channel: Channel.IN_APP,
+        type: "EVENT_DAY_REACHED",
+        category: "EVENTS",
+        title,
+        body,
+        data: { eventName, eventSlug, eventId, href: eventUrl },
+      }),
+    ]);
+  }
+
+  async sendEventEndedNotification(
+    to: string,
+    hostUserId: string,
+    hostName: string,
+    eventName: string,
+    eventSlug: string,
+    eventId: string
+  ) {
+    const title = `Celebration Concluded: ${eventName} 🥂`;
+    const body = `Your celebration date has ended. It is now archived from public listings, but your celebration page remains active so guests can still view keepsakes and gift.`;
+    const eventUrl = `/e/${eventSlug}`;
+
+    const html = this.emailService.renderTemplate(
+      title,
+      `
+      <h2>Congratulations on Your Celebration! 🥂✨</h2>
+      <p>Hi ${hostName},</p>
+      <p>Your celebration <strong>${eventName}</strong> date has concluded. We hope it was everything you dreamed of and more!</p>
+      <p>As scheduled, the event is now archived from the public explore directory, but <strong>your celebration page and registry remain active</strong>.</p>
+      <p>Guests can continue to visit your page directly, view your story and wall messages, and send lingering gifts.</p>
+      <p style="text-align: center;">
+        <a href="${eventUrl}" class="btn">View Celebration Page</a>
+      </p>
+      `
+    );
+
+    await Promise.all([
+      ...(to
+        ? [
+            this.notify({
+              userId: hostUserId,
+              toAddress: to,
+              channel: Channel.EMAIL,
+              type: "EVENT_ENDED_ARCHIVED",
+              category: "EVENTS",
+              title,
+              body,
+              html,
+              data: { eventName, eventSlug, eventId, href: eventUrl },
+            }),
+          ]
+        : []),
+      this.notify({
+        userId: hostUserId,
+        channel: Channel.IN_APP,
+        type: "EVENT_ENDED_ARCHIVED",
+        category: "EVENTS",
+        title,
+        body,
+        data: { eventName, eventSlug, eventId, href: eventUrl },
+      }),
+    ]);
+  }
+
+  async sendHostRsvpNotification(
+    to: string,
+    hostUserId: string,
+    hostName: string,
+    guestName: string,
+    response: string,
+    eventName: string,
+    eventSlug: string,
+    eventId: string
+  ) {
+    const title = `New RSVP: ${guestName} (${response}) 💌`;
+    const body = `${guestName} responded ${response} to "${eventName}".`;
+    const rsvpUrl = `/events/${eventId}/rsvps`;
+
+    await Promise.all([
+      this.notify({
+        userId: hostUserId,
+        channel: Channel.IN_APP,
+        type: "RSVP_RECEIVED",
+        category: "EVENTS",
+        title,
+        body,
+        data: { guestName, response, eventName, eventSlug, eventId, href: rsvpUrl },
+      }),
+    ]);
+  }
+
+  async sendPayoutNotification(
+    to: string,
+    userId: string,
+    userName: string,
+    amountKobo: number,
+    currency = "NGN",
+    bankName: string,
+    accountLast4: string,
+    reference: string
+  ) {
+    const formattedAmount = formatSubunitsToDisplay(amountKobo, currency);
+    const title = `Payout Initiated: ${formattedAmount} 💳`;
+    const body = `A transfer of ${formattedAmount} to ${bankName} (•••• ${accountLast4}) has been queued. Ref: ${reference}`;
+    const walletUrl = "/account/wallet";
+
+    const html = this.emailService.renderTemplate(
+      title,
+      `
+      <h2>Your Payout is on the Way! 💳</h2>
+      <p>Hi ${userName},</p>
+      <p>A transfer of <strong>${formattedAmount}</strong> to your bank account at <strong>${bankName} (•••• ${accountLast4})</strong> has been initiated.</p>
+      <div style="background: #f5f5f4; border-radius: 8px; padding: 16px; margin: 20px 0;">
+        <p style="margin: 0 0 8px;"><strong>Amount:</strong> ${formattedAmount}</p>
+        <p style="margin: 0 0 8px;"><strong>Bank:</strong> ${bankName} (•••• ${accountLast4})</p>
+        <p style="margin: 0;"><strong>Reference:</strong> ${reference}</p>
+      </div>
+      <p style="text-align: center;">
+        <a href="${walletUrl}" class="btn">View Wallet & Settlements</a>
+      </p>
+      `
+    );
+
+    await Promise.all([
+      ...(to
+        ? [
+            this.notify({
+              userId,
+              toAddress: to,
+              channel: Channel.EMAIL,
+              type: "PAYOUT_INITIATED",
+              category: "WALLET",
+              title,
+              body,
+              html,
+              data: { amountKobo, currency, bankName, accountLast4, reference, href: walletUrl },
+            }),
+          ]
+        : []),
+      this.notify({
+        userId,
+        channel: Channel.IN_APP,
+        type: "PAYOUT_INITIATED",
+        category: "WALLET",
+        title,
+        body,
+        data: { amountKobo, currency, bankName, accountLast4, reference, href: walletUrl },
       }),
     ]);
   }
@@ -300,24 +586,52 @@ export class NotificationsService {
 
   // ==================== IN-APP NOTIFICATIONS ====================
 
-  async getNotifications(userId: string, unreadOnly = false, limit = 20) {
+  async getNotifications(
+    userId: string,
+    unreadOnly = false,
+    limit = 20,
+    page = 1
+  ) {
     const where: any = { userId };
     if (unreadOnly) {
       where.readAt = null;
     }
 
-    const [notifications, unreadCount] = await Promise.all([
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const safePage = Math.max(1, page);
+    const skip = (safePage - 1) * safeLimit;
+
+    const [dbNotifications, total, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        take: limit,
+        skip,
+        take: safeLimit,
       }),
+      this.prisma.notification.count({ where }),
       this.prisma.notification.count({
         where: { userId, readAt: null },
       }),
     ]);
 
-    return { notifications, unreadCount };
+    const notifications = dbNotifications.map((n) => ({
+      ...n,
+      read: Boolean(n.readAt),
+      href: (n.data as any)?.href || (n.data as any)?.url || undefined,
+    }));
+
+    const totalPages = Math.ceil(total / safeLimit);
+    const hasMore = safePage < totalPages;
+
+    return {
+      notifications,
+      unreadCount,
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages,
+      hasMore,
+    };
   }
 
   async markAsRead(notificationId: string, userId: string) {

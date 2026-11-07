@@ -167,7 +167,7 @@ export class AuthController {
       sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60 * 1000,
       domain: domain || undefined,
-      path: "/api/v1/auth",
+      path: "/",
     });
 
     res.cookie("givvly_csrf", tokens.csrfToken, {
@@ -184,7 +184,7 @@ export class AuthController {
     const domain = this.configService.get("COOKIE_DOMAIN");
     res.clearCookie("givvly_at", { path: "/", domain: domain || undefined });
     res.clearCookie("givvly_rt", {
-      path: "/api/v1/auth",
+      path: "/",
       domain: domain || undefined,
     });
     res.clearCookie("givvly_csrf", { path: "/", domain: domain || undefined });

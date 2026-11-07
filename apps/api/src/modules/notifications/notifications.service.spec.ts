@@ -104,6 +104,31 @@ describe("NotificationsService", () => {
       expect(result).toBeNull();
       expect(emailService.send).not.toHaveBeenCalled();
     });
+
+    it("suppresses notification when category is unconfigured but general channel preference is disabled", async () => {
+      // First call for specific category (GIFTS) returns null
+      prisma.notificationPref.findUnique.mockResolvedValueOnce(null);
+      // Second call for GENERAL category returns disabled
+      prisma.notificationPref.findUnique.mockResolvedValueOnce({
+        userId: "user-1",
+        channel: Channel.EMAIL,
+        category: "GENERAL",
+        enabled: false,
+      });
+
+      const result = await service.notify({
+        userId: "user-1",
+        toAddress: "test@example.com",
+        channel: Channel.EMAIL,
+        type: "GIFT_INFO",
+        category: "GIFTS",
+        title: "Gift notification",
+        body: "You got a gift",
+      });
+
+      expect(result).toBeNull();
+      expect(emailService.send).not.toHaveBeenCalled();
+    });
   });
 
   describe("Host Gift Received Notification", () => {
@@ -116,11 +141,79 @@ describe("NotificationsService", () => {
         5000000,
         "NGN",
         "Happy Birthday!",
-        "Tola's 30th"
+        "Tola's 30th",
+        "tolas-30th",
+        "ev-1"
       );
 
       expect(emailService.send).toHaveBeenCalled();
       expect(prisma.notification.create).toHaveBeenCalledTimes(2); // 1 email, 1 in-app
+    });
+  });
+
+  describe("Wall Post & Comment Notification", () => {
+    it("sends both email and in-app notifications for wall posts", async () => {
+      await service.sendHostWallPostEmail(
+        "host@example.com",
+        "user-host",
+        "Tola",
+        "Chioma",
+        "So happy for you guys! Congratulations!",
+        "Tola's 30th",
+        "tolas-30th",
+        "ev-1"
+      );
+
+      expect(emailService.send).toHaveBeenCalled();
+      expect(prisma.notification.create).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("Event Milestones", () => {
+    it("sends celebration day notification", async () => {
+      await service.sendEventDayNotification(
+        "host@example.com",
+        "user-host",
+        "Tola",
+        "Tola's 30th",
+        "tolas-30th",
+        "ev-1"
+      );
+
+      expect(emailService.send).toHaveBeenCalled();
+      expect(prisma.notification.create).toHaveBeenCalledTimes(2);
+    });
+
+    it("sends event concluded/archived notification", async () => {
+      await service.sendEventEndedNotification(
+        "host@example.com",
+        "user-host",
+        "Tola",
+        "Tola's 30th",
+        "tolas-30th",
+        "ev-1"
+      );
+
+      expect(emailService.send).toHaveBeenCalled();
+      expect(prisma.notification.create).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("Payout & Wallet Notifications", () => {
+    it("sends payout initiated notification", async () => {
+      await service.sendPayoutNotification(
+        "host@example.com",
+        "user-host",
+        "Tola",
+        2500000,
+        "NGN",
+        "GTBank",
+        "1234",
+        "payout_ref_1"
+      );
+
+      expect(emailService.send).toHaveBeenCalled();
+      expect(prisma.notification.create).toHaveBeenCalledTimes(2);
     });
   });
 

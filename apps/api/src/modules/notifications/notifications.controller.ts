@@ -43,18 +43,26 @@ export class NotificationsController {
   @ApiOperation({ summary: "Get notifications for authenticated user" })
   @ApiQuery({ name: "unread", required: false, type: Boolean })
   @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiQuery({ name: "page", required: false, type: Number })
   @ApiOkResponse({
-    description: "List of notifications and unread count.",
+    description: "List of notifications, unread count, and pagination metadata.",
     type: NotificationsListResponseDto,
   })
   async getNotifications(
     @CurrentUser() user: { id: string },
     @Query("unread") unread?: string,
-    @Query("limit") limit?: string
+    @Query("limit") limit?: string,
+    @Query("page") page?: string
   ): Promise<NotificationsListResponseDto> {
     const isUnread = unread === "true" || unread === "1";
     const take = limit ? Number(limit) : 20;
-    return this.notificationsService.getNotifications(user.id, isUnread, take) as any;
+    const pageNum = page ? Number(page) : 1;
+    return this.notificationsService.getNotifications(
+      user.id,
+      isUnread,
+      take,
+      pageNum
+    ) as any;
   }
 
   @Patch("notifications/:id/read")

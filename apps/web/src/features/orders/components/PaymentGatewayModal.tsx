@@ -53,6 +53,7 @@ export function PaymentGatewayModal({
 }: PaymentGatewayModalProps) {
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [isConfirmed, setIsConfirmed] = React.useState(false);
+  const [isPaystackActive, setIsPaystackActive] = React.useState(false);
   const [showWalletPanel, setShowWalletPanel] = React.useState(false);
   const [walletPin, setWalletPin] = React.useState("");
   const [newWalletPin, setNewWalletPin] = React.useState("");
@@ -76,6 +77,7 @@ export function PaymentGatewayModal({
 
   const handleLaunchPaystack = async () => {
     setIsProcessing(true);
+    setIsPaystackActive(true);
     try {
       const res = await openPaystackCheckout({
         email: paymentDetails.email,
@@ -83,6 +85,7 @@ export function PaymentGatewayModal({
         reference: paymentDetails.reference,
         accessCode: paymentDetails.accessCode,
         onComplete: async (ref) => {
+          setIsPaystackActive(false);
           setIsConfirmed(true);
           try {
             await verifyOrderPayment(order.id);
@@ -95,6 +98,7 @@ export function PaymentGatewayModal({
           }, 1200);
         },
         onDismiss: () => {
+          setIsPaystackActive(false);
           setIsProcessing(false);
           toast.info(
             "Payment window dismissed. You can retry whenever you're ready."
@@ -103,6 +107,7 @@ export function PaymentGatewayModal({
       });
 
       if (!res.opened) {
+        setIsPaystackActive(false);
         if (paymentDetails.authorizationUrl) {
           window.location.href = paymentDetails.authorizationUrl;
         } else {
@@ -111,6 +116,7 @@ export function PaymentGatewayModal({
         }
       }
     } catch {
+      setIsPaystackActive(false);
       setIsProcessing(false);
       toast.error("An error occurred launching Paystack.");
     }
@@ -187,7 +193,14 @@ export function PaymentGatewayModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog
+      open={isOpen && !isPaystackActive}
+      onOpenChange={(open) => {
+        if (!open && !isPaystackActive) {
+          onClose();
+        }
+      }}
+    >
       <DialogContent className="max-w-md sm:max-w-lg p-6 sm:p-8">
         <DialogHeader className="space-y-2">
           <div className="flex items-center justify-between">

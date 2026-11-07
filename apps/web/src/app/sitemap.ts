@@ -1,64 +1,100 @@
 import type { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://givvly.ng";
+  const siteUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    "https://givvly.ng"
+  ).replace(/\/$/, "");
+
   const now = new Date();
 
   return [
     {
-      url: `${baseUrl}/`,
+      url: `${siteUrl}/`,
       lastModified: now,
       changeFrequency: "daily",
-      priority: 1,
+      priority: 1.0,
     },
     {
-      url: `${baseUrl}/gifts`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/celebrations`,
+      url: `${siteUrl}/celebrations`,
       lastModified: now,
       changeFrequency: "hourly",
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/e/adaobi-and-chidi-2026`,
+      url: `${siteUrl}/gifts`,
       lastModified: now,
-      changeFrequency: "hourly",
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
+    {
+      url: `${siteUrl}/help`,
+      lastModified: now,
+      changeFrequency: "weekly",
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/e/tunde-golden-40th-lagos`,
+      url: `${siteUrl}/signup`,
       lastModified: now,
-      changeFrequency: "hourly",
-      priority: 0.8,
+      changeFrequency: "monthly",
+      priority: 0.7,
     },
     {
-      url: `${baseUrl}/e/prof-nwosu-send-forth`,
+      url: `${siteUrl}/login`,
       lastModified: now,
-      changeFrequency: "hourly",
-      priority: 0.8,
+      changeFrequency: "monthly",
+      priority: 0.5,
     },
     {
-      url: `${baseUrl}/privacy`,
+      url: `${siteUrl}/privacy`,
       lastModified: now,
       changeFrequency: "monthly",
       priority: 0.3,
     },
     {
-      url: `${baseUrl}/terms`,
+      url: `${siteUrl}/terms`,
       lastModified: now,
       changeFrequency: "monthly",
       priority: 0.3,
     },
+    // Curated Anchor Celebrations
     {
-      url: `${baseUrl}/help`,
+      url: `${siteUrl}/e/adaobi-and-chidi-2026`,
       lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.4,
+      changeFrequency: "hourly",
+      priority: 0.85,
+    },
+    {
+      url: `${siteUrl}/e/tunde-golden-40th-lagos`,
+      lastModified: now,
+      changeFrequency: "hourly",
+      priority: 0.8,
+    },
+    {
+      url: `${siteUrl}/e/prof-nwosu-send-forth`,
+      lastModified: now,
+      changeFrequency: "hourly",
+      priority: 0.8,
+    },
+    // Curated Catalog Highlights
+    {
+      url: `${siteUrl}/gifts/lagos-champagne-celebration-hamper`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.75,
+    },
+    {
+      url: `${siteUrl}/gifts/smeg-retro-kettle-toaster-duo`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.75,
+    },
+    {
+      url: `${siteUrl}/gifts/oriire-handwoven-aso-oke-throw`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.75,
     },
   ];
 }
-

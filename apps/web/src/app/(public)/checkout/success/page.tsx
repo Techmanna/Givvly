@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CheckCircle2, Package, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getSession } from "@/features/auth/server";
 
 export default async function CheckoutSuccessPage({
   searchParams,
@@ -9,6 +10,7 @@ export default async function CheckoutSuccessPage({
   searchParams: Promise<{ orderId?: string }>;
 }) {
   const { orderId } = await searchParams;
+   const user = await getSession();
 
   return (
     <main className="mx-auto flex max-w-lg flex-col items-center justify-center px-4 py-16">
@@ -29,7 +31,8 @@ export default async function CheckoutSuccessPage({
           </div>
 
           <div className="flex flex-col gap-2.5 sm:flex-row sm:justify-center">
-            {orderId && (
+            {/* only show if there is orderId and user is auth */}
+            {orderId && user && (
               <>
                 <Button asChild className="gap-1.5">
                   <Link href={`/track/${encodeURIComponent(orderId)}`}>

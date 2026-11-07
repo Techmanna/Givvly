@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { EventUnlockForm } from "@/features/events";
 
 export const metadata: Metadata = {
-  title: "Unlock private event | Givvly",
+  title: "Unlock private event",
   robots: { index: false, follow: false },
 };
 

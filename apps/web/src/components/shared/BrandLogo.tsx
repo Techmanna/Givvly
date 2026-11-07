@@ -1,45 +1,32 @@
 import Link from "next/link";
+import { cn } from "@/lib/cn";
+import Image from "next/image";
 
-interface BrandLogoProps {
+export interface BrandLogoProps {
     variant?: "header" | "footer";
+    href?: string;
+    showTagline?: boolean;
+    className?: string;
 }
 
-export function BrandLogo({ variant = "header" }: BrandLogoProps) {
+export function BrandLogo({
+    variant = "header",
+    href = "/",
+    className,
+}: BrandLogoProps) {
     const isHeader = variant === "header";
 
     return (
         <Link
-            href="/"
+            href={href}
             aria-label="Givvly home"
-            className={
-                isHeader
-                    ? "group inline-flex items-center gap-3 focus:outline-none"
-                    : "inline-flex items-center gap-2.5"
-            }
+            className={cn(
+                "group inline-flex items-center focus:outline-hidden",
+                isHeader ? "gap-2.5 sm:gap-3" : "gap-2.5",
+                className
+            )}
         >
-            <span
-                className={`flex shrink-0 items-center justify-center rounded-full border border-accent/50 bg-primary/10 font-heading font-semibold text-primary ${isHeader ? "h-10 w-10 text-lg" : "h-8 w-8 text-sm"
-                    } ${isHeader ? "transition-transform duration-300 group-hover:scale-105" : ""}`}
-            >
-                G
-            </span>
-
-            <div className={isHeader ? "flex flex-col" : ""}>
-                <span
-                    className={`font-heading font-semibold text-foreground ${isHeader
-                            ? "text-2xl tracking-tight"
-                            : "text-xl"
-                        }`}
-                >
-                    Givvly
-                </span>
-
-                {isHeader && (
-                    <span className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-                        The Right Gift, For the Right Moment
-                    </span>
-                )}
-            </div>
+            <Image src="/images/givvly-logo.png" alt="Givvly Logo" width={70} height={50} />
         </Link>
     );
 }

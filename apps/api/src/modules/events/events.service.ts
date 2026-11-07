@@ -5,11 +5,14 @@ import {
   BadRequestException,
   ForbiddenException,
   Optional,
+  Logger,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "@/infra/prisma/prisma.service";
 import { PaystackService } from "@/infra/paystack/paystack.service";
 import { StorageProviderRegistry } from "@/infra/storage/storage-provider.registry";
+import { NotificationsService } from "../notifications/notifications.service";
 import { isSafeMediaUrl } from "@/infra/storage/file-security.util";
 import { encryptAesGcm, hmacString } from "@/common/utils/crypto";
 import {
@@ -85,11 +88,14 @@ function slugify(name: string): string {
 
 @Injectable()
 export class EventsService {
+  private readonly logger = new Logger(EventsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     @Optional() private readonly paystack?: PaystackService,
-    @Optional() private readonly storageRegistry?: StorageProviderRegistry
+    @Optional() private readonly storageRegistry?: StorageProviderRegistry,
+    @Optional() private readonly notifications?: NotificationsService
   ) {}
 
   private resolveCoverStorageValue(
@@ -645,7 +651,11 @@ export class EventsService {
       },
     });
 
-    if (!event || event.status !== "PUBLISHED") {
+    if (
+      !event ||
+      (event.status !== EventStatus.PUBLISHED &&
+        event.status !== EventStatus.ARCHIVED)
+    ) {
       throw new NotFoundException(`Celebration event '${slug}' was not found or is not published yet`);
     }
 
@@ -712,10 +722,19 @@ export class EventsService {
   }
 
   async getPublicEventsList() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+    // Trigger milestone check asynchronously
+    this.checkAndNotifyEventMilestones().catch((err) =>
+      this.logger.warn(`Milestone processor error: ${err.message}`)
+    );
+
     const events = await this.prisma.event.findMany({
       where: {
-        status: "PUBLISHED",
-        visibility: "PUBLIC",
+        status: EventStatus.PUBLISHED,
+        visibility: Visibility.PUBLIC,
+        date: { gte: todayStart },
       },
       include: {
         owner: { select: { name: true } },
@@ -810,7 +829,13 @@ export class EventsService {
   async createPublicWallPost(slug: string, dto: CreateWallPostRequestDto) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
-      select: { id: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        ownerId: true,
+        owner: { select: { id: true, name: true, email: true } },
+      },
     });
 
     if (!event) {
@@ -858,6 +883,23 @@ export class EventsService {
       include: { media: true },
     });
 
+    if (this.notifications && event.owner) {
+      try {
+        await this.notifications.sendHostWallPostEmail(
+          event.owner.email,
+          event.owner.id,
+          event.owner.name,
+          dto.authorName.trim(),
+          dto.text?.trim() || "Shared a post on your celebration wall",
+          event.name,
+          event.slug,
+          event.id
+        );
+      } catch (err: any) {
+        this.logger.warn(`Could not dispatch wall post notification: ${err.message}`);
+      }
+    }
+
     return {
       id: post.id,
       authorName: post.authorName,
@@ -874,7 +916,13 @@ export class EventsService {
   async submitPublicRsvp(slug: string, dto: SubmitRsvpRequestDto) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
-      select: { id: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        ownerId: true,
+        owner: { select: { id: true, name: true, email: true } },
+      },
     });
 
     if (!event) {
@@ -911,6 +959,23 @@ export class EventsService {
       },
     });
 
+    if (this.notifications && event.owner) {
+      try {
+        await this.notifications.sendHostRsvpNotification(
+          event.owner.email,
+          event.owner.id,
+          event.owner.name,
+          dto.name.trim(),
+          dto.response,
+          event.name,
+          event.slug,
+          event.id
+        );
+      } catch (err: any) {
+        this.logger.warn(`Could not dispatch RSVP notification: ${err.message}`);
+      }
+    }
+
     return {
       id: rsvp.id,
       eventId: rsvp.eventId,
@@ -921,6 +986,96 @@ export class EventsService {
       plusOneName: rsvp.plusOneName,
       createdAt: rsvp.createdAt,
     };
+  }
+
+  // --- Scheduled Event Milestone & Lifecycle Processor ---
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async checkAndNotifyEventMilestones() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    // 1. Events that are today: notify host that today is celebration day
+    const todayEvents = await this.prisma.event.findMany({
+      where: {
+        status: EventStatus.PUBLISHED,
+        date: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
+      include: { owner: true },
+    });
+
+    for (const ev of todayEvents) {
+      if (!ev.owner || !this.notifications) continue;
+      const existingNotif = await this.prisma.notification.findFirst({
+        where: {
+          userId: ev.ownerId,
+          type: "EVENT_DAY_REACHED",
+          body: { contains: ev.name },
+        },
+      });
+
+      if (!existingNotif) {
+        try {
+          await this.notifications.sendEventDayNotification(
+            ev.owner.email,
+            ev.owner.id,
+            ev.owner.name,
+            ev.name,
+            ev.slug,
+            ev.id
+          );
+        } catch (err: any) {
+          this.logger.warn(`Could not dispatch event day notification for ${ev.slug}: ${err.message}`);
+        }
+      }
+    }
+
+    // 2. Events that have ended: archive from public lists and notify host
+    const endedEvents = await this.prisma.event.findMany({
+      where: {
+        status: EventStatus.PUBLISHED,
+        date: {
+          lt: todayStart,
+        },
+      },
+      include: { owner: true },
+    });
+
+    for (const ev of endedEvents) {
+      // Archive so it drops off public directory listings while preserving event details page
+      await this.prisma.event.update({
+        where: { id: ev.id },
+        data: { status: EventStatus.ARCHIVED },
+      });
+
+      if (!ev.owner || !this.notifications) continue;
+      const existingNotif = await this.prisma.notification.findFirst({
+        where: {
+          userId: ev.ownerId,
+          type: "EVENT_ENDED_ARCHIVED",
+          body: { contains: ev.name },
+        },
+      });
+
+      if (!existingNotif) {
+        try {
+          await this.notifications.sendEventEndedNotification(
+            ev.owner.email,
+            ev.owner.id,
+            ev.owner.name,
+            ev.name,
+            ev.slug,
+            ev.id
+          );
+        } catch (err: any) {
+          this.logger.warn(`Could not dispatch event ended notification for ${ev.slug}: ${err.message}`);
+        }
+      }
+    }
   }
 
   // --- Host Event Management Methods ---

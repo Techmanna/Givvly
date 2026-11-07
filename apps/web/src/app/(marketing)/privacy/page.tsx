@@ -1,5 +1,16 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description:
+    "How Givvly protects your personal data, bank details, and privacy under the Nigeria Data Protection Act (NDPA).",
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
 
 export default function PrivacyPolicyPage() {
   return (
@@ -29,4 +40,3 @@ export default function PrivacyPolicyPage() {
     </div>
   );
 }
-
