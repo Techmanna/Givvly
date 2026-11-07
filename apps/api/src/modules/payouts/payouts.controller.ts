@@ -32,8 +32,14 @@ export class PayoutsController {
   @Get("payouts")
   @ApiOperation({ summary: "List payout transfer history for celebration host" })
   @ApiOkResponse({ description: "List of user payouts." })
-  async getMyPayouts(@CurrentUser("id") userId: string) {
-    return this.payoutsService.getUserPayouts(userId);
+  async getMyPayouts(
+    @CurrentUser("id") userId: string,
+    @Query("limit") limit?: string
+  ) {
+    return this.payoutsService.getUserPayouts(
+      userId,
+      limit ? Number(limit) : undefined
+    );
   }
 
   @Post(["payouts/request", "payout-accounts/request"])

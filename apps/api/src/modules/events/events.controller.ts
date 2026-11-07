@@ -6,6 +6,7 @@ import {
   Put,
   Body,
   Param,
+  Query,
   UseGuards,
   UsePipes,
   ValidationPipe,
@@ -94,9 +95,13 @@ export class EventsController {
     type: [WallPostResponseDto],
   })
   async getPublicWall(
-    @Param("slug") slug: string
+    @Param("slug") slug: string,
+    @Query("limit") limit?: string
   ): Promise<WallPostResponseDto[]> {
-    return this.eventsService.getPublicWall(slug) as any;
+    return this.eventsService.getPublicWall(
+      slug,
+      limit ? Number(limit) : undefined
+    ) as any;
   }
 
   @Public()

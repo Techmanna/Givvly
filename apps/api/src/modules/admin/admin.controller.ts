@@ -290,8 +290,14 @@ export class AdminController {
   @Get("events")
   @ApiOperation({ summary: "List all celebration events across the platform with metrics" })
   @ApiOkResponse({ description: "All events with computed gift and attendance stats." })
-  async getEvents() {
-    return this.adminService.getEvents();
+  async getEvents(
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string
+  ) {
+    return this.adminService.getEvents({
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
   }
 
   // ==================== PAYMENTS ====================
@@ -299,8 +305,14 @@ export class AdminController {
   @Get("payments")
   @ApiOperation({ summary: "List payment inflows from gifts and hampers" })
   @ApiOkResponse({ description: "Payment records." })
-  async getPayments() {
-    return this.adminService.getPayments();
+  async getPayments(
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string
+  ) {
+    return this.adminService.getPayments({
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
   }
 
   // ==================== VENDORS (LEGACY PARTNERS) ====================
@@ -308,7 +320,13 @@ export class AdminController {
   @Get("vendors")
   @ApiOperation({ summary: "List legacy vendor partners for audit" })
   @ApiOkResponse({ description: "Legacy vendors." })
-  async getVendors() {
-    return this.adminService.getVendors();
+  async getVendors(
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string
+  ) {
+    return this.adminService.getVendors({
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
   }
 }
