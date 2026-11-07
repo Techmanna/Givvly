@@ -144,7 +144,7 @@ export function RegistryGrid({
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link href={`/catalog?event=${encodeURIComponent(slug)}`}>
+            <Link href={`/gifts?event=${encodeURIComponent(slug)}`}>
               <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Browse Gift Catalog</span>
             </Link>
@@ -212,7 +212,7 @@ export function RegistryGrid({
                   </Button>
                 ) : isFlexibleWish ? (
                   <Button asChild size="sm" variant="outline">
-                    <Link href={`/catalog?event=${encodeURIComponent(slug)}`}>
+                    <Link href={`/gifts?event=${encodeURIComponent(slug)}`}>
                       <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>Choose a Catalog Gift</span>
                     </Link>
@@ -254,7 +254,7 @@ export function RegistryGrid({
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-            <Link href={`/catalog?event=${encodeURIComponent(slug)}`}>
+            <Link href={`/gifts?event=${encodeURIComponent(slug)}`}>
               <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
               <span>All Gifts</span>
             </Link>

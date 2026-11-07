@@ -231,7 +231,7 @@ export function PublicEventView({ event }: PublicEventViewProps) {
                     className="w-full rounded-full text-xs"
                   >
                     <Link
-                      href={`/catalog?event=${encodeURIComponent(event.slug)}`}
+                      href={`/gifts?event=${encodeURIComponent(event.slug)}`}
                     >
                       <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>Gift Catalog</span>

@@ -41,6 +41,11 @@ const nextConfig: NextConfig = {
         destination: "/reset-password",
         permanent: false,
       },
+      {
+        source: "/catalog",
+        destination: "/gifts",
+        permanent: false,
+      },
     ];
   },
   async rewrites() {

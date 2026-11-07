@@ -7,27 +7,41 @@ import { CheckoutForm } from "@/features/orders";
 
 export default async function DirectCheckoutPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ event?: string }>;
 }) {
   const { slug } = await params;
+  const { event } = (await searchParams) ?? {};
   const lower = slug.toLowerCase();
+  const eventQuery = event ? `?event=${encodeURIComponent(event)}` : "";
 
   if (lower === "billspot-vtu-data-bundle-gift") {
-    redirect("/checkout/data");
+    redirect(`/checkout/data${eventQuery}`);
   }
   if (lower === "billspot-vtu-airtime-gift") {
-    redirect("/checkout/airtime");
+    redirect(`/checkout/airtime${eventQuery}`);
   }
 
   const isVtuRoute = lower === "airtime" || lower === "data";
+  const backHref = event
+    ? `/e/${encodeURIComponent(event)}`
+    : isVtuRoute
+      ? `/digital${eventQuery}`
+      : `/gifts/${encodeURIComponent(slug)}`;
+  const backLabel = event
+    ? "Back to celebration"
+    : isVtuRoute
+      ? "Back to digital gifts"
+      : "Back to product";
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
       <Button asChild variant="ghost" size="sm" className="-ml-2 gap-1.5">
-        <Link href={isVtuRoute ? "/gifts" : `/gifts/${encodeURIComponent(slug)}`}>
+        <Link href={backHref}>
           <ArrowLeft className="h-4 w-4" />
-          {isVtuRoute ? "Back to gift catalog" : "Back to product"}
+          {backLabel}
         </Link>
       </Button>
 
