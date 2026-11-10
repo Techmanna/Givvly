@@ -334,8 +334,8 @@ export async function handleMockApiRequest<T>(
       email?: string;
       phone?: string;
     };
-    const email = (body.email ?? "newuser@givvly.vercel.app").toLowerCase();
-    if (email === "taken@givvly.vercel.app") {
+    const email = (body.email ?? "newuser@givvly.store").toLowerCase();
+    if (email === "taken@givvly.store") {
       throwMockError(409, "EMAIL_TAKEN", "Email is already registered");
     }
     const newUser: User = {
@@ -439,7 +439,7 @@ export async function handleMockApiRequest<T>(
     );
     const mediaId = `med_${Date.now()}`;
     const key = `uploads/${(body.purpose ?? "cover_image").toLowerCase()}/${mediaId}_${safeName}`;
-    const publicUrl = `https://cdn.givvly.vercel.app/${key}`;
+    const publicUrl = `https://cdn.givvly.store/${key}`;
     const res: PresignUploadResponse = {
       mediaId,
       uploadUrl: `mock://upload/${key}`,
@@ -457,7 +457,7 @@ export async function handleMockApiRequest<T>(
   if (method === "POST" && uploadCompleteMatch) {
     const mediaId = decodeURIComponent(uploadCompleteMatch[1]!);
     const key = `uploads/completed/${mediaId}.jpg`;
-    const publicUrl = `https://cdn.givvly.vercel.app/${key}`;
+    const publicUrl = `https://cdn.givvly.store/${key}`;
     return wrapSuccess({
       mediaId,
       key,
@@ -586,7 +586,7 @@ export async function handleMockApiRequest<T>(
       date: body.date,
       coverUrl:
         body.coverUrl ||
-        (body.coverKey ? `https://cdn.givvly.vercel.app/${body.coverKey}` : undefined),
+        (body.coverKey ? `https://cdn.givvly.store/${body.coverKey}` : undefined),
       visibility: body.visibility,
       accessCode: body.accessCode,
       status: "DRAFT",
@@ -1868,7 +1868,7 @@ export async function handleMockApiRequest<T>(
         buyerEmail:
           body.buyerEmail ||
           resolveUserFromCookie(opts.cookieHeader)?.email ||
-          "guest@givvly.vercel.app",
+          "guest@givvly.store",
         trackingToken: `trk_${Math.random().toString(36).slice(2, 12)}`,
         address: body.address
           ? `${body.address.street}, ${body.address.area}, ${body.address.city}, ${body.address.state}`
@@ -2266,7 +2266,7 @@ export async function handleMockApiRequest<T>(
     }
     const detail = {
       ...order,
-      buyerEmail: "buyer@givvly.vercel.app",
+      buyerEmail: "buyer@givvly.store",
       buyerUserId: "usr_buyer_01",
       recipientEmail: "recipient@example.com",
       recipientPhone: "08031234567",
@@ -2295,7 +2295,7 @@ export async function handleMockApiRequest<T>(
         amountKobo: order.totalKobo,
         status: "SUCCESS",
         provider: "paystack",
-        payerEmail: "buyer@givvly.vercel.app",
+        payerEmail: "buyer@givvly.store",
         createdAt: order.timeline?.[0]?.at ?? new Date().toISOString(),
       },
       history: (order.timeline ?? []).map((t, idx) => ({
@@ -2322,7 +2322,7 @@ export async function handleMockApiRequest<T>(
       {
         id: "usr_vendor_01",
         name: "Lagos Luxe Hampers",
-        email: "vendor@givvly.vercel.app",
+        email: "vendor@givvly.store",
         productCount: db.products.length,
         status: "VERIFIED",
       },
@@ -2359,14 +2359,14 @@ export async function handleMockApiRequest<T>(
       {
         id: "usr_chidi",
         name: "Chidi Nwosu",
-        email: "chidi@givvly.vercel.app",
+        email: "chidi@givvly.store",
         phone: "08031234567",
         lastSentAt: new Date(Date.now() - 172_800_000).toISOString(),
       },
       {
         id: "usr_tunde",
         name: "Tunde Bakare",
-        email: "tunde@givvly.vercel.app",
+        email: "tunde@givvly.store",
         phone: "08166551496",
         lastSentAt: new Date(Date.now() - 345_600_000).toISOString(),
       },
@@ -2601,7 +2601,7 @@ export async function handleMockApiRequest<T>(
     const recipientRecord = {
       id: `usr_${Date.now()}`,
       name: toTarget || "Givvly Member",
-      email: isPhone ? "member@givvly.vercel.app" : toTarget || "member@givvly.vercel.app",
+      email: isPhone ? "member@givvly.store" : toTarget || "member@givvly.store",
       phone: isPhone ? toTarget : null,
     };
     mockWalletState.transactions.unshift({

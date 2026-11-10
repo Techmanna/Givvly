@@ -56,7 +56,7 @@ pnpm --filter @givvly/api seed
 
 ### 4.1 Paystack Webhook Configuration
 
-- **Webhook URL**: `https://api.givvly.vercel.app/api/v1/webhooks/paystack`
+- **Webhook URL**: `https://api.givvly.store/api/v1/webhooks/paystack`
 - **Secret Key**: Set `PAYSTACK_SECRET_KEY` in environment variables.
 - **Header**: Paystack sends `x-paystack-signature` computed as HMAC-SHA512 of the exact raw request body.
 

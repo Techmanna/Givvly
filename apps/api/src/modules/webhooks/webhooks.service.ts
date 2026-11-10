@@ -808,7 +808,7 @@ export class WebhooksService {
 
     if (this.notifications && orderNotifTask) {
       try {
-        const trackingUrl = `https://givvly.vercel.app/track/${orderNotifTask.trackingToken}`;
+        const trackingUrl = `https://givvly.store/track/${orderNotifTask.trackingToken}`;
         await this.notifications.sendOrderConfirmedEmail(
           orderNotifTask.buyerEmail,
           orderNotifTask.buyerUserId,

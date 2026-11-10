@@ -121,7 +121,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
             size="sm"
             disabled={isSubmitting}
             className="h-8 text-xs font-medium bg-card hover:bg-secondary/10 hover:border-secondary/40"
-            onClick={() => handleQuickLogin("adaobi@givvly.vercel.app")}
+            onClick={() => handleQuickLogin("adaobi@givvly.store")}
           >
             User (Adaobi)
           </Button>
@@ -131,7 +131,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
             size="sm"
             disabled={isSubmitting}
             className="h-8 text-xs font-medium bg-card hover:bg-secondary/10 hover:border-secondary/40"
-            onClick={() => handleQuickLogin("admin@givvly.vercel.app")}
+            onClick={() => handleQuickLogin("admin@givvly.store")}
           >
             Admin (Tunde)
           </Button>

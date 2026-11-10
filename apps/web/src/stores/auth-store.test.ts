@@ -13,13 +13,13 @@ describe("useAuthStore", () => {
     useAuthStore.getState().setUser({
       id: "usr_1",
       name: "Chidi",
-      email: "chidi@givvly.vercel.app",
+      email: "chidi@givvly.store",
       role: "USER",
       emailVerified: true,
     });
 
     expect(useAuthStore.getState().status).toBe("authed");
-    expect(useAuthStore.getState().user?.email).toBe("chidi@givvly.vercel.app");
+    expect(useAuthStore.getState().user?.email).toBe("chidi@givvly.store");
 
     useAuthStore.getState().clear();
     expect(useAuthStore.getState().status).toBe("guest");

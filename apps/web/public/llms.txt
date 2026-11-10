@@ -16,11 +16,11 @@ Givvly enables couples, celebrants, and event hosts to create bespoke digital in
 
 ## Key URLs
 
-- Homepage: https://givvly.vercel.app
-- Celebrations Directory: https://givvly.vercel.app/celebrations
-- Curated Gift Catalog: https://givvly.vercel.app/gifts
-- Help Center & FAQ: https://givvly.vercel.app/help
-- Create an Event: https://givvly.vercel.app/events/new
-- Sitemap: https://givvly.vercel.app/sitemap.xml
-- Full Documentation: https://givvly.vercel.app/llms-full.txt
+- Homepage: https://givvly.store
+- Celebrations Directory: https://givvly.store/celebrations
+- Curated Gift Catalog: https://givvly.store/gifts
+- Help Center & FAQ: https://givvly.store/help
+- Create an Event: https://givvly.store/events/new
+- Sitemap: https://givvly.store/sitemap.xml
+- Full Documentation: https://givvly.store/llms-full.txt
 

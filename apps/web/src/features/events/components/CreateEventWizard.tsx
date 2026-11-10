@@ -1140,7 +1140,7 @@ export function CreateEventWizard() {
             ) : null}
           </div>
           <p className="font-mono text-[11px] text-muted-foreground">
-            Link preview: givvly.vercel.app/e/{previewSlug}
+            Link preview: givvly.store/e/{previewSlug}
           </p>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
@@ -1180,8 +1180,8 @@ export function CreateEventWizard() {
                       onClick={() => updateDraft({ type: t })}
                       aria-pressed={draft.type === t}
                       className={`min-h-11 rounded-control border px-3 py-2 text-left text-sm font-medium transition-colors ${draft.type === t
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-card text-foreground hover:bg-muted"
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-card text-foreground hover:bg-muted"
                         }`}
                     >
                       {EVENT_TYPE_LABELS[t]}
@@ -1241,10 +1241,10 @@ export function CreateEventWizard() {
                       creatorDefaultHost.toLowerCase()
                     }
                     className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${!draft.hostName.trim() ||
-                        draft.hostName.trim().toLowerCase() ===
-                        creatorDefaultHost.toLowerCase()
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/5"
+                      draft.hostName.trim().toLowerCase() ===
+                      creatorDefaultHost.toLowerCase()
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/5"
                       }`}
                   >
                     {creatorDefaultHost} (You • Default)
@@ -1261,8 +1261,8 @@ export function CreateEventWizard() {
                         onClick={() => updateDraft({ hostName: pastHost })}
                         aria-pressed={isSelected}
                         className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${isSelected
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/5"
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/5"
                           }`}
                       >
                         {pastHost}
@@ -1448,8 +1448,8 @@ export function CreateEventWizard() {
                   onClick={() => updateDraft({ visibility: "PUBLIC" })}
                   aria-pressed={draft.visibility === "PUBLIC"}
                   className={`rounded-card border p-4 text-left transition-colors ${draft.visibility === "PUBLIC"
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-card hover:bg-muted"
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-card hover:bg-muted"
                     }`}
                 >
                   <div className="flex items-center justify-between">
@@ -1476,8 +1476,8 @@ export function CreateEventWizard() {
                   }
                   aria-pressed={draft.visibility === "PRIVATE"}
                   className={`rounded-card border p-4 text-left transition-colors ${draft.visibility === "PRIVATE"
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-card hover:bg-muted"
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-card hover:bg-muted"
                     }`}
                 >
                   <p className="font-heading text-base font-semibold text-foreground">
@@ -1880,7 +1880,7 @@ export function CreateEventWizard() {
                 <div className="flex justify-between gap-3 py-2">
                   <dt className="text-muted-foreground">Public link</dt>
                   <dd className="truncate font-mono text-xs font-medium text-foreground">
-                    givvly.vercel.app/e/{previewSlug}
+                    givvly.store/e/{previewSlug}
                   </dd>
                 </div>
                 <div className="flex justify-between py-2">

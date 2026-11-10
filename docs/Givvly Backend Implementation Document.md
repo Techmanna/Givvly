@@ -659,7 +659,7 @@ System ledger accounts to seed: `PROVIDER_CLEARING` (asset), `PLATFORM_REVENUE` 
 | GET    | `/me/sessions`              | Auth           | none                                                   | 200 list of sessions (device, last used)                                   |
 | DELETE | `/me/sessions/:id`          | Auth           | none                                                   | 204                                                                        |
 
-Token design: access JWT (15 minutes) with claims `sub`, `role`, `sid`, `iat`, `exp`; refresh token is 256-bit random, stored only as a SHA-256 hash, 30-day lifetime, rotated on each use. Cookies: `givvly_at` (HttpOnly, path `/`), `givvly_rt` (HttpOnly, path `/api/v1/auth`), `givvly_csrf` (readable, SameSite=Lax), all `Secure` with `Domain=.givvly.vercel.app` in production.
+Token design: access JWT (15 minutes) with claims `sub`, `role`, `sid`, `iat`, `exp`; refresh token is 256-bit random, stored only as a SHA-256 hash, 30-day lifetime, rotated on each use. Cookies: `givvly_at` (HttpOnly, path `/`), `givvly_rt` (HttpOnly, path `/api/v1/auth`), `givvly_csrf` (readable, SameSite=Lax), all `Secure` with `Domain=.givvly.store` in production.
 
 ### 6.3 Account and payout accounts
 
@@ -1113,7 +1113,7 @@ The backend has no screens. Its "UX" is how predictable the API is for developer
 
 ### 12.3 Message design and delivery rules
 
-- Email: MJML and Handlebars templates, responsive, plain-text alternative, one primary call to action, unsubscribe link on non-transactional mail, sender `Givvly <no-reply@givvly.vercel.app>` with SPF, DKIM and DMARC set. Subject lines under 60 characters and specific ("Chidi sent you a gift").
+- Email: MJML and Handlebars templates, responsive, plain-text alternative, one primary call to action, unsubscribe link on non-transactional mail, sender `Givvly <no-reply@givvly.store>` with SPF, DKIM and DMARC set. Subject lines under 60 characters and specific ("Chidi sent you a gift").
 - SMS and WhatsApp: short templates (WhatsApp requires pre-approved templates for business-initiated messages), no sensitive data, respect each user's channel preferences and quiet hours (default 22:00 to 07:00 Lagos for non-transactional). Keep an opt-out path.
 - Preferences are stored per channel and category; security alerts bypass preferences.
 - Idempotent sending: a `Notification` row has a deterministic dedupe key (`type:entityId:channel:recipient`) so retries never double-send.
@@ -1384,9 +1384,9 @@ Validate all variables with zod at boot; the process exits with a clear message 
 
 ### 16.6 First-time setup and go-live checklist
 
-- Provision environments, secrets, DNS (`api.givvly.vercel.app`), TLS, email domain (SPF, DKIM, DMARC), storage and CDN.
+- Provision environments, secrets, DNS (`api.givvly.store`), TLS, email domain (SPF, DKIM, DMARC), storage and CDN.
 - Run migrations and seed system data: ledger accounts (`PROVIDER_CLEARING`, `PLATFORM_REVENUE`, `PROVIDER_FEES`, `REFUNDS`), invite templates, collections, an admin user with 2FA.
-- Configure Paystack: live keys, webhook URL `https://api.givvly.vercel.app/api/v1/webhooks/paystack`, transfers enabled on the account (and confirm any OTP requirement for transfers is disabled for API-initiated payouts), IP allowlist if offered.
+- Configure Paystack: live keys, webhook URL `https://api.givvly.store/api/v1/webhooks/paystack`, transfers enabled on the account (and confirm any OTP requirement for transfers is disabled for API-initiated payouts), IP allowlist if offered.
 - Verify: signature check with a live test event, a real small payment end to end, payout lands, reconciliation job passes, refund path works.
 - Alerts and dashboards live (Section 17); on-call rota and runbooks published; legal pages and consent in place; penetration test findings closed.
 

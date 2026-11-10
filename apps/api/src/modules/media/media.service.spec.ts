@@ -56,7 +56,7 @@ describe("MediaService", () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string) => {
-              if (key === "CDN_BASE_URL") return "https://cdn.givvly.vercel.app";
+              if (key === "CDN_BASE_URL") return "https://cdn.givvly.store";
               if (key === "STORAGE_PROVIDER") return "DISK";
               if (key === "STORAGE_DISK_DIR") return "/tmp/givvly-media-spec";
               return undefined;
@@ -88,7 +88,7 @@ describe("MediaService", () => {
       expect(result.mediaId).toBeDefined();
       expect(result.key).toContain("uploads/cover_image/");
       expect(result.key).toContain(".jpg");
-      expect(result.uploadUrl).toContain("https://cdn.givvly.vercel.app/raw-upload/");
+      expect(result.uploadUrl).toContain("https://cdn.givvly.store/raw-upload/");
       expect(result.method).toBe("PUT");
       expect(result.kind).toBe("IMAGE");
       expect(prisma.media.create).toHaveBeenCalled();
@@ -148,7 +148,7 @@ describe("MediaService", () => {
       expect(uploaded.status).toBe(MediaStatus.READY);
       expect(uploaded.kind).toBe("IMAGE");
       expect(uploaded.key).toContain("uploads/product/");
-      expect(uploaded.url).toContain("https://cdn.givvly.vercel.app/uploads/product/");
+      expect(uploaded.url).toContain("https://cdn.givvly.store/uploads/product/");
     });
 
     it("blocks direct upload when binary magic bytes do not match declared MIME", async () => {
@@ -168,7 +168,7 @@ describe("MediaService", () => {
     it("transitions media to READY and returns public URL", async () => {
       const completed = await service.completeUpload("media-1", { id: "user-1" });
       expect(completed.status).toBe(MediaStatus.READY);
-      expect(completed.url).toBe("https://cdn.givvly.vercel.app/uploads/cover_image/media-1.jpg");
+      expect(completed.url).toBe("https://cdn.givvly.store/uploads/cover_image/media-1.jpg");
     });
 
     it("rejects completion if caller is not the owner or admin", async () => {

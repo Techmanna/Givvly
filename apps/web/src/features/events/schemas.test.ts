@@ -151,8 +151,8 @@ describe("validateClientMediaFile & isVideoMediaUrl", () => {
 
     await expect(validateClientMediaFile(imgFile)).resolves.toBeUndefined();
     await expect(validateClientMediaFile(vidFile)).resolves.toBeUndefined();
-    expect(isVideoMediaUrl("https://cdn.givvly.vercel.app/uploads/clip.mp4")).toBe(true);
-    expect(isVideoMediaUrl("https://cdn.givvly.vercel.app/uploads/photo.jpg")).toBe(
+    expect(isVideoMediaUrl("https://cdn.givvly.store/uploads/clip.mp4")).toBe(true);
+    expect(isVideoMediaUrl("https://cdn.givvly.store/uploads/photo.jpg")).toBe(
       false
     );
   });

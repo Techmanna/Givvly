@@ -135,7 +135,7 @@ export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
         const previewUrl =
           presign.publicUrl ??
           presign.url ??
-          `https://cdn.givvly.vercel.app/${presign.key}`;
+          `https://cdn.givvly.store/${presign.key}`;
         nextUploaded.push({
           name: file.name,
           url: previewUrl,

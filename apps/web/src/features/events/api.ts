@@ -346,7 +346,7 @@ export async function uploadMediaFile(
   const resolvedUrl =
     presigned.publicUrl ||
     presigned.url ||
-    `https://cdn.givvly.vercel.app/${presigned.key}`;
+    `https://cdn.givvly.store/${presigned.key}`;
 
   return {
     mediaId: presigned.mediaId,

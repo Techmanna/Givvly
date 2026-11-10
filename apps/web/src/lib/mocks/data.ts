@@ -121,7 +121,7 @@ export const MOCK_USERS: Record<string, User> = {
   user: {
     id: "usr_adaobi_01",
     name: "Adaobi Okafor",
-    email: "adaobi@givvly.vercel.app",
+    email: "adaobi@givvly.store",
     phone: "+2348031234567",
     role: "USER",
     emailVerified: true,
@@ -129,7 +129,7 @@ export const MOCK_USERS: Record<string, User> = {
   vendor: {
     id: "usr_vendor_01",
     name: "Lagos Luxe Hampers",
-    email: "vendor@givvly.vercel.app",
+    email: "vendor@givvly.store",
     phone: "+2348098765432",
     role: "ADMIN",
     emailVerified: true,
@@ -137,7 +137,7 @@ export const MOCK_USERS: Record<string, User> = {
   admin: {
     id: "usr_admin_01",
     name: "Tunde Bakare (Admin)",
-    email: "admin@givvly.vercel.app",
+    email: "admin@givvly.store",
     phone: "+2348021112233",
     role: "ADMIN",
     emailVerified: true,

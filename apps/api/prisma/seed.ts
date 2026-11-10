@@ -56,7 +56,7 @@ async function main() {
   // 1. Users (Admin, Hosts, and Guests)
   console.log("👤 Seeding users...");
   const adminUser = await prisma.user.upsert({
-    where: { email: "admin@givvly.vercel.app" },
+    where: { email: "admin@givvly.store" },
     update: {
       role: Role.ADMIN,
       name: "Tunde Bakare (Admin)",
@@ -65,7 +65,7 @@ async function main() {
       phone: "+2348021112233",
     },
     create: {
-      email: "admin@givvly.vercel.app",
+      email: "admin@givvly.store",
       passwordHash,
       name: "Tunde Bakare (Admin)",
       role: Role.ADMIN,
@@ -75,7 +75,7 @@ async function main() {
   });
 
   const hostAdaobi = await prisma.user.upsert({
-    where: { email: "adaobi@givvly.vercel.app" },
+    where: { email: "adaobi@givvly.store" },
     update: {
       name: "Adaobi Okafor",
       role: Role.USER,
@@ -84,7 +84,7 @@ async function main() {
       phone: "+2348031234567",
     },
     create: {
-      email: "adaobi@givvly.vercel.app",
+      email: "adaobi@givvly.store",
       passwordHash,
       name: "Adaobi Okafor",
       role: Role.USER,
@@ -94,7 +94,7 @@ async function main() {
   });
 
   const hostAmara = await prisma.user.upsert({
-    where: { email: "amara@givvly.vercel.app" },
+    where: { email: "amara@givvly.store" },
     update: {
       name: "Amara Nwachukwu",
       role: Role.USER,
@@ -103,7 +103,7 @@ async function main() {
       phone: "+2348055566778",
     },
     create: {
-      email: "amara@givvly.vercel.app",
+      email: "amara@givvly.store",
       passwordHash,
       name: "Amara Nwachukwu",
       role: Role.USER,
@@ -113,7 +113,7 @@ async function main() {
   });
 
   const hostTunde = await prisma.user.upsert({
-    where: { email: "tunde@givvly.vercel.app" },
+    where: { email: "tunde@givvly.store" },
     update: {
       name: "Dr. Tunde Adeleke",
       role: Role.USER,
@@ -122,7 +122,7 @@ async function main() {
       phone: "+2348099900011",
     },
     create: {
-      email: "tunde@givvly.vercel.app",
+      email: "tunde@givvly.store",
       passwordHash,
       name: "Dr. Tunde Adeleke",
       role: Role.USER,
@@ -132,7 +132,7 @@ async function main() {
   });
 
   const guestEmeka = await prisma.user.upsert({
-    where: { email: "emeka@givvly.vercel.app" },
+    where: { email: "emeka@givvly.store" },
     update: {
       name: "Emeka Chinedu",
       role: Role.USER,
@@ -141,7 +141,7 @@ async function main() {
       phone: "+2348123456789",
     },
     create: {
-      email: "emeka@givvly.vercel.app",
+      email: "emeka@givvly.store",
       passwordHash,
       name: "Emeka Chinedu",
       role: Role.USER,
@@ -606,9 +606,9 @@ async function main() {
     data: [
       {
         eventId: weddingEvent.id,
-        contactKey: "emeka@givvly.vercel.app",
+        contactKey: "emeka@givvly.store",
         name: "Emeka Chinedu",
-        email: "emeka@givvly.vercel.app",
+        email: "emeka@givvly.store",
         phone: "+2348123456789",
         response: RsvpResponse.YES,
         plusOneName: "Chioma Chinedu",
@@ -801,7 +801,7 @@ async function main() {
   const ordersData = [
     {
       number: "GV-2026-ORD001",
-      buyerEmail: "emeka@givvly.vercel.app",
+      buyerEmail: "emeka@givvly.store",
       recipientName: "Adaobi Okafor",
       recipientPhone: "+2348031234567",
       status: OrderStatus.CONFIRMED,

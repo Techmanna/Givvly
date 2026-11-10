@@ -40,7 +40,7 @@ describe("LoginForm & SignupForm", () => {
       user: {
         id: "usr_admin_1",
         name: "Admin User",
-        email: "admin@givvly.vercel.app",
+        email: "admin@givvly.store",
         role: "ADMIN",
         emailVerified: true,
       },
@@ -49,7 +49,7 @@ describe("LoginForm & SignupForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<LoginForm />);
 
-    await user.type(screen.getByLabelText(/email address/i), "admin@givvly.vercel.app");
+    await user.type(screen.getByLabelText(/email address/i), "admin@givvly.store");
     await user.type(screen.getByLabelText(/^password$/i), "ValidPassword123!");
     await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
@@ -64,7 +64,7 @@ describe("LoginForm & SignupForm", () => {
       user: {
         id: "usr_admin_1",
         name: "Admin User",
-        email: "admin@givvly.vercel.app",
+        email: "admin@givvly.store",
         role: "ADMIN",
         emailVerified: true,
       },
@@ -73,7 +73,7 @@ describe("LoginForm & SignupForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<LoginForm />);
 
-    await user.type(screen.getByLabelText(/email address/i), "admin@givvly.vercel.app");
+    await user.type(screen.getByLabelText(/email address/i), "admin@givvly.store");
     await user.type(screen.getByLabelText(/^password$/i), "ValidPassword123!");
     await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
@@ -87,7 +87,7 @@ describe("LoginForm & SignupForm", () => {
       user: {
         id: "usr_adaobi_1",
         name: "Adaobi Okafor",
-        email: "adaobi@givvly.vercel.app",
+        email: "adaobi@givvly.store",
         role: "USER",
         emailVerified: true,
       },
@@ -96,7 +96,7 @@ describe("LoginForm & SignupForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<LoginForm nextPath="/events/new" />);
 
-    await user.type(screen.getByLabelText(/email address/i), "adaobi@givvly.vercel.app");
+    await user.type(screen.getByLabelText(/email address/i), "adaobi@givvly.store");
     await user.type(screen.getByLabelText(/^password$/i), "ValidPassword123!");
     await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
@@ -118,7 +118,7 @@ describe("LoginForm & SignupForm", () => {
     const user = userEvent.setup();
     renderWithQuery(<LoginForm nextPath="/events/new" />);
 
-    await user.type(screen.getByLabelText(/email address/i), "ada@givvly.vercel.app");
+    await user.type(screen.getByLabelText(/email address/i), "ada@givvly.store");
     await user.type(screen.getByLabelText(/^password$/i), "WrongPassword123");
     await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
@@ -134,7 +134,7 @@ describe("LoginForm & SignupForm", () => {
       user: {
         id: "usr_1",
         name: "Adaobi Okafor",
-        email: "ada@givvly.vercel.app",
+        email: "ada@givvly.store",
         role: "USER",
         emailVerified: false,
       },
@@ -145,7 +145,7 @@ describe("LoginForm & SignupForm", () => {
     renderWithQuery(<SignupForm />);
 
     await user.type(screen.getByLabelText(/full name/i), "Adaobi Okafor");
-    await user.type(screen.getByLabelText(/email address/i), "ada@givvly.vercel.app");
+    await user.type(screen.getByLabelText(/email address/i), "ada@givvly.store");
     await user.type(screen.getByLabelText(/^password$/i), "SafePassword99!");
     await user.click(screen.getByRole("checkbox"));
     await user.click(screen.getByRole("button", { name: /create account/i }));

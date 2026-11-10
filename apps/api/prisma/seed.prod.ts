@@ -65,7 +65,7 @@ async function main() {
   // ---------------------------------------------------------------------------
   // 1. Admin User
   // ---------------------------------------------------------------------------
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@givvly.vercel.app";
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@givvly.store";
   const adminPassword = process.env.ADMIN_PASSWORD || "Password123!";
   const adminName = process.env.ADMIN_NAME || "Givvly Administrator";
   const adminPhone = process.env.ADMIN_PHONE || "+2348021112233";

@@ -65,8 +65,8 @@ Givvly delivers across major metropolitan centers in Nigeria including Lagos, Ab
 
 - **Legal Entity**: Givvly Inc.
 - **Headquarters**: Lagos, Nigeria
-- **Website**: https://givvly.vercel.app
-- **Support Email**: concierge@givvly.vercel.app
-- **Instagram**: @givvly.vercel.app
+- **Website**: https://givvly.store
+- **Support Email**: concierge@givvly.store
+- **Instagram**: @givvly.store
 - **Twitter / X**: @givvly_ng
 

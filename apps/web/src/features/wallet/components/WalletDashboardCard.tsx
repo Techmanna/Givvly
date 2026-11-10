@@ -171,7 +171,7 @@ export function WalletDashboardCard() {
     amountKobo: number;
   }) {
     const res = await openPaystackCheckout({
-      email: user?.email || "member@givvly.vercel.app",
+      email: user?.email || "member@givvly.store",
       amountKobo: gatewayInfo.amountKobo,
       reference: gatewayInfo.reference,
       accessCode: gatewayInfo.accessCode || "",
@@ -534,8 +534,8 @@ export function WalletDashboardCard() {
         <div
           role="status"
           className={`rounded-xl border px-4 py-3 text-sm font-medium ${feedback.type === "success"
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-700"
-              : "border-destructive/30 bg-destructive/10 text-destructive"
+            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-700"
+            : "border-destructive/30 bg-destructive/10 text-destructive"
             }`}
         >
           {feedback.text}
@@ -764,8 +764,8 @@ export function WalletDashboardCard() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
             <div
               className={`rounded-xl border p-3.5 ${cbn?.tier === "TIER_1"
-                  ? "border-primary bg-primary/5"
-                  : "border-border bg-background"
+                ? "border-primary bg-primary/5"
+                : "border-border bg-background"
                 }`}
             >
               <div className="flex items-center justify-between">
@@ -784,8 +784,8 @@ export function WalletDashboardCard() {
 
             <div
               className={`rounded-xl border p-3.5 ${cbn?.tier === "TIER_2"
-                  ? "border-primary bg-primary/5"
-                  : "border-border bg-background"
+                ? "border-primary bg-primary/5"
+                : "border-border bg-background"
                 }`}
             >
               <div className="flex items-center justify-between">
@@ -806,8 +806,8 @@ export function WalletDashboardCard() {
 
             <div
               className={`rounded-xl border p-3.5 ${cbn?.tier === "TIER_3"
-                  ? "border-primary bg-primary/5"
-                  : "border-border bg-background"
+                ? "border-primary bg-primary/5"
+                : "border-border bg-background"
                 }`}
             >
               <div className="flex items-center justify-between">
@@ -1045,7 +1045,7 @@ export function WalletDashboardCard() {
                 value={recipientAccount}
                 onChange={(e) => setRecipientAccount(e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                placeholder="friend@givvly.vercel.app or 08031234567"
+                placeholder="friend@givvly.store or 08031234567"
                 required
               />
 
@@ -1065,8 +1065,8 @@ export function WalletDashboardCard() {
                           type="button"
                           onClick={() => setRecipientAccount(identifier)}
                           className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition ${isSelected
-                              ? "border-primary bg-primary/10 font-semibold text-primary"
-                              : "border-border bg-background text-foreground hover:border-primary/40"
+                            ? "border-primary bg-primary/10 font-semibold text-primary"
+                            : "border-border bg-background text-foreground hover:border-primary/40"
                             }`}
                         >
                           <span className="font-medium">{r.name}</span>
@@ -1294,8 +1294,8 @@ export function WalletDashboardCard() {
                   <div className="flex items-center gap-3 min-w-0">
                     <span
                       className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isCredit
-                          ? "bg-emerald-500/10 text-emerald-600"
-                          : "bg-amber-500/10 text-amber-600"
+                        ? "bg-emerald-500/10 text-emerald-600"
+                        : "bg-amber-500/10 text-amber-600"
                         }`}
                     >
                       {isCredit ? (

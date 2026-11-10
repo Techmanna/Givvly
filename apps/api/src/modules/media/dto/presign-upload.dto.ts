@@ -213,10 +213,10 @@ export class PresignUploadResponseDto {
   @ApiProperty({ example: "uploads/cover_image/a0000000...jpg" })
   key: string;
 
-  @ApiProperty({ example: "https://cdn.givvly.vercel.app/raw-upload/uploads/cover_image/..." })
+  @ApiProperty({ example: "https://cdn.givvly.store/raw-upload/uploads/cover_image/..." })
   uploadUrl: string;
 
-  @ApiProperty({ example: "https://cdn.givvly.vercel.app/uploads/cover_image/a0000000...jpg" })
+  @ApiProperty({ example: "https://cdn.givvly.store/uploads/cover_image/a0000000...jpg" })
   publicUrl: string;
 
   @ApiProperty({ example: "PUT" })
@@ -248,10 +248,10 @@ export class CompleteUploadResponseDto {
   @ApiProperty({ enum: MediaStatus, example: MediaStatus.READY })
   status: MediaStatus;
 
-  @ApiProperty({ example: "https://cdn.givvly.vercel.app/uploads/cover_image/a0000000...jpg" })
+  @ApiProperty({ example: "https://cdn.givvly.store/uploads/cover_image/a0000000...jpg" })
   url: string;
 
-  @ApiProperty({ example: "https://cdn.givvly.vercel.app/uploads/cover_image/a0000000...jpg" })
+  @ApiProperty({ example: "https://cdn.givvly.store/uploads/cover_image/a0000000...jpg" })
   publicUrl: string;
 
   @ApiProperty({ example: "COVER_IMAGE" })

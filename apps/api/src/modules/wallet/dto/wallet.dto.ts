@@ -151,7 +151,7 @@ export class WalletBalanceTransferDto {
   from_account?: string;
 
   @ApiProperty({
-    example: "amara@givvly.vercel.app",
+    example: "amara@givvly.store",
     description: "Recipient Givvly email address or User ID",
   })
   @IsString()

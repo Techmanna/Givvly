@@ -34,7 +34,7 @@ export function buildUser(overrides: Partial<User> = {}): User {
   return {
     id,
     name: "Adaobi Okafor",
-    email: "adaobi@givvly.vercel.app",
+    email: "adaobi@givvly.store",
     phone: "+2348031234567",
     role: "USER",
     emailVerified: true,

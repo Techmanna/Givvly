@@ -45,7 +45,7 @@ export class OrdersService {
       user?.email ||
       dto.buyerEmail ||
       dto.recipient?.email ||
-      "guest@givvly.vercel.app";
+      "guest@givvly.store";
 
     const recipientPhones = Array.isArray(dto.recipientPhones)
       ? dto.recipientPhones.map((p) => p.trim()).filter(Boolean).slice(0, 50)
@@ -650,7 +650,7 @@ export class OrdersService {
 
       if (this.notifications && order.buyerEmail) {
         try {
-          const trackingUrl = `https://givvly.vercel.app/track/${order.trackingToken}`;
+          const trackingUrl = `https://givvly.store/track/${order.trackingToken}`;
           await this.notifications.sendOrderConfirmedEmail(
             order.buyerEmail,
             order.buyerUserId || undefined,

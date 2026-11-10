@@ -70,7 +70,7 @@ describe("stateful mock API router", () => {
 
   it("serves initial events, banks, payout account, and user session", async () => {
     const me = await handleMockApiRequest<User>("/auth/me", { method: "GET" });
-    expect(me.data.email).toBe("adaobi@givvly.vercel.app");
+    expect(me.data.email).toBe("adaobi@givvly.store");
 
     const events = await handleMockApiRequest<EventSummary[]>("/events", {
       method: "GET",
@@ -196,11 +196,11 @@ describe("stateful mock API router", () => {
     const res = await handleMockApiRequest<{ user: User }>("/auth/login", {
       method: "POST",
       body: {
-        email: "adaobi@givvly.vercel.app",
+        email: "adaobi@givvly.store",
         password: "anypassword",
       },
     });
-    expect(res.data.user.email).toBe("adaobi@givvly.vercel.app");
+    expect(res.data.user.email).toBe("adaobi@givvly.store");
     expect(document.cookie).toContain("givvly_at=");
   });
 });

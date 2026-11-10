@@ -90,7 +90,7 @@ export class CreateProductDto {
   @IsArray()
   relationships: string[] = [];
 
-  @ApiPropertyOptional({ example: ["https://cdn.givvly.vercel.app/uploads/products/robe.jpg"] })
+  @ApiPropertyOptional({ example: ["https://cdn.givvly.store/uploads/products/robe.jpg"] })
   @IsOptional()
   @IsArray()
   images?: string[];
@@ -195,7 +195,7 @@ export class UpdateProductDto {
   @IsArray()
   relationships?: string[];
 
-  @ApiPropertyOptional({ example: ["https://cdn.givvly.vercel.app/uploads/products/robe2.jpg"] })
+  @ApiPropertyOptional({ example: ["https://cdn.givvly.store/uploads/products/robe2.jpg"] })
   @IsOptional()
   @IsArray()
   images?: string[];

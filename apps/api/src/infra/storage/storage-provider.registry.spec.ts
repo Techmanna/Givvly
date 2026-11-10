@@ -176,11 +176,11 @@ describe("StorageProviderRegistry & File Security Validation", () => {
         false
       );
       expect(
-        isSafeMediaUrl('https://cdn.givvly.vercel.app/img.jpg" onerror="alert(1)')
+        isSafeMediaUrl('https://cdn.givvly.store/img.jpg" onerror="alert(1)')
       ).toBe(false);
       expect(isSafeMediaUrl("/images/../../secret")).toBe(false);
       expect(
-        isSafeMediaUrl("https://cdn.givvly.vercel.app/uploads/product/item.jpg")
+        isSafeMediaUrl("https://cdn.givvly.store/uploads/product/item.jpg")
       ).toBe(true);
       expect(isSafeMediaUrl("/images/gifts/box-luxury.jpg")).toBe(true);
     });

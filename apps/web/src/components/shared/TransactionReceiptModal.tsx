@@ -222,7 +222,7 @@ function generateReceiptCanvas(receipt: NormalizedReceipt): HTMLCanvasElement {
   ctx.fillStyle = "#9CA3AF";
   ctx.font = "500 13px system-ui, -apple-system, sans-serif";
   ctx.fillText(
-    "Verified by Givvly Double-Entry Ledger • givvly.vercel.app",
+    "Verified by Givvly Double-Entry Ledger • givvly.store",
     76,
     height - 64
   );
@@ -393,8 +393,8 @@ export function TransactionReceiptModal({
             </p>
             <p
               className={`mt-1 font-mono text-3xl font-bold ${receipt.direction === "CREDIT"
-                  ? "text-emerald-600"
-                  : "text-foreground"
+                ? "text-emerald-600"
+                : "text-foreground"
                 }`}
             >
               {sign}

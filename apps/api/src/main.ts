@@ -43,7 +43,7 @@ async function bootstrap() {
           imgSrc: [
             "'self'",
             "data:",
-            "https://cdn.givvly.vercel.app",
+            "https://cdn.givvly.store",
             "https://*.paystack.co",
             "https://cdn.jsdelivr.net",
           ],

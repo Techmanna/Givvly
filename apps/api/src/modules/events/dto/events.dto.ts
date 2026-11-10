@@ -65,7 +65,7 @@ export class CreateEventRequestDto {
   @IsString()
   coverKey?: string;
 
-  @ApiPropertyOptional({ example: "https://cdn.givvly.vercel.app/uploads/cover_image/a0000000.jpg", description: "Uploaded cover media URL" })
+  @ApiPropertyOptional({ example: "https://cdn.givvly.store/uploads/cover_image/a0000000.jpg", description: "Uploaded cover media URL" })
   @IsOptional()
   @IsString()
   coverUrl?: string;
@@ -136,7 +136,7 @@ export class UpdateEventRequestDto {
   @IsString()
   coverKey?: string;
 
-  @ApiPropertyOptional({ example: "https://cdn.givvly.vercel.app/uploads/cover_image/a0000000.jpg" })
+  @ApiPropertyOptional({ example: "https://cdn.givvly.store/uploads/cover_image/a0000000.jpg" })
   @IsOptional()
   @IsString()
   coverUrl?: string;
@@ -427,7 +427,7 @@ export class SubmitRsvpRequestDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiPropertyOptional({ example: "emeka@givvly.vercel.app" })
+  @ApiPropertyOptional({ example: "emeka@givvly.store" })
   @IsOptional()
   @IsString()
   email?: string;
@@ -458,7 +458,7 @@ export class RsvpRecordResponseDto {
   @ApiProperty({ example: "Emeka Chinedu" })
   name: string;
 
-  @ApiPropertyOptional({ example: "emeka@givvly.vercel.app" })
+  @ApiPropertyOptional({ example: "emeka@givvly.store" })
   email?: string | null;
 
   @ApiPropertyOptional({ example: "+2348123456789" })

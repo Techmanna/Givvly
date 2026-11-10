@@ -182,7 +182,7 @@ Guarding happens in three layers. All three are required.
 2. **Server layout guard**: `(app)/layout.tsx`, `vendor/layout.tsx`, `admin/layout.tsx` call `getSession()` (server fetch of `/auth/me`). If it fails, `redirect()`. This protects against stale middleware decisions.
 3. **Resource guard**: pages under `/events/[id]` fetch the event; a 403 or 404 from the API renders `notFound()`. Never rely on hiding links as security.
 
-Auth cookies are issued by the API on the parent domain (for example `Domain=.givvly.vercel.app`, `HttpOnly`, `Secure`, `SameSite=Lax`) so the Next server can read them. In local development both apps run on `localhost` and share cookies.
+Auth cookies are issued by the API on the parent domain (for example `Domain=.givvly.store`, `HttpOnly`, `Secure`, `SameSite=Lax`) so the Next server can read them. In local development both apps run on `localhost` and share cookies.
 
 ### 5.5 Navigation rules
 
@@ -779,12 +779,12 @@ Set in `next.config.ts` headers (and verify in production):
 
 ### 15.1 Environments
 
-| Env        | URL                         | API                     | Payments      | Purpose        |
-| ---------- | --------------------------- | ----------------------- | ------------- | -------------- |
-| Local      | `localhost:3000`            | `localhost:4000`        | Paystack test | Development    |
-| Preview    | per pull request            | Staging API             | Paystack test | Review and e2e |
-| Staging    | `staging.givvly.vercel.app` | Staging API             | Paystack test | QA and demos   |
-| Production | `givvly.vercel.app`         | `api.givvly.vercel.app` | Paystack live | Live users     |
+| Env        | URL                    | API                | Payments      | Purpose        |
+| ---------- | ---------------------- | ------------------ | ------------- | -------------- |
+| Local      | `localhost:3000`       | `localhost:4000`   | Paystack test | Development    |
+| Preview    | per pull request       | Staging API        | Paystack test | Review and e2e |
+| Staging    | `staging.givvly.store` | Staging API        | Paystack test | QA and demos   |
+| Production | `givvly.store`         | `api.givvly.store` | Paystack live | Live users     |
 
 ### 15.2 Environment variables (`.env.example`)
 
