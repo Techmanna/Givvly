@@ -17,9 +17,15 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>("PORT", 4000);
-  const corsOrigins = configService.get<string[]>("CORS_ORIGINS", [
+  const rawCors = configService.get<string | string[]>("CORS_ORIGINS", [
     "http://localhost:3000",
   ]);
+  const corsOrigins =
+    typeof rawCors === "string"
+      ? rawCors.split(",").map((s) => s.trim())
+      : Array.isArray(rawCors)
+        ? rawCors
+        : [rawCors];
 
   // Security Middleware with CSP adjusted for Scalar assets
   app.use(
@@ -54,7 +60,21 @@ async function bootstrap() {
 
   app.use(cookieParser());
   app.enableCors({
-    origin: corsOrigins,
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void
+    ) => {
+      if (
+        !origin ||
+        corsOrigins.includes(origin) ||
+        (process.env.NODE_ENV !== "production" &&
+          /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   });
 

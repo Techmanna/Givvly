@@ -72,8 +72,27 @@ export function getDynamicBlessingChips({
   const milestoneLabel = milestoneMatch?.[1];
 
   // Infer effective occasion from explicit eventType OR eventName/eventStory cues
+  const isMemorialContext =
+    eventType === "MEMORIAL" ||
+    /\b(memorial|tribute|celebration of life|in loving memory|remembrance|funeral)\b/i.test(
+      combined
+    );
+  const isBridalShowerContext =
+    eventType === "BRIDAL_SHOWER" ||
+    /\b(bridal shower|bachelorette|bride to be|hen night)\b/i.test(combined);
+  const isAnniversaryContext =
+    eventType === "ANNIVERSARY" ||
+    /\b(anniversary|wedding anniversary|milestone anniversary)\b/i.test(
+      combined
+    );
+  const isSendOffContext =
+    eventType === "SEND_OFF" ||
+    /\b(send-off|send-forth|sendforth|bon voyage|relocation|japa|farewell)\b/i.test(
+      combined
+    );
   const isBabyContext =
     eventType === "BABY_SHOWER" ||
+    eventType === "NAMING_CEREMONY" ||
     /\b(baby|shower|naming|dedication|christening|newborn|nursery|bundle of joy)\b/i.test(
       combined
     );
@@ -83,29 +102,79 @@ export function getDynamicBlessingChips({
       combined
     );
   const isHousewarmingContext =
+    eventType === "HOUSEWARMING" ||
     /\b(housewarming|new home|new apartment|blessing of home|move-in)\b/i.test(
       combined
     );
   const isRetirementContext =
-    /\b(retirement|retire|send-forth|sendforth|meritorious)\b/i.test(combined);
+    eventType === "RETIREMENT" ||
+    /\b(retirement|retire|meritorious)\b/i.test(combined);
   const isBirthdayContext =
     eventType === "BIRTHDAY" ||
     /\b(birthday|bday|jubilee|turns)\b/i.test(combined) ||
     Boolean(milestoneLabel);
   const isWeddingContext =
     eventType === "WEDDING" ||
-    /\b(wedding|marriage|matrimony|union|trad|bridal|engagement|forever|mr\s*&\s*mrs)\b/i.test(
+    /\b(wedding|marriage|matrimony|union|trad|engagement|forever|mr\s*&\s*mrs)\b/i.test(
       combined
     ) ||
     (!isBabyContext &&
       !isGradContext &&
       !isBirthdayContext &&
+      !isMemorialContext &&
+      !isBridalShowerContext &&
+      !isAnniversaryContext &&
+      !isSendOffContext &&
       eventName.includes("&"));
 
+  if (isMemorialContext) {
+    return {
+      contextLabel: "Memorial & Tribute",
+      chips: [
+        `Honouring a beautiful life well lived and a legacy that will never be forgotten. May God grant peace and comfort to your family. 🕊️🤍`,
+        `In loving memory and celebration of a gracious soul who touched so many lives. May their gentle soul rest in perfect peace. 🙏🕯️`,
+        `Holding your family in our thoughts and prayers during this season of remembrance and thanksgiving for a remarkable life. 🤍✨`,
+      ],
+    };
+  }
+
+  if (isBridalShowerContext) {
+    return {
+      contextLabel: "Bridal Shower",
+      chips: [
+        `Shower blessings on the beautiful bride-to-be! Here's to love, joy, and your magical journey to forever, ${host}! 💍🥂`,
+        `May your wedding journey be stress-free, joyous, and overflowing with sweet memories! 👰✨`,
+        `Wishing you all the happiness and peace in the world as you step into this next chapter! 🥂💖`,
+      ],
+    };
+  }
+
+  if (isAnniversaryContext) {
+    return {
+      contextLabel: "Anniversary",
+      chips: [
+        `Happy anniversary, ${host}! Celebrating your inspiring love and devotion. May your bond grow sweeter with every year! 🥂❤️`,
+        `Congratulations on another beautiful chapter of love, partnership, and shared dreams! 💍✨`,
+        `May God continue to bless your home with unending peace, joy, and abundance! 🙏💐`,
+      ],
+    };
+  }
+
+  if (isSendOffContext) {
+    return {
+      contextLabel: "Send-Off",
+      chips: [
+        `Bon voyage and best wishes on your exciting new adventure, ${host}! May favour and great doors open for you! ✈️🌍`,
+        `So proud of your courage and vision! Wishing you grand success and joy in your new chapter! 🥂🌟`,
+        `We will miss you dearly, but we are cheering for your unstoppable global exploits! 🎉✈️`,
+      ],
+    };
+  }
+
   if (isBabyContext) {
-    const isNamingOrDedication = /\b(naming|dedication|christening)\b/i.test(
-      combined
-    );
+    const isNamingOrDedication =
+      eventType === "NAMING_CEREMONY" ||
+      /\b(naming|dedication|christening)\b/i.test(combined);
     return {
       contextLabel: isNamingOrDedication
         ? "Naming & Dedication"

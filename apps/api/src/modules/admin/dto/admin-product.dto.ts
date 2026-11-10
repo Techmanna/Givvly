@@ -109,6 +109,15 @@ export class CreateProductDto {
   @IsBoolean()
   inStock?: boolean;
 
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  isCombo?: boolean;
+
+  @ApiPropertyOptional({ example: [{ name: "Artisan Chocolate", qty: 1 }] })
+  @IsOptional()
+  comboItems?: any;
+
   @ApiPropertyOptional({ example: false, default: false })
   @IsOptional()
   @IsBoolean()
@@ -175,6 +184,11 @@ export class UpdateProductDto {
   @IsString()
   name?: string;
 
+  @ApiPropertyOptional({ example: "luxury-silk-robe" })
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
   @ApiPropertyOptional({ example: "Updated description..." })
   @IsOptional()
   @IsString()
@@ -184,6 +198,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsInt()
   priceKobo?: number;
+
+  @ApiPropertyOptional({ example: "Wedding Gifts" })
+  @IsOptional()
+  @IsString()
+  category?: string;
 
   @ApiPropertyOptional({ example: ["BIRTHDAY"] })
   @IsOptional()
@@ -213,6 +232,15 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   inStock?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  isCombo?: boolean;
+
+  @ApiPropertyOptional({ example: [{ name: "Artisan Chocolate", qty: 1 }] })
+  @IsOptional()
+  comboItems?: any;
 
   @ApiPropertyOptional({ example: false })
   @IsOptional()

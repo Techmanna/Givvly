@@ -1,5 +1,6 @@
 export { catalogKeys } from "./keys";
 export * from "./types";
+export * from "./categories";
 export * from "./hooks/useCatalog";
 export { ProductCard } from "./components/ProductCard";
 export { ProductGallery } from "./components/ProductGallery";

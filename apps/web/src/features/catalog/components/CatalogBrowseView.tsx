@@ -159,7 +159,7 @@ export function CatalogBrowseView() {
       </div>
 
       {/* Instant Airtime & Data VTU Studio Banner */}
-      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-card to-accent/15 p-5 sm:flex-row sm:items-center">
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-primary/25 bg-linear-to-r from-primary/10 via-card to-accent/15 p-5 sm:flex-row sm:items-center">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-primary/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">

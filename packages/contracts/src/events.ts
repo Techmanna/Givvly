@@ -11,8 +11,15 @@ import type {
 export const EVENT_TYPES = [
   "BIRTHDAY",
   "WEDDING",
+  "HOUSEWARMING",
+  "ANNIVERSARY",
+  "BRIDAL_SHOWER",
   "BABY_SHOWER",
+  "NAMING_CEREMONY",
   "GRADUATION",
+  "SEND_OFF",
+  "RETIREMENT",
+  "MEMORIAL",
   "OTHER",
 ] as const satisfies readonly EventType[];
 
@@ -244,9 +251,14 @@ export type CompleteUploadResponse = {
 };
 
 export function slugifyEventName(name: string): string {
-  const base = name
+  // Strip leading list numbering (e.g. "1. ", "2) ", "1 - ")
+  let cleaned = (name || "").trim().replace(/^\s*\d+[\.\)\-]\s+/, "");
+  if (!cleaned) {
+    cleaned = (name || "").trim();
+  }
+  cleaned = cleaned.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  const base = cleaned
     .toLowerCase()
-    .trim()
     .replace(/[^\w\s-]/g, "")
     .replace(/[\s_-]+/g, "-")
     .replace(/^-+|-+$/g, "")
@@ -266,18 +278,21 @@ export function generateSlugSuffix(length = 4): string {
 
 export function buildUniqueEventSlug(
   name: string,
-  suffix: string,
+  suffix?: string,
   existingSlugs: Iterable<string> = []
 ): string {
   const base = slugifyEventName(name);
-  const cleanSuffix =
-    suffix
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "")
-      .slice(0, 8) || generateSlugSuffix(4);
   const taken = new Set(
     Array.from(existingSlugs, (s) => s.trim().toLowerCase())
   );
+  if (!taken.has(base)) {
+    return base;
+  }
+  const cleanSuffix =
+    suffix
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, "")
+      .slice(0, 8) || generateSlugSuffix(4);
   const primary = `${base}-${cleanSuffix}`;
   if (!taken.has(primary)) {
     return primary;

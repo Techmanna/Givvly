@@ -8,6 +8,7 @@ import type {
   CatalogProduct,
   ProductReview,
   CreateProductReviewInput,
+  ReviewEligibilityResponse,
 } from "./types";
 
 function toCatalogQuery(filters: CatalogFilters = {}): string {
@@ -62,6 +63,14 @@ export function fetchCatalogProductBySlug(
 export function fetchProductReviews(slug: string): Promise<ProductReview[]> {
   return api<ProductReview[]>(
     `/catalog/products/${encodeURIComponent(slug)}/reviews`
+  );
+}
+
+export function fetchReviewEligibility(
+  slug: string
+): Promise<ReviewEligibilityResponse> {
+  return api<ReviewEligibilityResponse>(
+    `/catalog/products/${encodeURIComponent(slug)}/review-eligibility`
   );
 }
 

@@ -18,21 +18,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { CatalogFilters } from "../types";
+import { MAIN_COLLECTIONS } from "../categories";
 
 export type FilterBarProps = {
   filters: CatalogFilters;
   onChange: (next: CatalogFilters) => void;
 };
 
-const MAIN_CATEGORIES = [
-  { value: "ALL", label: "All Curated Gifts" },
-  { value: "FOR_HIM", label: "Gifts for Him" },
-  { value: "FOR_HER", label: "Gifts for Her" },
-  { value: "WEDDING", label: "Wedding Gifts" },
-  { value: "BIRTHDAY", label: "Birthday Gifts" },
-  { value: "CORPORATE", label: "Corporate Gifts" },
-  { value: "COMBOS", label: "Predefined Combos & Boxes" },
-];
+const MAIN_CATEGORIES = MAIN_COLLECTIONS.map((c) => ({
+  value: c.value,
+  label: c.label,
+}));
 
 const PERSONAL_OCCASIONS = [
   { value: "BIRTHDAY", label: "Birthday" },

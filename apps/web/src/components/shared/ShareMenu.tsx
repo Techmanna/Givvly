@@ -55,7 +55,7 @@ export function ShareMenu({ url, title, className }: ShareMenuProps) {
         asChild
         variant="outline"
         size="icon"
-        className="h-9 w-9 rounded-full border-[#20BA5A]/30 bg-[#20BA5A]/10 text-[#20BA5A] hover:border-[#20BA5A]/50 hover:bg-[#20BA5A]/20 hover:text-[#199948]"
+        className=" rounded-full border-[#20BA5A]/30 bg-[#20BA5A]/10 text-[#20BA5A] hover:border-[#20BA5A]/50 hover:bg-[#20BA5A]/20 hover:text-[#199948]"
       >
         <a
           href={whatsappHref}
@@ -72,7 +72,7 @@ export function ShareMenu({ url, title, className }: ShareMenuProps) {
         asChild
         variant="outline"
         size="icon"
-        className="h-9 w-9 rounded-full text-foreground hover:border-foreground/30 hover:bg-muted"
+        className=" rounded-full text-foreground hover:border-foreground/30 hover:bg-muted"
       >
         <a
           href={xHref}
@@ -89,7 +89,7 @@ export function ShareMenu({ url, title, className }: ShareMenuProps) {
         asChild
         variant="outline"
         size="icon"
-        className="h-9 w-9 rounded-full border-[#1877F2]/25 bg-[#1877F2]/10 text-[#1877F2] hover:border-[#1877F2]/45 hover:bg-[#1877F2]/20"
+        className=" rounded-full border-[#1877F2]/25 bg-[#1877F2]/10 text-[#1877F2] hover:border-[#1877F2]/45 hover:bg-[#1877F2]/20"
       >
         <a
           href={facebookHref}

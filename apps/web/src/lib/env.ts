@@ -25,6 +25,7 @@ export const clientEnvSchema = z.object({
 export const serverEnvSchema = clientEnvSchema.extend({
   API_INTERNAL_URL: z.string().url().default("http://localhost:4000/api/v1"),
   JWT_PUBLIC_KEY: z.string().optional(),
+  JWT_SECRET: z.string().optional(),
   REVALIDATE_SECRET: z.string().optional(),
   SENTRY_AUTH_TOKEN: z.string().optional(),
 });
@@ -48,6 +49,7 @@ function getStaticRuntimeEnv(): Record<string, string | undefined> {
     NEXT_PUBLIC_IMAGE_CDN: process.env.NEXT_PUBLIC_IMAGE_CDN,
     API_INTERNAL_URL: process.env.API_INTERNAL_URL,
     JWT_PUBLIC_KEY: process.env.JWT_PUBLIC_KEY,
+    JWT_SECRET: process.env.JWT_SECRET,
     REVALIDATE_SECRET: process.env.REVALIDATE_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
   };
@@ -82,6 +84,7 @@ export function parseServerEnv(
     NEXT_PUBLIC_IMAGE_CDN: raw.NEXT_PUBLIC_IMAGE_CDN || undefined,
     API_INTERNAL_URL: raw.API_INTERNAL_URL || undefined,
     JWT_PUBLIC_KEY: raw.JWT_PUBLIC_KEY || undefined,
+    JWT_SECRET: raw.JWT_SECRET || undefined,
     REVALIDATE_SECRET: raw.REVALIDATE_SECRET || undefined,
     SENTRY_AUTH_TOKEN: raw.SENTRY_AUTH_TOKEN || undefined,
   });

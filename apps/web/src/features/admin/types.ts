@@ -35,16 +35,44 @@ export type AdminProduct = {
   description: string;
   priceKobo: number;
   category: string;
+  giftType?: string;
+  mainCategories?: string[];
   occasions: string[];
   relationships?: string[];
+  gender?: "MALE" | "FEMALE" | "UNISEX";
   vendorName: string;
   inStock: boolean;
+  stock?: number | null;
   rating: number;
   reviewCount: number;
   isCombo?: boolean;
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
   packagingIncluded?: string;
   imageUrl?: string;
+  images?: string[];
+  active?: boolean;
+};
+
+export type UpdateProductInput = {
+  name?: string;
+  slug?: string;
+  description?: string;
+  priceKobo?: number;
+  category?: string;
+  giftType?: string;
+  mainCategories?: string[];
+  occasions?: string[];
+  relationships?: string[];
+  gender?: "MALE" | "FEMALE" | "UNISEX";
+  vendorName?: string;
+  packagingIncluded?: string;
+  imageUrl?: string;
+  images?: string[];
+  inStock?: boolean;
+  stock?: number | null;
+  isCombo?: boolean;
+  comboItems?: Array<{ name: string; qty: number; tag?: string }>;
+  active?: boolean;
 };
 
 export type CreateProductInput = {
@@ -52,7 +80,11 @@ export type CreateProductInput = {
   description: string;
   priceKobo: number;
   category: string;
+  giftType?: string;
+  mainCategories?: string[];
   occasions: string[];
+  relationships?: string[];
+  gender?: "MALE" | "FEMALE" | "UNISEX";
   inStock: boolean;
   isCombo?: boolean;
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;

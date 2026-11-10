@@ -13,6 +13,7 @@ import { PrismaService } from "@/infra/prisma/prisma.service";
 import { PaystackService } from "@/infra/paystack/paystack.service";
 import { StorageProviderRegistry } from "@/infra/storage/storage-provider.registry";
 import { NotificationsService } from "../notifications/notifications.service";
+import { SlugService } from "../../common/slug/slug.service";
 import { isSafeMediaUrl } from "@/infra/storage/file-security.util";
 import { encryptAesGcm, hmacString } from "@/common/utils/crypto";
 import {
@@ -68,35 +69,21 @@ export interface CreatePayoutAccountDto {
   accountName: string;
 }
 
-function slugifyBase(name: string, maxLen = 48): string {
-  const base = name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, maxLen)
-    .replace(/-+$/g, "");
-  return base || "celebration";
-}
-
-function slugify(name: string): string {
-  const base = slugifyBase(name, 48);
-  const suffix = Math.random().toString(36).substring(2, 6);
-  return `${base}-${suffix}`;
-}
-
 @Injectable()
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
+  private readonly slugService: SlugService;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     @Optional() private readonly paystack?: PaystackService,
     @Optional() private readonly storageRegistry?: StorageProviderRegistry,
-    @Optional() private readonly notifications?: NotificationsService
-  ) {}
+    @Optional() private readonly notifications?: NotificationsService,
+    @Optional() slugService?: SlugService
+  ) {
+    this.slugService = slugService ?? new SlugService(this.prisma);
+  }
 
   private resolveCoverStorageValue(
     coverUrl?: string,
@@ -171,28 +158,20 @@ export class EventsService {
     name: string,
     requestedSlug?: string
   ): Promise<string> {
-    const normalizedRequested = requestedSlug?.trim()
-      ? slugifyBase(requestedSlug, 60)
-      : "";
-    let candidate =
-      normalizedRequested.length >= 4 ? normalizedRequested : slugify(name);
-
-    if (typeof tx?.event?.findUnique !== "function") {
-      return candidate;
-    }
-
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const existing = await tx.event.findUnique({
-        where: { slug: candidate },
-        select: { id: true },
-      });
-      if (!existing) {
-        return candidate;
-      }
-      candidate = `${slugifyBase(name, 48)}-${Math.random().toString(36).substring(2, 6)}`;
-    }
-
-    return `${slugifyBase(name, 44)}-${Date.now().toString(36).slice(-6)}`;
+    const titleCandidate = requestedSlug?.trim() || name;
+    return this.slugService.generateSlug({
+      title: titleCandidate,
+      isUnique: async (candidate) => {
+        if (typeof tx?.event?.findUnique !== "function") {
+          return true;
+        }
+        const existing = await tx.event.findUnique({
+          where: { slug: candidate },
+          select: { id: true },
+        });
+        return !existing;
+      },
+    });
   }
 
   async createEvent(userId: string, dto: CreateEventDto) {
@@ -201,6 +180,14 @@ export class EventsService {
 
     const runCreate = async (tx: any) => {
       const slug = await this.resolveUniqueSlug(tx, dto.name, dto.slug);
+      const verifiedAccount =
+        typeof tx?.payoutAccount?.findFirst === "function"
+          ? await tx.payoutAccount.findFirst({
+              where: { userId, status: "VERIFIED" },
+              select: { id: true },
+            })
+          : null;
+
       const created = await tx.event.create({
         data: {
           ownerId: userId,
@@ -214,6 +201,7 @@ export class EventsService {
           accessCodeHash: dto.accessCode ? dto.accessCode.trim() : null,
           allowPlusOne: dto.allowPlusOne ?? true,
           status: "DRAFT",
+          payoutAccountId: verifiedAccount?.id || null,
           ...(dto.hostName?.trim()
             ? { templateData: { hostName: dto.hostName.trim() } }
             : {}),
@@ -259,28 +247,34 @@ export class EventsService {
       totalReceivedKobo: 0,
       giftCount: dto.registryItems ? dto.registryItems.length : 0,
       rsvpYesCount: 0,
-      moneyGiftsEnabled: false,
+      moneyGiftsEnabled: Boolean(event.payoutAccountId),
       createdAt: event.createdAt,
     };
   }
 
   async getMyEvents(userId: string) {
-    const events = await this.prisma.event.findMany({
-      where: { ownerId: userId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        _count: {
-          select: {
-            gifts: { where: { status: "PAID" } },
-            rsvps: { where: { response: "YES" } },
+    const [events, verifiedAccount] = await Promise.all([
+      this.prisma.event.findMany({
+        where: { ownerId: userId },
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: {
+            select: {
+              gifts: { where: { status: "PAID" } },
+              rsvps: { where: { response: "YES" } },
+            },
+          },
+          gifts: {
+            where: { status: "PAID" },
+            select: { amountKobo: true },
           },
         },
-        gifts: {
-          where: { status: "PAID" },
-          select: { amountKobo: true },
-        },
-      },
-    });
+      }),
+      this.prisma.payoutAccount.findFirst({
+        where: { userId, status: "VERIFIED" },
+        select: { id: true },
+      }),
+    ]);
 
     return events.map((ev) => {
       const totalReceivedKobo = ev.gifts.reduce(
@@ -297,6 +291,7 @@ export class EventsService {
         coverUrl: this.formatCoverUrl(ev.coverMediaId),
         visibility: ev.visibility,
         status: ev.status,
+        moneyGiftsEnabled: Boolean(ev.payoutAccountId || verifiedAccount),
         totalReceivedKobo,
         giftCount: ev._count.gifts,
         rsvpYesCount: ev._count.rsvps,
@@ -330,6 +325,23 @@ export class EventsService {
     );
     const rsvpYesCount = event.rsvps.filter((r) => r.response === "YES").length;
 
+    let moneyGiftsEnabled = Boolean(event.payoutAccountId);
+    if (!moneyGiftsEnabled) {
+      const verified = await this.prisma.payoutAccount.findFirst({
+        where: { userId, status: "VERIFIED" },
+        select: { id: true },
+      });
+      if (verified) {
+        moneyGiftsEnabled = true;
+        this.prisma.event
+          .update({
+            where: { id: event.id },
+            data: { payoutAccountId: verified.id },
+          })
+          .catch(() => {});
+      }
+    }
+
     return {
       ...event,
       hostName: (event.templateData as any)?.hostName || undefined,
@@ -337,7 +349,7 @@ export class EventsService {
       totalReceivedKobo,
       giftCount: event.gifts.length,
       rsvpYesCount,
-      moneyGiftsEnabled: Boolean(event.payoutAccountId),
+      moneyGiftsEnabled,
     };
   }
 
@@ -612,6 +624,18 @@ export class EventsService {
       },
     });
 
+    if (account.status === "VERIFIED") {
+      await this.prisma.event.updateMany({
+        where: {
+          ownerId: userId,
+          payoutAccountId: null,
+        },
+        data: {
+          payoutAccountId: account.id,
+        },
+      });
+    }
+
     return {
       id: account.id,
       bankCode: account.bankCode,
@@ -668,6 +692,23 @@ export class EventsService {
     const firstName =
       customHostName || event.owner?.name?.split(" ")[0] || "Host";
 
+    let moneyGiftsEnabled = Boolean(event.payoutAccountId);
+    if (!moneyGiftsEnabled && event.ownerId) {
+      const verified = await this.prisma.payoutAccount.findFirst({
+        where: { userId: event.ownerId, status: "VERIFIED" },
+        select: { id: true },
+      });
+      if (verified) {
+        moneyGiftsEnabled = true;
+        this.prisma.event
+          .update({
+            where: { id: event.id },
+            data: { payoutAccountId: verified.id },
+          })
+          .catch(() => {});
+      }
+    }
+
     return {
       id: event.id,
       slug: event.slug,
@@ -678,7 +719,7 @@ export class EventsService {
       coverUrl: this.formatCoverUrl(event.coverMediaId),
       visibility: event.visibility,
       status: event.status,
-      moneyGiftsEnabled: Boolean(event.payoutAccountId),
+      moneyGiftsEnabled,
       currency: event.currency || "NGN",
       totalReceivedKobo,
       giftCount: event._count.gifts,

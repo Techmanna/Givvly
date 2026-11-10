@@ -40,6 +40,7 @@ import { logoutUser } from "@/features/auth/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/cn";
 import { BrandLogo } from "./BrandLogo";
+import { BoxButton } from "./BoxButton";
 
 const navigationLinks = [
   { label: "Gift Atelier", href: "/gifts", icon: Gift },
@@ -68,8 +69,17 @@ export function MarketingHeader({ initialUser }: MarketingHeaderProps) {
       // ignore
     } finally {
       clearAuth();
-      router.push("/login");
-      router.refresh();
+      if (typeof window !== "undefined") {
+        try {
+          window.location.href = "/login";
+        } catch {
+          router.push("/login");
+          router.refresh();
+        }
+      } else {
+        router.push("/login");
+        router.refresh();
+      }
     }
   };
 
@@ -130,6 +140,7 @@ export function MarketingHeader({ initialUser }: MarketingHeaderProps) {
 
         {/* Actions Section */}
         <div className="flex items-center gap-2 sm:gap-3">
+          <BoxButton />
           {isAuthed ? (
             <>
               {/* Dashboard Shortcut */}
@@ -268,10 +279,10 @@ export function MarketingHeader({ initialUser }: MarketingHeaderProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden h-9 w-9 text-muted-foreground hover:text-foreground"
+                className="md:hidden text-muted-foreground hover:text-foreground"
                 aria-label="Open mobile navigation"
               >
-                <Menu className="h-5 w-5" />
+                <Menu className="h-9 w-9" />
               </Button>
             </SheetTrigger>
             <SheetContent

@@ -169,5 +169,35 @@ describe("LoginForm & SignupForm", () => {
     expect(resendRes).toBeDefined();
     expect(resendRes.message).toBeDefined();
   });
+
+  it("handles email conflict cleanly without separating letters with spaces", async () => {
+    vi.spyOn(authApi, "registerUser").mockRejectedValueOnce(
+      new ApiClientError({
+        status: 409,
+        code: "Conflict",
+        message: "An account with this email already exists",
+        details: "An account with this email already exists" as any,
+        requestId: "req_conflict",
+      })
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<SignupForm />);
+
+    await user.type(screen.getByLabelText(/full name/i), "David Enabulele");
+    await user.type(screen.getByLabelText(/email address/i), "iamdavidenabs@gmail.com");
+    await user.type(screen.getByLabelText(/^password$/i), "SafePassword99!");
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() => {
+      // Must NOT display spaced-out letters like "A n a c c o u n t..."
+      expect(screen.queryByText(/A n a c c o u n t/i)).not.toBeInTheDocument();
+      // Displays the proper inline error under email field
+      expect(screen.getByText("An account with this email already exists.")).toBeInTheDocument();
+      // Displays the helper link to sign in
+      expect(screen.getByRole("link", { name: /sign in instead/i })).toBeInTheDocument();
+    });
+  });
 });
 

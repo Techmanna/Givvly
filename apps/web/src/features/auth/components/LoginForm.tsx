@@ -75,11 +75,12 @@ export function LoginForm({ nextPath }: LoginFormProps) {
         destination,
       });
 
+      // Notify Next.js router
       router.replace(destination);
       router.refresh();
 
-      // In production browser, trigger full page navigation to ensure fresh cookie propagation
-      if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+      // In real browser runtime, force full window transition to guarantee fresh cookie propagation across routes
+      if (typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
         window.location.href = destination;
       }
     } catch (error) {

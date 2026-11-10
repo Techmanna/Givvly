@@ -28,13 +28,26 @@ describe("eventKeys & buildUniqueEventSlug", () => {
     expect(slugifyEventName("  Adaobi & Chidi's Forever 2026! ")).toBe(
       "adaobi-chidis-forever-2026"
     );
+    expect(slugifyEventName("1. How to get rich quick?")).toBe(
+      "how-to-get-rich-quick"
+    );
+
+    // Uses clean title first when no collision exists
     expect(
       buildUniqueEventSlug("Adaobi & Chidi's Forever 2026", "k8m2", [])
-    ).toBe("adaobi-chidis-forever-2026-k8m2");
+    ).toBe("adaobi-chidis-forever-2026");
 
-    // Collision disambiguation when existing events already use the slug
+    // Collision disambiguation: appends suffix when base slug is already taken
     expect(
       buildUniqueEventSlug("Adaobi & Chidi's Forever 2026", "k8m2", [
+        "adaobi-chidis-forever-2026",
+      ])
+    ).toBe("adaobi-chidis-forever-2026-k8m2");
+
+    // Collision disambiguation when both base and suffixed slug are taken
+    expect(
+      buildUniqueEventSlug("Adaobi & Chidi's Forever 2026", "k8m2", [
+        "adaobi-chidis-forever-2026",
         "adaobi-chidis-forever-2026-k8m2",
         "adaobi-chidis-forever-2026-k8m2-2",
       ])

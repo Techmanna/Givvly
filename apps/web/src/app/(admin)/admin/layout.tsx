@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { getSession } from "@/features/auth/server";
-import { isMockApiEnabled } from "@/lib/env";
 import { AdminShell } from "@/features/admin";
 
 export default async function AdminLayout({
@@ -12,11 +11,11 @@ export default async function AdminLayout({
   const user = await getSession();
 
   if (!user) {
-    redirect("/login?next=/admin");
+    redirect("/login?next=/admin&error=session_expired");
   }
 
-  if (!isMockApiEnabled() && user.role !== "ADMIN") {
-    redirect("/dashboard");
+  if (user.role !== "ADMIN") {
+    redirect("/dashboard?error=forbidden");
   }
 
   return (

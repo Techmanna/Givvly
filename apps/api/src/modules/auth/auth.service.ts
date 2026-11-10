@@ -57,7 +57,10 @@ export class AuthService {
       select: { id: true },
     });
     if (existing) {
-      throw new ConflictException("An account with this email already exists");
+      throw new ConflictException({
+        code: "EMAIL_TAKEN",
+        message: "An account with this email already exists",
+      });
     }
 
     const passwordHash = dto.password
@@ -85,7 +88,10 @@ export class AuthService {
       });
     } catch (err: any) {
       if (err?.code === "P2002") {
-        throw new ConflictException("An account with this email already exists");
+        throw new ConflictException({
+          code: "EMAIL_TAKEN",
+          message: "An account with this email already exists",
+        });
       }
       throw err;
     }

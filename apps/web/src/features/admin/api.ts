@@ -201,8 +201,11 @@ export async function fetchAdminProducts(): Promise<AdminProduct[]> {
     description: p.description ?? "",
     priceKobo: p.priceKobo ?? 0,
     category: p.category ?? (Array.isArray(p.occasions) && p.occasions[0]) ?? "Wedding Gifts",
+    giftType: p.giftType,
+    mainCategories: p.mainCategories ?? [],
     occasions: p.occasions ?? [],
     relationships: p.relationships ?? [],
+    gender: p.gender,
     vendorName: p.vendorName ?? p.vendor?.name ?? "Givvly Curated",
     inStock: typeof p.inStock === "boolean" ? p.inStock : (p.stock === null || p.stock > 0),
     rating: p.rating ?? p.ratingAvg ?? 4.9,
@@ -232,6 +235,15 @@ export function updateAdminProduct(
     {
       method: "PATCH",
       body: patch,
+    }
+  );
+}
+
+export function deleteAdminProduct(productId: string) {
+  return api<{ success: boolean; id: string }>(
+    `/admin/products/${encodeURIComponent(productId)}`,
+    {
+      method: "DELETE",
     }
   );
 }

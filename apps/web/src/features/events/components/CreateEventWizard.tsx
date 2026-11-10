@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Calendar as CalendarIcon,
@@ -84,8 +85,15 @@ const WIZARD_STEPS = [
 const EVENT_TYPE_LABELS: Record<EventType, string> = {
   BIRTHDAY: "Birthday",
   WEDDING: "Wedding",
+  HOUSEWARMING: "Housewarming",
+  ANNIVERSARY: "Anniversary",
+  BRIDAL_SHOWER: "Bridal shower",
   BABY_SHOWER: "Baby shower",
+  NAMING_CEREMONY: "Naming ceremony",
   GRADUATION: "Graduation",
+  SEND_OFF: "Send-off & Relocation",
+  RETIREMENT: "Retirement",
+  MEMORIAL: "Celebration of life",
   OTHER: "Other celebration",
 };
 
@@ -93,16 +101,6 @@ const STORY_TEMPLATES_BY_TYPE: Record<
   EventType,
   Array<{ label: string; text: string }>
 > = {
-  WEDDING: [
-    {
-      label: "Traditional & White Wedding",
-      text: "From a chance meeting in Lagos to forever together! Your prayers, presence, and blessings mean the world to our families as we begin our new home.",
-    },
-    {
-      label: "Warm & Grateful",
-      text: "We are overjoyed to celebrate our union surrounded by the people who shaped our journey. Thank you for celebrating love, family, and new beginnings with us.",
-    },
-  ],
   BIRTHDAY: [
     {
       label: "Milestone Thanksgiving",
@@ -113,10 +111,52 @@ const STORY_TEMPLATES_BY_TYPE: Record<
       text: "Grateful for life, growth, and the best circle of family and friends. Come ready to dance, celebrate, and share in the joy!",
     },
   ],
+  WEDDING: [
+    {
+      label: "Traditional & White Wedding",
+      text: "From a chance meeting in Lagos to forever together! Your prayers, presence, and blessings mean the world to our families as we begin our new home.",
+    },
+    {
+      label: "Warm & Grateful",
+      text: "We are overjoyed to celebrate our union surrounded by the people who shaped our journey. Thank you for celebrating love, family, and new beginnings with us.",
+    },
+  ],
+  HOUSEWARMING: [
+    {
+      label: "New Home & New Beginnings",
+      text: "We've officially unpacked and found our haven! We can't wait to welcome our favourite people into our new space for an evening of warmth, laughter, and great food.",
+    },
+    {
+      label: "Home Blessing",
+      text: "Every brick and corner is a testimony of God's goodness. Thank you for blessing our new home with your love, prayers, and thoughtful gifts as we settle in.",
+    },
+  ],
+  ANNIVERSARY: [
+    {
+      label: "Celebrating Love & Milestones",
+      text: "Years of love, partnership, and laughter! We are gathering our dearest family and friends to toast to our journey and the beautiful years still ahead.",
+    },
+    {
+      label: "Growing Together",
+      text: "Through every season, love has carried us. Thank you for walking alongside our family and celebrating this special anniversary milestone with us.",
+    },
+  ],
+  BRIDAL_SHOWER: [
+    {
+      label: "Shower the Bride",
+      text: "The countdown to 'I Do' is on! Join us for an intimate celebration of laughter, pampering, and unforgettable memories as we shower our bride with love.",
+    },
+  ],
   BABY_SHOWER: [
     {
       label: "Welcome Little Blessing",
       text: "Our hearts are full as we prepare to welcome our little bundle of joy. Thank you for showering our growing family with prayers, love, and thoughtful gifts.",
+    },
+  ],
+  NAMING_CEREMONY: [
+    {
+      label: "Joyful Naming & Dedication",
+      text: "With hearts full of gratitude, we gather to bestow our child's name and dedicate their life to God. Your prayers, blessings, and presence honor our family today.",
     },
   ],
   GRADUATION: [
@@ -125,9 +165,31 @@ const STORY_TEMPLATES_BY_TYPE: Record<
       text: "Sleepless nights, dedication, and God's grace brought us to this milestone! Thank you for supporting my journey and cheering me into the next chapter.",
     },
   ],
+  SEND_OFF: [
+    {
+      label: "Bon Voyage & New Horizons",
+      text: "As a new adventure calls across borders, we want to gather our favourite people for one last dance, hearty laughs, and warm hugs before wheels up!",
+    },
+    {
+      label: "To New Beginnings",
+      text: "Stepping into a new chapter abroad! Thank you for being my rock, my family, and my biggest cheerleaders. Distance will never break our bond.",
+    },
+  ],
+  RETIREMENT: [
+    {
+      label: "Meritorious Service & Legacy",
+      text: "Celebrating decades of passion, hard work, and unforgettable impact! Please join us as we toast to a well-deserved retirement and a vibrant new season of rest and purpose.",
+    },
+  ],
+  MEMORIAL: [
+    {
+      label: "Celebration of a Beautiful Life",
+      text: "In loving memory of a life richly lived and deeply cherished. We gather to give thanks, celebrate their enduring legacy, and comfort one another in love.",
+    },
+  ],
   OTHER: [
     {
-      label: "Housewarming & Thanksgiving",
+      label: "Thanksgiving & Celebration",
       text: "We are gathering our favourite people to give thanks and celebrate this special milestone together. Your presence and warm wishes mean everything to us!",
     },
   ],
@@ -138,27 +200,37 @@ const POPULAR_REGISTRY_PRESETS: ReadonlyArray<{
   targetPriceNaira: number;
   tag: string;
 }> = [
-    {
-      title: "Honeymoon & Getaway Fund",
-      targetPriceNaira: 250_000,
-      tag: "Most popular",
-    },
-    {
-      title: "New Home Appliances Pool",
-      targetPriceNaira: 150_000,
-      tag: "Group gift",
-    },
-    {
-      title: "Aso-Ebi & Celebration Purse",
-      targetPriceNaira: 100_000,
-      tag: "Traditional",
-    },
-    {
-      title: "Baby Nursery & Essentials Fund",
-      targetPriceNaira: 120_000,
-      tag: "Family favourite",
-    },
-  ];
+  {
+    title: "Honeymoon & Getaway Fund",
+    targetPriceNaira: 250_000,
+    tag: "Wedding",
+  },
+  {
+    title: "New Home Kitchen Appliances Pool",
+    targetPriceNaira: 150_000,
+    tag: "Housewarming",
+  },
+  {
+    title: "Birthday Cash Blessing Pot",
+    targetPriceNaira: 100_000,
+    tag: "Birthday",
+  },
+  {
+    title: "Relocation & Departure Travel Fund",
+    targetPriceNaira: 200_000,
+    tag: "Send-Off",
+  },
+  {
+    title: "Baby Nursery & Essentials Fund",
+    targetPriceNaira: 120_000,
+    tag: "Baby & Naming",
+  },
+  {
+    title: "Career & Induction Starter Pool",
+    targetPriceNaira: 180_000,
+    tag: "Graduation",
+  },
+];
 
 const FLEXIBLE_GIFT_PREFERENCES: ReadonlyArray<{
   title: string;
@@ -633,7 +705,9 @@ export function getIntelligentRegistrySuggestions(
 }
 
 export function CreateEventWizard() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const isAuthed = Boolean(user && user.id);
   const step = useEventWizardStore((s) => s.step);
   const draft = useEventWizardStore((s) => s.draft);
   const setStep = useEventWizardStore((s) => s.setStep);
@@ -643,8 +717,8 @@ export function CreateEventWizard() {
   const hydrateFromStorage = useEventWizardStore((s) => s.hydrateFromStorage);
   const clearWizard = useEventWizardStore((s) => s.clearWizard);
 
-  const payoutQuery = usePayoutAccountQuery();
-  const myEventsQuery = useMyEvents();
+  const payoutQuery = usePayoutAccountQuery(isAuthed);
+  const myEventsQuery = useMyEvents(isAuthed);
   const publicEventsQuery = usePublicEventsList();
   const catalogQuery = useCatalogProducts();
   const presignMutation = usePresignUploadMutation();
@@ -988,6 +1062,12 @@ export function CreateEventWizard() {
       }
     }
 
+    if (!isAuthed) {
+      toast.info("Please sign in or create an account to publish your celebration.");
+      router.push("/login?next=/events/new");
+      return;
+    }
+
     setStepErrors({});
     try {
       const resolvedHostName = draft.hostName.trim() || creatorDefaultHost;
@@ -1089,7 +1169,7 @@ export function CreateEventWizard() {
                   <p className="text-xs font-medium text-muted-foreground">
                     Public event link
                   </p>
-                  <p className="mt-1 break-all font-mono text-sm font-medium text-foreground border">
+                  <p className="mt-1 break-all font-mono text-sm font-medium text-foreground">
                     {publicUrl}
                   </p>
                 </div>
@@ -1125,12 +1205,12 @@ export function CreateEventWizard() {
 
       {/* Live Ownership Preview & Auto-Save Assurance (Endowment + Loss Aversion) */}
       <div className="flex flex-col justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center">
-        <div className="space-y-0.5">
+        <div className="min-w-0 space-y-0.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
               {EVENT_TYPE_LABELS[draft.type]}
             </span>
-            <p className="font-heading text-sm font-semibold text-foreground">
+            <p className="truncate font-heading text-sm font-semibold text-foreground">
               {draft.name.trim() || "Your Celebration Title"}
             </p>
             {draft.date ? (
@@ -1139,11 +1219,14 @@ export function CreateEventWizard() {
               </span>
             ) : null}
           </div>
-          <p className="font-mono text-[11px] text-muted-foreground">
-            Link preview: givvly.store/e/{previewSlug}
+          <p className="break-all font-mono text-[11px] text-muted-foreground">
+            Link preview:{" "}
+            <span className="font-medium text-foreground">
+              givvly.store/e/{previewSlug}
+            </span>
           </p>
         </div>
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
+        <div className="flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-emerald-700">
           <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>Draft auto-saved on this device</span>
         </div>
@@ -1879,7 +1962,7 @@ export function CreateEventWizard() {
                 </div>
                 <div className="flex justify-between gap-3 py-2">
                   <dt className="text-muted-foreground">Public link</dt>
-                  <dd className="truncate font-mono text-xs font-medium text-foreground">
+                  <dd className="break-all font-mono text-xs font-medium text-foreground text-right">
                     givvly.store/e/{previewSlug}
                   </dd>
                 </div>
@@ -1916,17 +1999,47 @@ export function CreateEventWizard() {
                       : "Open gifting (Cash, Airtime/Data & Catalog)"}
                   </dd>
                 </div>
-                <div className="flex items-center justify-between py-2">
-                  <dt className="text-muted-foreground">Payout status</dt>
-                  <dd className="flex items-center gap-2">
-                    <StatusBadge
-                      status={payoutQuery.data?.status ?? "NOT_SET"}
-                    />
-                  </dd>
-                </div>
+                {isAuthed ? (
+                  <div className="flex items-center justify-between py-2">
+                    <dt className="text-muted-foreground">Payout status</dt>
+                    <dd className="flex items-center gap-2">
+                      <StatusBadge
+                        status={payoutQuery.data?.status ?? "NOT_SET"}
+                      />
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
 
-              {!payoutVerified ? (
+              {!isAuthed ? (
+                <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 sm:p-5 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                      <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground">
+                        Sign in or create an account to publish
+                      </h4>
+                      <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                        All your celebration details, date, and registry wishlist are saved on this device. Sign in or create a free account so your guests can RSVP, send gifts, and write on your Wall of Love.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1 sm:pl-12">
+                    <Button asChild size="sm" className="font-semibold text-xs">
+                      <Link href="/login?next=/events/new">
+                        Sign In &amp; Publish
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline" size="sm" className="text-xs">
+                      <Link href="/signup?next=/events/new">
+                        Create Free Account
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              ) : !payoutVerified ? (
                 <div className="flex flex-col justify-between gap-3 rounded-control border border-warning/40 bg-warning/10 p-4 sm:flex-row sm:items-center">
                   <div className="flex items-start gap-2.5 text-xs">
                     <AlertTriangle
@@ -1974,7 +2087,7 @@ export function CreateEventWizard() {
               {publishMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : null}
-              <span>Publish event</span>
+              <span>{isAuthed ? "Publish event" : "Sign In to Publish"}</span>
             </Button>
           )}
         </CardFooter>

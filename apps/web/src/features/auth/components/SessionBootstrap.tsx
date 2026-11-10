@@ -15,7 +15,18 @@ export function SessionBootstrap() {
   useEffect(() => {
     registerUnauthenticatedHandler((nextPath) => {
       clear();
-      router.push(`/login?next=${encodeURIComponent(nextPath)}`);
+      if (typeof document !== "undefined") {
+        document.cookie =
+          "givvly_at=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+        document.cookie =
+          "givvly_rt=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+      }
+      const target = `/login?next=${encodeURIComponent(nextPath)}&error=unauthenticated`;
+      if (typeof window !== "undefined") {
+        window.location.href = target;
+      } else {
+        router.push(target);
+      }
     });
   }, [clear, router]);
 

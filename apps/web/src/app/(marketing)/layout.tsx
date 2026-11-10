@@ -25,7 +25,8 @@ export default async function MarketingLayout({
           backgroundSize: "100% auto",
         }}
       />
-      <AnnouncementBar />
+      {/* Keep this as commented for now!!!!!
+        <AnnouncementBar /> */}
 
       <MarketingHeader initialUser={user} />
 

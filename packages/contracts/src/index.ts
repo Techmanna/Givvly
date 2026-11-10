@@ -44,8 +44,15 @@ export type User = {
 export type EventType =
   | "BIRTHDAY"
   | "WEDDING"
+  | "HOUSEWARMING"
+  | "ANNIVERSARY"
+  | "BRIDAL_SHOWER"
   | "BABY_SHOWER"
+  | "NAMING_CEREMONY"
   | "GRADUATION"
+  | "SEND_OFF"
+  | "RETIREMENT"
+  | "MEMORIAL"
   | "OTHER";
 
 export type EventStatus = "DRAFT" | "PUBLISHED" | "CLOSED" | "ARCHIVED";
@@ -142,16 +149,26 @@ export type OrderStatus =
 export type Order = {
   id: string;
   number: string;
-  items: { name: string; qty: number; unitPriceKobo: number }[];
+  buyerUserId?: string;
+  buyerEmail?: string;
+  items: {
+    productId?: string;
+    title?: string;
+    name?: string;
+    qty: number;
+    quantity?: number;
+    unitPriceKobo: number;
+    priceKobo?: number;
+  }[];
   totalKobo: number;
   status: OrderStatus;
   timeline: { status: OrderStatus; at: string }[];
   recipientName: string;
   recipientPhone?: string;
-  buyerEmail?: string;
   trackingToken?: string;
   address?: string;
   createdAt?: string;
+  updatedAt?: string;
 };
 
 // Shared Example Schema (Section 8.2)

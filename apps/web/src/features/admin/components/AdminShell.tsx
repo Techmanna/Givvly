@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { logoutUser } from "@/features/auth/api";
+import { useAuthStore } from "@/stores/auth-store";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -76,7 +78,32 @@ export function AdminShell({
   userEmail?: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const clearAuth = useAuthStore((s) => s.clear);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logoutUser();
+    } catch {
+      // ignore
+    } finally {
+      clearAuth();
+      if (typeof window !== "undefined") {
+        try {
+          window.location.href = "/login";
+        } catch {
+          router.push("/login");
+          router.refresh();
+        }
+      } else {
+        router.push("/login");
+        router.refresh();
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -178,12 +205,23 @@ export function AdminShell({
               asChild
               variant="outline"
               size="sm"
-              className="w-full justify-center text-xs"
+              className="flex-1 justify-center text-xs"
             >
               <Link href="/dashboard">
-                <span>Host Dashboard</span>
+                <span>Host View</span>
                 <ArrowUpRight className="ml-1 h-3 w-3" />
               </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="text-xs text-destructive hover:bg-destructive/10 hover:text-destructive px-2.5"
+              title="Sign out of Admin Console"
+            >
+              <LogOut className="h-3.5 w-3.5 mr-1" />
+              <span>Sign out</span>
             </Button>
           </div>
         </div>
@@ -249,12 +287,22 @@ export function AdminShell({
               </nav>
             </div>
 
-            <div className="border-t border-border pt-3">
+            <div className="border-t border-border pt-3 space-y-2">
               <Button asChild variant="outline" size="sm" className="w-full">
                 <Link href="/dashboard">
                   <span>Exit to Host Portal</span>
                   <ArrowUpRight className="ml-1 h-3 w-3" />
                 </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="w-full justify-center text-xs text-destructive hover:bg-destructive/10 hover:text-destructive gap-1.5"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Sign out</span>
               </Button>
             </div>
           </div>
@@ -285,10 +333,10 @@ export function AdminShell({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <Badge
               variant="outline"
-              className="border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-600 font-medium"
+              className="border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-600 font-medium hidden sm:inline-flex"
             >
               <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Live Operations
@@ -299,6 +347,17 @@ export function AdminShell({
                 <span>Host View</span>
                 <ExternalLink className="ml-1.5 h-3 w-3" />
               </Link>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-border h-8 gap-1.5"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Sign out</span>
             </Button>
           </div>
         </header>

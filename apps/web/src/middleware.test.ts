@@ -19,7 +19,7 @@ describe("middleware route guards (Section 5.4)", () => {
   });
 
   it("redirects to /api/auth/refresh when givvly_at is missing/expired but givvly_rt exists", async () => {
-    const req = new NextRequest("http://localhost:3000/events/new", {
+    const req = new NextRequest("http://localhost:3000/dashboard", {
       headers: {
         cookie: "givvly_rt=refresh-token-123",
       },
@@ -27,8 +27,14 @@ describe("middleware route guards (Section 5.4)", () => {
     const res = await middleware(req);
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe(
-      "http://localhost:3000/api/auth/refresh?next=%2Fevents%2Fnew"
+      "http://localhost:3000/api/auth/refresh?next=%2Fdashboard"
     );
+  });
+
+  it("allows guest users to access /events/new to draft events without redirect", async () => {
+    const req = new NextRequest("http://localhost:3000/events/new");
+    const res = await middleware(req);
+    expect(res.status).toBe(200);
   });
 
   it("redirects USER hitting /admin to /dashboard?error=forbidden", async () => {

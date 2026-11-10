@@ -10,4 +10,6 @@ export type {
   CatalogProduct,
   ProductReview,
   CreateProductReviewInput,
+  ReviewEligibilityResponse,
+  ReviewEligibilityReason,
 } from "@givvly/contracts";

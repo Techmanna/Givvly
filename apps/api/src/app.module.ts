@@ -5,6 +5,7 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { validateEnv } from "./config/env";
 import { PrismaModule } from "./infra/prisma/prisma.module";
 import { RedisModule } from "./infra/redis/redis.module";
+import { SlugModule } from "./common/slug/slug.module";
 import { PaystackModule } from "./infra/paystack/paystack.module";
 import { PaymentsInfraModule } from "./infra/payments/payments-infra.module";
 import { StorageInfraModule } from "./infra/storage/storage-infra.module";
@@ -41,6 +42,7 @@ import { WalletModule } from "./modules/wallet/wallet.module";
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    SlugModule,
     RedisModule,
     PaystackModule,
     PaymentsInfraModule,

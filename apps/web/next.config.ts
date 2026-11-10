@@ -21,6 +21,14 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@givvly/contracts"],
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "cdn.givvly.store" },
+      { protocol: "https", hostname: "*.paystack.co" },
+      { protocol: "https", hostname: "**" },
+    ],
+  },
   turbopack: {
     rules: {
       "*.css": {

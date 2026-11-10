@@ -28,10 +28,11 @@ import type {
   UpdateEventRequest,
 } from "../types";
 
-export function useMyEvents() {
+export function useMyEvents(enabled = true) {
   return useQuery({
     queryKey: eventKeys.mine(),
     queryFn: fetchMyEvents,
+    enabled,
   });
 }
 
@@ -111,10 +112,11 @@ export function useBanksQuery() {
   });
 }
 
-export function usePayoutAccountQuery() {
+export function usePayoutAccountQuery(enabled = true) {
   return useQuery({
     queryKey: eventKeys.payoutAccount(),
     queryFn: fetchPayoutAccount,
+    enabled,
   });
 }
 

@@ -103,7 +103,7 @@ export function OrderDetailView({
           </div>
         </CardHeader>
 
-        <CardContent className="grid gap-8 p-6 lg:grid-cols-[1fr_340px]">
+        <CardContent className="grid gap-8 p-6 lg:grid-cols-[1fr_360px]">
           <div className="space-y-6">
             <div>
               <h3 className="mb-3 flex items-center gap-2 font-display text-base font-semibold text-ink">

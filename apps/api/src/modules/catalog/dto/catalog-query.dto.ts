@@ -98,6 +98,12 @@ export class CatalogProductResponseDto {
   @ApiProperty({ example: ["FRIEND", "PARTNER"] })
   relationships: string[];
 
+  @ApiPropertyOptional({ example: ["WEDDING", "BIRTHDAY"] })
+  mainCategories?: string[];
+
+  @ApiPropertyOptional({ example: "UNISEX" })
+  gender?: string;
+
   @ApiPropertyOptional({ example: "https://cdn.givvly.store/uploads/products/candle.jpg" })
   imageUrl?: string;
 

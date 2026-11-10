@@ -35,7 +35,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const res = exceptionResponse as Record<string, unknown>;
       message = (res.message as string) || message;
       code = (res.code as string) || (res.error as string) || code;
-      details = res.details || res.message;
+      details = res.details ?? (Array.isArray(res.message) ? res.message : undefined);
     } else if (exception instanceof Error) {
       message = exception.message;
     }

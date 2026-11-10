@@ -21,8 +21,15 @@ enum UserStatus {
 enum EventType {
   BIRTHDAY
   WEDDING
+  HOUSEWARMING
+  ANNIVERSARY
+  BRIDAL_SHOWER
   BABY_SHOWER
+  NAMING_CEREMONY
   GRADUATION
+  SEND_OFF
+  RETIREMENT
+  MEMORIAL
   OTHER
 }
 
@@ -509,21 +516,24 @@ model Product {
   active        Boolean        @default(true)
   ratingAvg     Float          @default(0)
   ratingCount   Int            @default(0)
+  comboItems    Json?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   vendor        Vendor?        @relation(fields: [vendorId], references: [id])
   registry      RegistryItem[]
+  reviews       Review[]
 
   @@index([active, priceKobo])
   @@index([vendorId])
 }
 
 model Collection {
-  id         String   @id @default(uuid())
-  slug       String   @unique
-  name       String
-  kind       String
-  productIds String[]
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  kind        String
+  description String?
+  productIds  String[]
 }
 
 model Order {
@@ -590,14 +600,21 @@ model OrderStatusHistory {
 }
 
 model Review {
-  id        String   @id @default(uuid())
-  orderId   String   @unique
-  userId    String
-  vendorId  String
-  rating    Int
-  comment   String?
-  createdAt DateTime @default(now())
-  order     Order    @relation(fields: [orderId], references: [id])
+  id         String   @id @default(uuid())
+  orderId    String?  @unique
+  userId     String?
+  vendorId   String?
+  productId  String?
+  rating     Int
+  title      String?
+  authorName String?
+  verified   Boolean  @default(true)
+  comment    String?
+  createdAt  DateTime @default(now())
+  order      Order?   @relation(fields: [orderId], references: [id])
+  product    Product? @relation(fields: [productId], references: [id])
+
+  @@index([productId, createdAt])
 }
 
 model Dispute {

@@ -38,32 +38,62 @@ export function mapAuthErrorToForm<T extends FieldValues>(
     };
   }
 
-  if (error.code === "EMAIL_TAKEN" && knownFields.includes("email" as Path<T>)) {
+  const isEmailConflict =
+    error.code === "EMAIL_TAKEN" ||
+    error.code === "Conflict" ||
+    error.status === 409 ||
+    (typeof error.message === "string" &&
+      error.message.toLowerCase().includes("email already exists"));
+
+  if (isEmailConflict && knownFields.includes("email" as Path<T>)) {
     setError("email" as Path<T>, {
       type: "server",
       message: "An account with this email already exists.",
     });
-    return { formError: null, code: error.code };
+    return { formError: null, code: "EMAIL_TAKEN" };
   }
 
-  if (error.details) {
-    const unknownMessages: string[] = [];
-    for (const [field, messages] of Object.entries(error.details)) {
-      const firstMessage = messages?.[0];
-      if (!firstMessage) continue;
-      if (knownFields.includes(field as Path<T>)) {
-        setError(field as Path<T>, {
-          type: "server",
-          message: firstMessage,
-        });
-      } else {
-        unknownMessages.push(firstMessage);
+  const rawDetails: unknown = error.details;
+  if (rawDetails) {
+    if (typeof rawDetails === "string" && rawDetails.trim()) {
+      return { formError: rawDetails.trim(), code: error.code };
+    }
+
+    if (Array.isArray(rawDetails)) {
+      const messages = rawDetails.filter(
+        (m): m is string => typeof m === "string" && Boolean(m.trim())
+      );
+      if (messages.length > 0) {
+        return { formError: messages.join(" "), code: error.code };
       }
     }
-    if (unknownMessages.length > 0) {
-      return { formError: unknownMessages.join(" "), code: error.code };
+
+    if (typeof rawDetails === "object" && !Array.isArray(rawDetails)) {
+      const unknownMessages: string[] = [];
+      for (const [field, rawMessages] of Object.entries(
+        rawDetails as Record<string, unknown>
+      )) {
+        const messages = Array.isArray(rawMessages)
+          ? rawMessages
+          : typeof rawMessages === "string"
+            ? [rawMessages]
+            : [];
+        const firstMessage = messages[0];
+        if (!firstMessage || typeof firstMessage !== "string") continue;
+        if (knownFields.includes(field as Path<T>)) {
+          setError(field as Path<T>, {
+            type: "server",
+            message: firstMessage,
+          });
+        } else {
+          unknownMessages.push(firstMessage);
+        }
+      }
+      if (unknownMessages.length > 0) {
+        return { formError: unknownMessages.join(" "), code: error.code };
+      }
+      return { formError: null, code: error.code };
     }
-    return { formError: null, code: error.code };
   }
 
   return {

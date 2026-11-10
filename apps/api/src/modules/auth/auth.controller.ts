@@ -179,6 +179,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Public()
   @Post("logout")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Sign out and invalidate session family" })
@@ -190,7 +191,11 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response
   ): Promise<void> {
     if (user?.sessionId) {
-      await this.authService.logout(user.sessionId);
+      try {
+        await this.authService.logout(user.sessionId);
+      } catch {
+        // Ignore session lookup errors during logout
+      }
     }
     this.clearAuthCookies(res);
   }

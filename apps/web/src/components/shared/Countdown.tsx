@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -12,22 +13,33 @@ type TimeRemaining = {
   days: number;
   hours: number;
   minutes: number;
+  seconds: number;
   isPast: boolean;
 };
 
 function computeRemaining(targetIso: string, nowMs: number): TimeRemaining {
-  const targetMs = new Date(`${targetIso.slice(0, 10)}T00:00:00+01:00`).getTime();
+  const targetMs = new Date(
+    `${targetIso.slice(0, 10)}T00:00:00+01:00`
+  ).getTime();
+
   const diff = targetMs - nowMs;
 
   if (Number.isNaN(targetMs) || diff <= 0) {
-    return { days: 0, hours: 0, minutes: 0, isPast: true };
+    return {
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      isPast: true,
+    };
   }
 
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
   const minutes = Math.floor((diff / (1000 * 60)) % 60);
+  const seconds = Math.floor((diff / 1000) % 60);
 
-  return { days, hours, minutes, isPast: false };
+  return { days, hours, minutes, seconds, isPast: false };
 }
 
 export function Countdown({ targetDate, className }: CountdownProps) {
@@ -36,7 +48,8 @@ export function Countdown({ targetDate, className }: CountdownProps) {
   React.useEffect(() => {
     const timer = window.setInterval(() => {
       setNowMs(Date.now());
-    }, 60_000);
+    }, 1000);
+
     return () => window.clearInterval(timer);
   }, []);
 
@@ -58,40 +71,38 @@ export function Countdown({ targetDate, className }: CountdownProps) {
     );
   }
 
+  const timeUnits = [
+    { value: remaining.days, label: "Days" },
+    { value: remaining.hours, label: "Hours" },
+    { value: remaining.minutes, label: "Mins" },
+    { value: remaining.seconds, label: "Secs" },
+  ];
+
   return (
     <div
-      aria-label={`${remaining.days} days, ${remaining.hours} hours remaining`}
+      aria-label={`${remaining.days} days, ${remaining.hours} hours, ${remaining.minutes} minutes, ${remaining.seconds} seconds remaining`}
+      aria-live="off"
       className={cn(
-        "inline-flex items-center gap-2.5 rounded-2xl border border-accent/40 bg-card/90 px-4 py-2.5 shadow-2xs",
+        "inline-flex items-center gap-2 rounded-2xl border border-accent/40 bg-card/90 px-3 py-2.5 shadow-2xs",
         className
       )}
     >
-      <div className="flex flex-col items-center px-2">
-        <span className="font-heading text-xl font-semibold tabular-nums text-primary">
-          {remaining.days}
-        </span>
-        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          Days
-        </span>
-      </div>
-      <span className="font-heading text-lg text-accent/70">:</span>
-      <div className="flex flex-col items-center px-2">
-        <span className="font-heading text-xl font-semibold tabular-nums text-primary">
-          {remaining.hours}
-        </span>
-        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          Hours
-        </span>
-      </div>
-      <span className="font-heading text-lg text-accent/70">:</span>
-      <div className="flex flex-col items-center px-2">
-        <span className="font-heading text-xl font-semibold tabular-nums text-primary">
-          {remaining.minutes}
-        </span>
-        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          Mins
-        </span>
-      </div>
+      {timeUnits.map((unit, index) => (
+        <React.Fragment key={unit.label}>
+          {index > 0 && (
+            <span className="font-heading text-lg text-accent/70">:</span>
+          )}
+
+          <div className="flex flex-col items-center px-1.5">
+            <span className="font-heading text-xl font-semibold tabular-nums text-primary">
+              {String(unit.value).padStart(2, "0")}
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              {unit.label}
+            </span>
+          </div>
+        </React.Fragment>
+      ))}
     </div>
   );
 }

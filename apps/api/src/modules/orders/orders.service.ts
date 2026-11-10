@@ -54,7 +54,19 @@ export class OrdersService {
     // Resolve items
     const rawItems: Array<{ productId: string; qty: number }> = [];
     if (dto.items && dto.items.length > 0) {
-      rawItems.push(...dto.items);
+      for (const item of dto.items) {
+        if (item.productId) {
+          rawItems.push({ productId: item.productId, qty: item.qty || 1 });
+        } else if (item.productSlug) {
+          const prod = await this.prisma.product.findUnique({
+            where: { slug: item.productSlug },
+          });
+          if (!prod) {
+            throw new NotFoundException(`Product '${item.productSlug}' not found`);
+          }
+          rawItems.push({ productId: prod.id, qty: item.qty || 1 });
+        }
+      }
     } else if (dto.productId) {
       rawItems.push({ productId: dto.productId, qty: dto.qty || 1 });
     } else if (dto.productSlug || dto.vtuType) {

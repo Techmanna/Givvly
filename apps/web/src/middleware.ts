@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { decodeJwt, importSPKI, jwtVerify, type JWTPayload } from "jose";
 import type { Role } from "@givvly/contracts";
-import { isMockApiEnabled } from "@/lib/env";
 import { sanitizeNextPath } from "@/lib/format";
 
 export type AccessTokenClaims = JWTPayload & {
@@ -21,6 +20,10 @@ const PROTECTED_PREFIXES = [
 ];
 
 function isProtectedPath(pathname: string): boolean {
+  // Allow guest hosts to draft their celebration before being required to log in to publish
+  if (pathname === "/events/new") {
+    return false;
+  }
   return PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
@@ -62,11 +65,12 @@ export async function verifyAccessToken(
         );
         return payload as AccessTokenClaims;
       } catch {
-        // Fall through to structure decoding
+        // When secret is configured and verification fails, the token is invalid
+        return null;
       }
     }
 
-    // Fallback verification: decode token structure and check expiration
+    // Fallback verification for mock tokens in dev/test: decode token structure and check expiration
     const decoded = decodeJwt(token) as AccessTokenClaims;
     const nowSec = Math.floor(Date.now() / 1000);
     if (typeof decoded.exp === "number" && decoded.exp <= nowSec) {
@@ -87,19 +91,30 @@ export async function middleware(request: NextRequest) {
 
   const claims: AccessTokenClaims | null = accessCookie
     ? await verifyAccessToken(accessCookie)
-    : isMockApiEnabled() && !AUTH_BOUNCE_PATHS.has(pathname)
-      ? {
-          sub: "usr_adaobi_01",
-          role: pathname.startsWith("/admin")
-            ? "ADMIN"
-            : "USER",
-        }
-      : null;
+    : null;
 
   // Bounce logged-in users away from /login and /signup (Section 5.1 & 5.4)
   if (AUTH_BOUNCE_PATHS.has(pathname)) {
+    // If arriving at login with an explicit error (e.g. session expired or unauthenticated),
+    // clear the cookies and do not bounce so the user can cleanly log in again
+    if (request.nextUrl.searchParams.has("error")) {
+      const response = NextResponse.next();
+      response.cookies.delete("givvly_at");
+      response.cookies.delete("givvly_rt");
+      return response;
+    }
+
     if (claims) {
       const nextParam = request.nextUrl.searchParams.get("next");
+      // Prevent bouncing a non-admin user into an admin route
+      if (
+        nextParam &&
+        (nextParam === "/admin" || nextParam.startsWith("/admin/")) &&
+        claims.role !== "ADMIN"
+      ) {
+        return NextResponse.redirect(new URL("/dashboard?error=forbidden", request.url));
+      }
+
       const defaultRolePath =
         claims.role === "ADMIN"
           ? "/admin"

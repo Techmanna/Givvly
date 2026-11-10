@@ -40,6 +40,7 @@ import { logoutUser } from "@/features/auth/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/cn";
 import { BrandLogo } from "./BrandLogo";
+import { BoxButton } from "./BoxButton";
 
 export type UserAppHeaderProps = {
   user?: User | null;
@@ -61,8 +62,17 @@ export function UserAppHeader({ user: initialUser }: UserAppHeaderProps) {
       // ignore
     } finally {
       clearAuth();
-      router.push("/login");
-      router.refresh();
+      if (typeof window !== "undefined") {
+        try {
+          window.location.href = "/login";
+        } catch {
+          router.push("/login");
+          router.refresh();
+        }
+      } else {
+        router.push("/login");
+        router.refresh();
+      }
     }
   };
 
@@ -152,6 +162,9 @@ export function UserAppHeader({ user: initialUser }: UserAppHeaderProps) {
               </Link>
             </Button>
           ) : null}
+
+          {/* Gift Box button */}
+          <BoxButton />
 
           {/* Notification bell */}
           <NotificationBell />

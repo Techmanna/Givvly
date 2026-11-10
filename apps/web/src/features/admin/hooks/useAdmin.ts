@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createAdminProduct,
+  deleteAdminProduct,
   fetchAdminDisputes,
   fetchAdminEvents,
   fetchAdminLedger,
@@ -165,6 +166,17 @@ export function useUpdateAdminProduct() {
       productId: string;
       patch: Parameters<typeof updateAdminProduct>[1];
     }) => updateAdminProduct(productId, patch),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.products() });
+    },
+  });
+}
+
+export function useDeleteAdminProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (productId: string) => deleteAdminProduct(productId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.products() });
     },

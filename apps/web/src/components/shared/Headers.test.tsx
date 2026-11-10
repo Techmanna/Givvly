@@ -6,6 +6,8 @@ import { makeQueryClient } from "@/lib/query-client";
 import { useAuthStore } from "@/stores/auth-store";
 import { MarketingHeader } from "./MarketingHeader";
 import { UserAppHeader } from "./UserAppHeader";
+import { AdminShell } from "@/features/admin";
+import * as authApi from "@/features/auth/api";
 import type { User } from "@givvly/contracts";
 
 vi.mock("next/navigation", () => ({
@@ -96,5 +98,64 @@ describe("UserAppHeader", () => {
     renderWithQuery(<UserAppHeader user={mockAdminUser} />);
 
     expect(screen.getByText("Admin Console")).toBeInTheDocument();
+  });
+
+  it("calls logoutUser and clears auth store on sign out", async () => {
+    const logoutSpy = vi.spyOn(authApi, "logoutUser").mockResolvedValueOnce({ message: "Signed out" });
+    useAuthStore.getState().setUser(mockHostUser);
+    const user = userEvent.setup();
+
+    renderWithQuery(<UserAppHeader user={mockHostUser} />);
+
+    // Open user dropdown menu
+    const trigger = screen.getByRole("button", { name: /user account menu/i });
+    await user.click(trigger);
+
+    const signOut = await screen.findByRole("menuitem", { name: /sign out/i });
+    await user.click(signOut);
+
+    await waitFor(() => {
+      expect(logoutSpy).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().user).toBeNull();
+    });
+  });
+});
+
+describe("AdminShell", () => {
+  it("renders Admin navigation and Sign out buttons", () => {
+    renderWithQuery(
+      <AdminShell userName="Test Admin" userEmail="admin@example.com">
+        <div>Admin Content</div>
+      </AdminShell>
+    );
+
+    expect(screen.getByText("Givvly")).toBeInTheDocument();
+    expect(screen.getByText("Test Admin")).toBeInTheDocument();
+    expect(screen.getByText("admin@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Admin Content")).toBeInTheDocument();
+
+    const signOutButtons = screen.getAllByRole("button", { name: /sign out/i });
+    expect(signOutButtons.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("calls logoutUser when clicking desktop sidebar Sign out", async () => {
+    const logoutSpy = vi.spyOn(authApi, "logoutUser").mockResolvedValueOnce({ message: "Signed out" });
+    useAuthStore.getState().setUser(mockAdminUser);
+    const user = userEvent.setup();
+
+    renderWithQuery(
+      <AdminShell userName="Super Admin" userEmail="admin@givvly.com">
+        <div>Admin Dashboard</div>
+      </AdminShell>
+    );
+
+    const signOutButtons = screen.getAllByRole("button", { name: /sign out/i });
+    expect(signOutButtons.length).toBeGreaterThan(0);
+    await user.click(signOutButtons[0]!);
+
+    await waitFor(() => {
+      expect(logoutSpy).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().user).toBeNull();
+    });
   });
 });

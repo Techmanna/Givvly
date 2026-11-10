@@ -178,6 +178,57 @@ describe("AdminService", () => {
       expect(prisma.auditLog.create).toHaveBeenCalled();
     });
 
+    it("creates a product with clean title slug when no collision occurs", async () => {
+      prisma.product.findUnique.mockResolvedValueOnce(null);
+
+      const created = await service.createProduct(
+        {
+          title: "1. How to get rich quick?",
+          description: "Essential finance guide book",
+          priceKobo: 500000,
+          occasions: ["GRADUATION"],
+          relationships: ["FRIEND"],
+        },
+        "admin-1"
+      );
+
+      expect(created.slug).toBe("how-to-get-rich-quick");
+      expect(prisma.product.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            slug: "how-to-get-rich-quick",
+          }),
+        })
+      );
+    });
+
+    it("appends random suffix when product slug already exists in database", async () => {
+      // First findUnique for base slug returns existing product
+      prisma.product.findUnique
+        .mockResolvedValueOnce({ id: "prod-existing", slug: "how-to-get-rich-quick" })
+        .mockResolvedValueOnce(null);
+
+      const created = await service.createProduct(
+        {
+          title: "1. How to get rich quick?",
+          description: "Second edition finance guide book",
+          priceKobo: 550000,
+          occasions: ["GRADUATION"],
+          relationships: ["FRIEND"],
+        },
+        "admin-1"
+      );
+
+      expect(created.slug).toMatch(/^how-to-get-rich-quick-[a-z0-9]{5}$/);
+      expect(prisma.product.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            slug: expect.stringMatching(/^how-to-get-rich-quick-[a-z0-9]{5}$/),
+          }),
+        })
+      );
+    });
+
     it("updates product attributes", async () => {
       const updated = await service.updateProduct(
         "prod-1",
@@ -192,6 +243,47 @@ describe("AdminService", () => {
     it("soft-deactivates product", async () => {
       const deactivated = await service.deleteProduct("prod-1", "admin-1");
       expect(deactivated.active).toBe(false);
+    });
+  });
+
+  describe("Collections Management", () => {
+    it("generates a clean slug from collection name when not provided", async () => {
+      prisma.collection.findUnique.mockResolvedValueOnce(null);
+
+      const col = await service.createCollection(
+        {
+          name: "Valentine's Luxury Hampers",
+          kind: "OCCASION",
+          productIds: ["prod-1"],
+        } as any,
+        "admin-1"
+      );
+
+      expect(col.slug).toBe("valentines-luxury-hampers");
+      expect(prisma.collection.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            slug: "valentines-luxury-hampers",
+          }),
+        })
+      );
+    });
+
+    it("appends random suffix when collection slug collides", async () => {
+      prisma.collection.findUnique
+        .mockResolvedValueOnce({ id: "col-existing", slug: "anniversary-specials" })
+        .mockResolvedValueOnce(null);
+
+      const col = await service.createCollection(
+        {
+          name: "Anniversary Specials",
+          kind: "OCCASION",
+          productIds: [],
+        } as any,
+        "admin-1"
+      );
+
+      expect(col.slug).toMatch(/^anniversary-specials-[a-z0-9]{5}$/);
     });
   });
 

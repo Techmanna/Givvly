@@ -82,10 +82,38 @@ export function confirmPasswordReset(
   });
 }
 
-export function logoutUser(): Promise<MessageResponse> {
-  return api<MessageResponse>("/auth/logout", {
-    method: "POST",
-  });
+export async function logoutUser(): Promise<MessageResponse> {
+  // 1. Call Next.js internal logout endpoint to immediately delete first-party httpOnly cookies
+  try {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch {
+    // Ignore internal fetch failure
+  }
+
+  // 2. Also dispatch backend logout to invalidate session family upstream
+  try {
+    await api<MessageResponse>("/auth/logout", {
+      method: "POST",
+    });
+  } catch {
+    // Ignore upstream logout error
+  }
+
+  // 3. Clear any client-accessible cookies as defensive fallback
+  if (typeof document !== "undefined") {
+    const expired = "=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0";
+    document.cookie = `givvly_at${expired}; SameSite=Lax`;
+    document.cookie = `givvly_at${expired}`;
+    document.cookie = `givvly_rt${expired}; SameSite=Lax`;
+    document.cookie = `givvly_rt${expired}`;
+    document.cookie = `givvly_csrf${expired}; SameSite=Lax`;
+    document.cookie = `givvly_csrf${expired}`;
+  }
+
+  return { message: "Signed out successfully" };
 }
 
 export function updateProfile(payload: {

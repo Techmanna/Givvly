@@ -2,9 +2,11 @@
 
 import { useRef } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Star, Gift } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star, Gift, PackagePlus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/shared/Money";
+import { useCartStore } from "@/stores/cart-store";
 import { useCatalogProducts } from "../hooks/useCatalog";
 import type { CatalogProduct } from "../types";
 
@@ -15,6 +17,18 @@ export function RelatedProductsSection({
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const productsQuery = useCatalogProducts();
+  const addItem = useCartStore((s) => s.addItem);
+  const openBox = useCartStore((s) => s.openBox);
+
+  const handleAddToBox = (product: CatalogProduct) => {
+    addItem(product, 1);
+    toast.success(`Added ${product.name} to your Gift Box!`, {
+      action: {
+        label: "View Box",
+        onClick: () => openBox(),
+      },
+    });
+  };
 
   const allProducts = productsQuery.data ?? [];
 
@@ -103,37 +117,73 @@ export function RelatedProductsSection({
                 {/* Stage Card */}
                 <Link
                   href={`/gifts/${item.slug}`}
-                  className={`relative flex h-40 flex-col items-center justify-center overflow-hidden rounded-xl border p-4 text-center transition-all duration-300 ${
+                  className={`relative flex h-40 flex-col items-center justify-center overflow-hidden rounded-xl border text-center transition-all duration-300 group/stage ${
                     item.isCombo
                       ? "border-[#D4A959]/50 bg-gradient-to-br from-[#332022]/90 via-[#6E2E3C] to-[#8F3545] text-white"
                       : "border-accent/30 bg-gradient-to-br from-primary/10 via-[#FAF3EF] to-accent/15 text-foreground"
                   }`}
                 >
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                      item.isCombo
-                        ? "border border-[#D4A959]/60 bg-[#D4A959]/20 text-[#D4A959]"
-                        : "border border-accent/40 bg-card/90 text-primary"
-                    }`}
-                  >
-                    {item.isCombo ? "Luxury Hamper" : item.category}
-                  </span>
+                  {item.imageUrl ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105"
+                      />
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30"
+                      />
+                      <div className="absolute top-2.5 left-2.5 z-10">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider backdrop-blur-md shadow-xs ${
+                            item.isCombo
+                              ? "border border-[#D4A959]/70 bg-black/60 text-[#D4A959]"
+                              : "border border-white/20 bg-black/55 text-white"
+                          }`}
+                        >
+                          {item.isCombo ? "Luxury Hamper" : item.category}
+                        </span>
+                      </div>
+                      <div className="absolute inset-x-0 bottom-0 z-10 p-3 text-left">
+                        <p className="font-heading text-xs font-semibold leading-snug text-white line-clamp-1 drop-shadow-sm">
+                          {item.name}
+                        </p>
+                        <span className="text-[10px] italic text-[#FAF3EF]/85">
+                          by {item.vendorName}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-4">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                          item.isCombo
+                            ? "border border-[#D4A959]/60 bg-[#D4A959]/20 text-[#D4A959]"
+                            : "border border-accent/40 bg-card/90 text-primary"
+                        }`}
+                      >
+                        {item.isCombo ? "Luxury Hamper" : item.category}
+                      </span>
 
-                  <p
-                    className={`mt-2 font-heading text-sm font-semibold leading-snug line-clamp-2 ${
-                      item.isCombo ? "text-white" : "text-foreground"
-                    }`}
-                  >
-                    {item.name}
-                  </p>
+                      <p
+                        className={`mt-2 font-heading text-sm font-semibold leading-snug line-clamp-2 ${
+                          item.isCombo ? "text-white" : "text-foreground"
+                        }`}
+                      >
+                        {item.name}
+                      </p>
 
-                  <span
-                    className={`mt-1 text-[11px] italic ${
-                      item.isCombo ? "text-[#FAF3EF]/75" : "text-muted-foreground"
-                    }`}
-                  >
-                    by {item.vendorName}
-                  </span>
+                      <span
+                        className={`mt-1 text-[11px] italic ${
+                          item.isCombo ? "text-[#FAF3EF]/75" : "text-muted-foreground"
+                        }`}
+                      >
+                        by {item.vendorName}
+                      </span>
+                    </div>
+                  )}
                 </Link>
 
                 {/* Rating & Description */}
@@ -169,15 +219,14 @@ export function RelatedProductsSection({
                 </div>
 
                 <Button
-                  asChild
+                  type="button"
                   size="sm"
                   variant="outline"
-                  className="rounded-full text-xs font-semibold gap-1.5"
+                  onClick={() => handleAddToBox(item)}
+                  className="rounded-full text-xs font-semibold gap-1.5 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all"
                 >
-                  <Link href={`/checkout/${item.slug}`}>
-                    <Gift className="h-3 w-3" />
-                    <span>Send Gift</span>
-                  </Link>
+                  <PackagePlus className="h-3.5 w-3.5" />
+                  <span>Add to Box</span>
                 </Button>
               </div>
             </article>

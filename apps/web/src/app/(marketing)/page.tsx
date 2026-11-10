@@ -1,33 +1,40 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
-  CalendarHeart,
   Globe2,
   Heart,
   Gift,
   Quote,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/shared/Money";
 
+export const metadata: Metadata = {
+  title: "Givvly — One Link for Celebrations, Wishlists & Cash Gifts",
+  description:
+    "The modern celebration and gifting platform for Nigeria and the diaspora. Create your event link for birthdays, weddings, and milestones, collect cash gifts in Naira and diaspora currencies, and receive curated gifts.",
+};
+
 const CHAPTERS = [
   {
-    numeral: "I",
-    kicker: "The Digital Stationery",
-    title: "An invitation that feels like heavy cotton paper.",
-    body: "Share your love story, Aso-Ebi colour palette, venue timings, and private access code in a single link crafted for WhatsApp and iMessage.",
+    numeral: "01",
+    kicker: "The Bio Link & Digital Invite",
+    title: "A stunning celebration page ready for WhatsApp & your bio.",
+    body: "Share your event date, venue location, dress code, and RSVP in one sleek link. Guests open it instantly on any phone—no apps to download, no account required.",
   },
   {
-    numeral: "II",
-    kicker: "Cash Blessings & Group Pools",
-    title: "From Lagos transfers to London cards, settled in Naira.",
-    body: "Guests contribute toward your honeymoon fund, claim registry keepsakes, or send cash blessings—settled automatically to your Nigerian bank at 07:00 WAT.",
+    numeral: "02",
+    kicker: "Cash Gifts & Global Transfers",
+    title: "From Lagos bank transfers to London cards, settled in Naira.",
+    body: "Friends at home pay easily with bank transfer or debit card. Family in the UK, US, or Canada can gift using international cards—settled automatically into your Nigerian bank account.",
   },
   {
-    numeral: "III",
-    kicker: "The Living Keepsake",
-    title: "Every prayer, toast, and photograph preserved forever.",
-    body: "Friends post heartfelt wishes and celebration photos onto your Wall of Love, which transforms into a permanent keepsake book after the last dance.",
+    numeral: "03",
+    kicker: "Curated Wishlist & Wall of Love",
+    title: "Get gifts you actually love, and memories that last forever.",
+    body: "Pick curated items from top brands or create custom gift pools. Friends leave warm wishes, prayers, and celebration photos on your Wall of Love that you can keep forever.",
   },
 ];
 
@@ -38,7 +45,7 @@ const CURATED_HIGHLIGHTS = [
     title: "The Eko Grand Champagne & Artisanal Truffle Trunk",
     vendor: "Lagos Luxe Hampers",
     priceKobo: 12_500_000,
-    note: "Hand-wrapped in blush satin with a wax-sealed note.",
+    note: "Hand-wrapped in luxury satin with a personalized note.",
   },
   {
     slug: "smeg-retro-kettle-toaster-duo",
@@ -46,7 +53,7 @@ const CURATED_HIGHLIGHTS = [
     title: "Smeg 50s Cream Kettle & Two-Slice Breakfast Set",
     vendor: "Maison Lekki",
     priceKobo: 34_000_000,
-    note: "A timeless kitchen centrepiece for newlyweds.",
+    note: "A timeless luxury aesthetic for modern homes, birthdays, and celebrations.",
   },
   {
     slug: "oriire-handwoven-aso-oke-throw",
@@ -54,7 +61,7 @@ const CURATED_HIGHLIGHTS = [
     title: "Handloomed Iseyin Aso-Oke & Brass Table Runner",
     vendor: "Atélìer Oriire",
     priceKobo: 6_800_000,
-    note: "Woven by master artisans in Oyo State.",
+    note: "Handwoven by master artisans in Oyo State.",
   },
 ];
 
@@ -64,30 +71,31 @@ export default function MarketingHomePage() {
       {/* HERO: Asymmetrical Editorial Composition */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="gap-12">
-          {/* Left Narrative Column */}
+          {/* Narrative Column */}
           <div className="space-y-7 editorial-enter flex flex-col justify-center items-center text-center">
             <h1 className="font-heading text-4xl font-semibold leading-[1.08] tracking-tight text-foreground sm:text-6xl">
-              Where every blessing &amp; <br />gift becomes part of the  <br />
+              One beautiful link for your <br className="hidden sm:inline" />
+              celebration, wishlist &amp;{" "}
               <span className="italic font-normal text-primary">
-                love story.
+                cash gifts.
               </span>
             </h1>
 
-            <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Whether it is a traditional introduction in Enugu, a rooftop
-              thirtieth in Victoria Island, or a naming ceremony shared with
-              family in London—Givvly brings your invitation, cash purse, gift
-              registry, and Wall of Love into one intimate home.
+            <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              Planning a milestone birthday, wedding, housewarming, or dinner party?
+              Givvly gives you one sleek link for your event. Collect cash gifts
+              seamlessly in Naira or diaspora currencies, curate a wishlist you actually
+              want, and gather heartfelt notes—all in one place.
             </p>
 
-            <div className="flex flex-wrap items-center gap-4 pt-1">
+            <div className="flex flex-wrap items-center justify-center gap-4 pt-1">
               <Button
                 asChild
                 size="lg"
                 className="h-12 rounded-full px-7 text-sm font-semibold shadow-sm editorial-lift"
               >
                 <Link href="/events/new">
-                  <span>Begin Your Celebration</span>
+                  <span>Create Your Celebration Link</span>
                   <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
                 </Link>
               </Button>
@@ -96,35 +104,46 @@ export default function MarketingHomePage() {
                 asChild
                 variant="outline"
                 size="lg"
-                className="h-12 rounded-full border-border bg-card/80 px-6 text-sm font-medium editorial-lift"
+                className="h-12 rounded-full border-border bg-card/60 px-6 text-sm font-semibold editorial-lift"
               >
-                <Link href="/e/chidada-forever-2026">
-                  <CalendarHeart
-                    className="mr-1.5 h-4 w-4 text-primary"
-                    aria-hidden="true"
-                  />
-                  <span>Experience #ChidAda26 Live</span>
+                <Link href="/celebrations">
+                  <span>Explore Live Celebrations</span>
                 </Link>
               </Button>
             </div>
 
+            {/* Trust markers / social conversion cues */}
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-2 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                100% Free to create
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                Naira &amp; Diaspora cards accepted
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                Automatic bank payouts
+              </span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* CHAPTERS: Three Editorial Pillars */}
-      {/* <section className="mx-auto max-w-6xl px-4 sm:px-6">
+      {/* CHAPTERS: Three Core Value Pillars */}
+      <section className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
-            Designed with Emotion
+            Celebrations Made Effortless
           </p>
           <h2 className="mt-2 font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Every moment of generosity, thoughtfully choreographed.
+            No more awkward account numbers on flyers.
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
-            No awkward bank account screenshots on flyers. No spreadsheets of
-            unclaimed gifts. Just a warm, dignified experience for you and your
-            guests.
+            Say goodbye to duplicate gifts, messy spreadsheets, and endless
+            &ldquo;send your account details&rdquo; WhatsApp DMs. Givvly makes
+            celebrating dignified, seamless, and memorable for everyone.
           </p>
         </div>
 
@@ -158,7 +177,7 @@ export default function MarketingHomePage() {
             </article>
           ))}
         </div>
-      </section> */}
+      </section>
 
       {/* CURATED GIFT ATELIER PREVIEW */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -168,8 +187,11 @@ export default function MarketingHomePage() {
               The Gift Atelier
             </p>
             <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              Send a wrapped physical gift to any doorstep in Nigeria.
+              Send wrapped physical gifts to any doorstep in Nigeria.
             </h2>
+            <p className="text-sm text-muted-foreground">
+              Whether you are in Lagos or abroad, send premium hand-wrapped gifts with handwritten notes.
+            </p>
           </div>
           <Button
             asChild
@@ -238,12 +260,13 @@ export default function MarketingHomePage() {
                 aria-hidden="true"
               />
               <blockquote className="font-heading text-2xl font-medium italic leading-relaxed text-foreground sm:text-3xl">
-                &ldquo;Our cousins in Houston and Manchester sent their wedding
-                blessings in seconds, and reading the Wall of Love the morning
-                after our wedding brought us both to tears.&rdquo;
+                &ldquo;I added my Givvly link to my birthday invite and Instagram bio.
+                Friends in Lagos sent transfers, family in London gifted in pounds without
+                asking for my BVN, and reading everyone&apos;s messages on the Wall of Love
+                made my celebration unforgettable.&rdquo;
               </blockquote>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-                — Adaobi &amp; Chidi Okafor • Lagos, Nigeria
+                — Simi Adegoke • 30th Birthday Host, Lagos
               </p>
             </div>
 
@@ -255,12 +278,12 @@ export default function MarketingHomePage() {
               >
                 <Link href="/events/new">
                   <Heart className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                  <span>Create Your Free Page</span>
+                  <span>Create Your Free Event Page</span>
                 </Link>
               </Button>
               <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Globe2 className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
-                <span>Takes less than 3 minutes • No setup fees</span>
+                <span>Ready in under 2 minutes • Zero setup fees</span>
               </p>
             </div>
           </div>
@@ -269,4 +292,3 @@ export default function MarketingHomePage() {
     </div>
   );
 }
-

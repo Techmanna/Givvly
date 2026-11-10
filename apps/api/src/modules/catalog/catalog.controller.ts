@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+  UnauthorizedException,
+} from "@nestjs/common";
 import {
   ApiTags,
   ApiOperation,
@@ -11,7 +20,12 @@ import {
   CatalogProductResponseDto,
   CatalogCollectionResponseDto,
 } from "./dto/catalog-query.dto";
-import { Public } from "../../common/decorators/auth.decorator";
+import {
+  Public,
+  CurrentUser,
+  RequestUser,
+} from "../../common/decorators/auth.decorator";
+import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 
 @ApiTags("E-Commerce Catalog & Collections")
 @Controller("catalog")
@@ -54,14 +68,33 @@ export class CatalogController {
   }
 
   @Public()
+  @Get("products/:slug/review-eligibility")
+  @ApiOperation({
+    summary: "Check if the current authenticated user can review this product",
+  })
+  @ApiParam({ name: "slug", description: "Unique product slug" })
+  async checkReviewEligibility(
+    @Param("slug") slug: string,
+    @CurrentUser() user?: RequestUser
+  ) {
+    return this.catalogService.checkReviewEligibility(slug, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post("products/:slug/reviews")
-  @ApiOperation({ summary: "Submit a customer review for a product" })
+  @ApiOperation({
+    summary: "Submit a customer review for a product (verified purchasers only)",
+  })
   @ApiParam({ name: "slug", description: "Unique product slug" })
   async createProductReview(
     @Param("slug") slug: string,
+    @CurrentUser() user: RequestUser,
     @Body() dto: any
   ) {
-    return this.catalogService.createProductReview(slug, dto);
+    if (!user?.id) {
+      throw new UnauthorizedException("You must be logged in to submit a review");
+    }
+    return this.catalogService.createProductReview(slug, dto, user);
   }
 
   @Public()

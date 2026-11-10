@@ -17,10 +17,17 @@ import { Type } from "class-transformer";
 import { z } from "zod";
 import { OrderStatus } from "@prisma/client";
 
-export const orderItemInputSchema = z.object({
-  productId: z.string().uuid(),
-  qty: z.number().int().min(1).default(1),
-});
+export const orderItemInputSchema = z
+  .object({
+    productId: z.string().optional(),
+    productSlug: z.string().optional(),
+    name: z.string().optional(),
+    qty: z.number().int().min(1).default(1),
+    unitPriceKobo: z.number().int().optional(),
+  })
+  .refine((data) => Boolean(data.productId || data.productSlug), {
+    message: "Either productId or productSlug must be provided",
+  });
 
 export const recipientSchema = z.object({
   name: z.string().trim().min(2).max(60),
@@ -75,14 +82,30 @@ export const createOrderSchema = z
   });
 
 export class OrderItemInputDto {
-  @ApiProperty({ example: "a0000000-0000-0000-0000-000000000001" })
-  @IsUUID()
-  productId: string;
+  @ApiPropertyOptional({ example: "a0000000-0000-0000-0000-000000000001" })
+  @IsOptional()
+  @IsString()
+  productId?: string;
+
+  @ApiPropertyOptional({ example: "luxury-scented-candle" })
+  @IsOptional()
+  @IsString()
+  productSlug?: string;
+
+  @ApiPropertyOptional({ example: "Luxury Scented Candle" })
+  @IsOptional()
+  @IsString()
+  name?: string;
 
   @ApiProperty({ example: 1, default: 1 })
   @IsInt()
   @IsPositive()
   qty: number;
+
+  @ApiPropertyOptional({ example: 2500000 })
+  @IsOptional()
+  @IsInt()
+  unitPriceKobo?: number;
 }
 
 export class RecipientDto {

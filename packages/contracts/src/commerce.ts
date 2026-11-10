@@ -203,7 +203,16 @@ export const directCheckoutSchema = z
 
 export type DirectCheckoutInput = z.infer<typeof directCheckoutSchema>;
 
+export type CreateDirectOrderItem = {
+  productId?: string;
+  productSlug?: string;
+  name: string;
+  qty: number;
+  unitPriceKobo: number;
+};
+
 export type CreateDirectOrderRequest = {
+  items?: CreateDirectOrderItem[];
   productSlug?: string;
   recipientName?: string;
   recipientPhone: string;
@@ -312,6 +321,19 @@ export const createProductReviewSchema = z.object({
 });
 
 export type CreateProductReviewInput = z.infer<typeof createProductReviewSchema>;
+
+export type ReviewEligibilityReason =
+  | "UNAUTHENTICATED"
+  | "NOT_PURCHASED"
+  | "ALREADY_REVIEWED";
+
+export type ReviewEligibilityResponse = {
+  canReview: boolean;
+  reason?: ReviewEligibilityReason;
+  message?: string;
+  orderId?: string;
+  orderNumber?: string;
+};
 
 // Vendor status transitions (Section 8.1 & 9.F11)
 export const NEXT_VALID_ORDER_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {

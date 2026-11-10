@@ -4,9 +4,11 @@ import {
   ConflictException,
   BadRequestException,
   Logger,
+  Optional,
 } from "@nestjs/common";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
+import { SlugService } from "../../common/slug/slug.service";
 import {
   OrderStatus,
   PaymentStatus,
@@ -27,11 +29,15 @@ import { canOrderTransition } from "../orders/order-state-machine";
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
+  private readonly slugService: SlugService;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ledger: LedgerService
-  ) {}
+    private readonly ledger: LedgerService,
+    @Optional() slugService?: SlugService
+  ) {
+    this.slugService = slugService ?? new SlugService(this.prisma);
+  }
 
   /**
    * Helper to write structured AuditLog
@@ -111,10 +117,15 @@ export class AdminService {
         vendorName: p.vendor?.name || "Givvly Curated",
         stock: p.stock,
         inStock,
-        rating: p.ratingAvg || 4.9,
-        reviewCount: p.ratingCount || 16,
-        isCombo: false,
-        comboItems: [],
+        rating: p.ratingAvg ?? 5.0,
+        reviewCount: p.ratingCount ?? 0,
+        isCombo: Boolean(
+          (Array.isArray(p.comboItems) && p.comboItems.length > 0) ||
+          p.title.toLowerCase().includes("combo") ||
+          p.title.toLowerCase().includes("box") ||
+          p.title.toLowerCase().includes("hamper")
+        ),
+        comboItems: Array.isArray(p.comboItems) ? (p.comboItems as any[]) : [],
         packagingIncluded: "Luxury Gift Box & Ribbon",
         images: p.images,
         imageUrl: primaryImage,
@@ -143,21 +154,10 @@ export class AdminService {
           ? 0
           : 50;
 
-    const slugBase =
-      dto.slug ||
-      title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
-    const randomSuffix = Math.random().toString(36).substring(2, 6);
-    const finalSlug = dto.slug || `${slugBase}-${randomSuffix}`;
-
-    const existing = await this.prisma.product.findUnique({
-      where: { slug: finalSlug },
+    const finalSlug = await this.slugService.generateSlug({
+      title: dto.slug?.trim() || title,
+      model: "product",
     });
-    if (existing) {
-      throw new ConflictException(`Product slug '${finalSlug}' already exists`);
-    }
 
     const product = await this.prisma.product.create({
       data: {
@@ -171,6 +171,7 @@ export class AdminService {
         stock,
         isDigital: dto.isDigital || false,
         digitalKind: dto.digitalKind,
+        comboItems: dto.comboItems || undefined,
         active: true,
       },
     });
@@ -189,6 +190,15 @@ export class AdminService {
       throw new NotFoundException(`Product '${id}' not found`);
     }
 
+    let slugToUpdate: string | undefined = undefined;
+    if (dto.slug && dto.slug.trim() && dto.slug.trim() !== product.slug) {
+      slugToUpdate = await this.slugService.generateSlug({
+        title: dto.slug.trim(),
+        model: "product",
+        excludeId: id,
+      });
+    }
+
     const title = dto.name ?? dto.title;
     const images =
       dto.images !== undefined
@@ -205,9 +215,17 @@ export class AdminService {
             : 0
           : undefined;
 
+    const comboItems =
+      dto.isCombo === false && dto.comboItems === undefined
+        ? []
+        : dto.comboItems !== undefined
+          ? dto.comboItems
+          : undefined;
+
     const updated = await this.prisma.product.update({
       where: { id },
       data: {
+        ...(slugToUpdate !== undefined && { slug: slugToUpdate }),
         ...(title !== undefined && { title }),
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.priceKobo !== undefined && { priceKobo: dto.priceKobo }),
@@ -217,6 +235,7 @@ export class AdminService {
         ...(stock !== undefined && { stock }),
         ...(dto.isDigital !== undefined && { isDigital: dto.isDigital }),
         ...(dto.digitalKind !== undefined && { digitalKind: dto.digitalKind }),
+        ...(comboItems !== undefined && { comboItems: comboItems }),
         ...(dto.active !== undefined && { active: dto.active }),
       },
     });
@@ -226,7 +245,37 @@ export class AdminService {
       after: updated,
     });
 
-    return updated;
+    const imagesArr = Array.isArray(updated.images) ? (updated.images as string[]) : [];
+    const primaryImage =
+      imagesArr[0] ||
+      (typeof updated.images === "string" ? updated.images : "/images/gifts/box-luxury.jpg");
+    const inStock = updated.stock === null || updated.stock > 0;
+
+    const effectiveTitle = updated.title || product.title || "Curated Gift";
+    const titleLower = effectiveTitle.toLowerCase();
+    const effectiveOccasions = updated.occasions || product.occasions || [];
+    const effectiveComboItems = updated.comboItems ?? product.comboItems ?? [];
+
+    return {
+      ...updated,
+      title: effectiveTitle,
+      name: effectiveTitle,
+      category: effectiveOccasions[0] || dto.category || "Wedding Gifts",
+      occasions: effectiveOccasions,
+      vendorName: "Givvly Curated",
+      inStock,
+      rating: updated.ratingAvg ?? 5.0,
+      reviewCount: updated.ratingCount ?? 0,
+      isCombo: Boolean(
+        (Array.isArray(effectiveComboItems) && effectiveComboItems.length > 0) ||
+        titleLower.includes("combo") ||
+        titleLower.includes("box") ||
+        titleLower.includes("hamper")
+      ),
+      comboItems: Array.isArray(effectiveComboItems) ? (effectiveComboItems as any[]) : [],
+      packagingIncluded: "Luxury Gift Box & Ribbon",
+      imageUrl: primaryImage,
+    };
   }
 
   async deleteProduct(id: string, adminId?: string) {
@@ -252,17 +301,15 @@ export class AdminService {
   }
 
   async createCollection(dto: CreateCollectionDto, adminId?: string) {
-    const existing = await this.prisma.collection.findUnique({
-      where: { slug: dto.slug },
+    const finalSlug = await this.slugService.generateSlug({
+      title: dto.slug?.trim() || dto.name,
+      model: "collection",
     });
-    if (existing) {
-      throw new ConflictException(`Collection slug '${dto.slug}' already exists`);
-    }
 
     const collection = await this.prisma.collection.create({
       data: {
         name: dto.name,
-        slug: dto.slug,
+        slug: finalSlug,
         kind: dto.kind || "OCCASION",
         productIds: dto.productIds,
       },
@@ -278,10 +325,20 @@ export class AdminService {
       throw new NotFoundException(`Collection '${id}' not found`);
     }
 
+    let slugToUpdate: string | undefined = undefined;
+    if (dto.slug && dto.slug.trim() && dto.slug.trim() !== col.slug) {
+      slugToUpdate = await this.slugService.generateSlug({
+        title: dto.slug.trim(),
+        model: "collection",
+        excludeId: id,
+      });
+    }
+
     const updated = await this.prisma.collection.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
+        ...(slugToUpdate !== undefined && { slug: slugToUpdate }),
         ...(dto.kind !== undefined && { kind: dto.kind }),
         ...(dto.productIds !== undefined && { productIds: dto.productIds }),
       },

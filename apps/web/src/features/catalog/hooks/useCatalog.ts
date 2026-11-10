@@ -11,6 +11,7 @@ import {
   fetchCatalogProductBySlug,
   fetchCatalogProducts,
   fetchProductReviews,
+  fetchReviewEligibility,
   fetchVtuPlans,
   fetchVtuProviders,
   submitProductReview,
@@ -54,6 +55,19 @@ export function useProductReviews(
   });
 }
 
+export function useReviewEligibility(
+  slug: string,
+  userId?: string,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: catalogKeys.reviewEligibility(slug, userId),
+    queryFn: () => fetchReviewEligibility(slug),
+    enabled: Boolean(enabled && userId),
+    staleTime: 30_000,
+  });
+}
+
 export function useSubmitProductReview(slug: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -61,6 +75,7 @@ export function useSubmitProductReview(slug: string) {
       submitProductReview(slug, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: catalogKeys.reviews(slug) });
+      queryClient.invalidateQueries({ queryKey: catalogKeys.reviewEligibility(slug) });
       queryClient.invalidateQueries({ queryKey: catalogKeys.product(slug) });
       queryClient.invalidateQueries({ queryKey: catalogKeys.all });
     },

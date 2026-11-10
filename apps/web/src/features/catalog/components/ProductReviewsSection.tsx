@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Star,
   Check,
@@ -13,6 +14,8 @@ import {
   Loader2,
   FilterX,
   Sparkles,
+  Lock,
+  LogIn,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -35,6 +38,7 @@ import type { CatalogProduct, ProductReview } from "../types";
 import {
   useProductReviews,
   useSubmitProductReview,
+  useReviewEligibility,
 } from "../hooks/useCatalog";
 
 export type { ProductReview };
@@ -110,6 +114,10 @@ export function ProductReviewsSection({
   );
   const reviews = fetchedReviews ?? initialReviews;
 
+  // Integrated review eligibility query (checks if user is logged in & has purchased)
+  const { data: eligibility, isLoading: isCheckingEligibility } =
+    useReviewEligibility(product.slug, user?.id, Boolean(user));
+
   // Integrated review submission mutation
   const submitReviewMutation = useSubmitProductReview(product.slug);
 
@@ -163,6 +171,19 @@ export function ProductReviewsSection({
   }, [reviews, selectedStarFilter, sortOption]);
 
   const handleOpenWriteReview = () => {
+    if (!user) {
+      toast.error(
+        "Please log in to submit a review. Only customers who purchased this gift can leave a review."
+      );
+      return;
+    }
+    if (eligibility && !eligibility.canReview) {
+      toast.error(
+        eligibility.message ||
+          "Only verified customers who have purchased this gift can leave a review."
+      );
+      return;
+    }
     if (!isWritingReview && user?.name && !newAuthor) {
       setNewAuthor(user.name);
     }
@@ -186,7 +207,7 @@ export function ProductReviewsSection({
         authorName: authorTrimmed,
         title: titleTrimmed,
         comment: commentTrimmed,
-        verified: Boolean(user) || true,
+        verified: true,
       });
 
       toast.success("Thank you! Your verified review has been published.");
@@ -299,15 +320,77 @@ export function ProductReviewsSection({
         </div>
 
         {/* Right: Write a review CTA */}
-        <div className="flex justify-center md:col-span-3 md:border-l md:border-border/60 md:pl-6">
-          <Button
-            type="button"
-            onClick={handleOpenWriteReview}
-            className="w-full max-w-xs rounded-full bg-primary hover:bg-primary/90 text-white font-semibold text-xs shadow-soft hover:shadow-card transition-all duration-200 md:w-auto md:px-6 py-2.5 gap-2"
-          >
-            <PenSquare className="h-3.5 w-3.5" />
-            <span>{isWritingReview ? "Cancel Review" : "Write a Review"}</span>
-          </Button>
+        <div className="flex flex-col items-center justify-center text-center space-y-2 md:col-span-3 md:border-l md:border-border/60 md:pl-6">
+          {!user ? (
+            <div className="space-y-1.5 w-full max-w-xs">
+              <Button
+                asChild
+                className="w-full rounded-full bg-primary hover:bg-primary/90 text-white font-semibold text-xs shadow-soft hover:shadow-card transition-all duration-200 py-2.5 gap-2"
+              >
+                <Link
+                  href={`/login?next=${encodeURIComponent(
+                    `/catalog/${product.slug}`
+                  )}`}
+                >
+                  <LogIn className="h-3.5 w-3.5" />
+                  <span>Log in to Review</span>
+                </Link>
+              </Button>
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                Verified buyers only. Sign in to leave a review.
+              </p>
+            </div>
+          ) : isCheckingEligibility ? (
+            <div className="space-y-1.5 w-full max-w-xs">
+              <Button
+                type="button"
+                disabled
+                variant="outline"
+                className="w-full rounded-full border-border/80 text-muted-foreground font-semibold text-xs py-2.5 gap-2 opacity-80"
+              >
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                <span>Checking eligibility...</span>
+              </Button>
+            </div>
+          ) : eligibility &&
+            !eligibility.canReview &&
+            eligibility.reason === "NOT_PURCHASED" ? (
+            <div className="space-y-1.5 w-full max-w-xs">
+              <Button
+                type="button"
+                disabled
+                variant="outline"
+                className="w-full rounded-full border-border/80 text-muted-foreground font-semibold text-xs py-2.5 gap-2 cursor-not-allowed opacity-80"
+              >
+                <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>Verified Purchasers Only</span>
+              </Button>
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                Only customers who purchased this gift can leave a review.
+              </p>
+            </div>
+          ) : eligibility &&
+            !eligibility.canReview &&
+            eligibility.reason === "ALREADY_REVIEWED" ? (
+            <div className="space-y-1.5 w-full max-w-xs">
+              <div className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-xs font-semibold text-emerald-800">
+                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Review Submitted</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                You have already shared your review for this gift.
+              </p>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              onClick={handleOpenWriteReview}
+              className="w-full max-w-xs rounded-full bg-primary hover:bg-primary/90 text-white font-semibold text-xs shadow-soft hover:shadow-card transition-all duration-200 md:w-auto md:px-6 py-2.5 gap-2"
+            >
+              <PenSquare className="h-3.5 w-3.5" />
+              <span>{isWritingReview ? "Cancel Review" : "Write a Review"}</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -327,22 +410,13 @@ export function ProductReviewsSection({
                 and guests.
               </p>
             </div>
-            {user ? (
-              <Badge
-                variant="outline"
-                className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-[10px] gap-1 shrink-0"
-              >
-                <Check className="h-2.5 w-2.5" />
-                <span>Verified Account</span>
-              </Badge>
-            ) : (
-              <Badge
-                variant="outline"
-                className="text-[10px] text-muted-foreground shrink-0"
-              >
-                Guest Review
-              </Badge>
-            )}
+            <Badge
+              variant="outline"
+              className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-[10px] gap-1 shrink-0"
+            >
+              <Check className="h-2.5 w-2.5" />
+              <span>Verified Purchaser</span>
+            </Badge>
           </div>
 
           {/* Star selector with hover feedback */}

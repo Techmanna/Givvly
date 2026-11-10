@@ -2,14 +2,21 @@
 
 import * as React from "react";
 import {
+  Award,
+  Baby,
   CalendarHeart,
   Expand,
   Gift,
   GraduationCap,
   Heart,
+  HeartHandshake,
+  Home,
   Maximize2,
   Minimize2,
   PartyPopper,
+  Plane,
+  Sparkles,
+  Sun,
 } from "lucide-react";
 import type { EventType } from "@givvly/contracts";
 import {
@@ -40,12 +47,28 @@ function getEventIcon(type: EventType) {
       return (
         <PartyPopper className="h-10 w-10 text-primary" aria-hidden="true" />
       );
+    case "HOUSEWARMING":
+      return <Home className="h-10 w-10 text-primary" aria-hidden="true" />;
+    case "ANNIVERSARY":
+      return (
+        <HeartHandshake className="h-10 w-10 text-primary" aria-hidden="true" />
+      );
+    case "BRIDAL_SHOWER":
+      return <Sparkles className="h-10 w-10 text-primary" aria-hidden="true" />;
+    case "BABY_SHOWER":
+      return <Gift className="h-10 w-10 text-primary" aria-hidden="true" />;
+    case "NAMING_CEREMONY":
+      return <Baby className="h-10 w-10 text-primary" aria-hidden="true" />;
     case "GRADUATION":
       return (
         <GraduationCap className="h-10 w-10 text-primary" aria-hidden="true" />
       );
-    case "BABY_SHOWER":
-      return <Gift className="h-10 w-10 text-primary" aria-hidden="true" />;
+    case "SEND_OFF":
+      return <Plane className="h-10 w-10 text-primary" aria-hidden="true" />;
+    case "RETIREMENT":
+      return <Award className="h-10 w-10 text-primary" aria-hidden="true" />;
+    case "MEMORIAL":
+      return <Sun className="h-10 w-10 text-primary" aria-hidden="true" />;
     default:
       return (
         <CalendarHeart className="h-10 w-10 text-primary" aria-hidden="true" />

@@ -56,6 +56,7 @@ import {
   type MockPaymentRecord,
   type MockRsvp,
 } from "./data";
+import { matchesProductCategory } from "../../features/catalog/categories";
 
 type MockDatabase = {
   currentUser: User | null;
@@ -134,6 +135,130 @@ function createInitialProductReviews(): Record<string, ProductReview[]> {
   return reviews;
 }
 
+export const MOCK_ORDERS_STORAGE_KEY = "givvly_mock_orders_v1";
+export const MOCK_PRODUCTS_STORAGE_KEY = "givvly_mock_products_v1";
+
+// Fallback multi-item box order for ord_1794332896881 if placed prior to storage sync
+const FALLBACK_USER_BOX_ORDER: Order = {
+  id: "ord_1794332896881",
+  number: "GIV-2026-9214",
+  items: [
+    {
+      name: "Executive Appreciation & Gratitude Box",
+      qty: 1,
+      unitPriceKobo: 19_500_000,
+    },
+    {
+      name: "Botanical Wellness & Spa Sanctuary Box",
+      qty: 1,
+      unitPriceKobo: 18_000_000,
+    },
+    {
+      name: "Hand-Poured Scented Candle & Botanical Glow Set",
+      qty: 1,
+      unitPriceKobo: 2_250_000,
+    },
+    {
+      name: "Luxury Whole-Box Gift Presentation & Satin Ribbon",
+      qty: 1,
+      unitPriceKobo: 250_000,
+    },
+  ],
+  totalKobo: 40_000_000, // ₦400,000
+  status: "CONFIRMED",
+  timeline: [
+    { status: "PENDING_PAYMENT", at: "2026-11-10T17:48:00Z" },
+    { status: "CONFIRMED", at: "2026-11-10T17:48:30Z" },
+    { status: "PACKED", at: "2026-11-10T17:50:00Z" },
+  ],
+  recipientName: "Valued Recipient",
+  recipientPhone: "08031234567",
+  buyerEmail: "guest@givvly.store",
+  trackingToken: "trk_box_400k_1794332896881",
+  address: "Admiralty Way, Lekki Phase 1, Lagos, Lagos",
+  createdAt: "2026-11-10T17:48:00Z",
+};
+
+export function readPersistedOrders(): Order[] {
+  if (typeof window === "undefined") {
+    return [...structuredClone(INITIAL_ORDERS), FALLBACK_USER_BOX_ORDER];
+  }
+  try {
+    const raw = window.localStorage.getItem(MOCK_ORDERS_STORAGE_KEY);
+    if (!raw) {
+      return [...structuredClone(INITIAL_ORDERS), FALLBACK_USER_BOX_ORDER];
+    }
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const existingIds = new Set(parsed.map((o: Order) => o.id));
+      const merged = [...parsed];
+      if (!existingIds.has(FALLBACK_USER_BOX_ORDER.id)) {
+        merged.push(FALLBACK_USER_BOX_ORDER);
+        existingIds.add(FALLBACK_USER_BOX_ORDER.id);
+      }
+      for (const initial of INITIAL_ORDERS) {
+        if (!existingIds.has(initial.id)) {
+          merged.push(structuredClone(initial));
+        }
+      }
+      return merged;
+    }
+  } catch {
+    // Ignore storage parse errors
+  }
+  return [...structuredClone(INITIAL_ORDERS), FALLBACK_USER_BOX_ORDER];
+}
+
+export function readPersistedProducts(): MockCatalogProduct[] {
+  if (typeof window === "undefined") {
+    return structuredClone(MOCK_CATALOG_PRODUCTS);
+  }
+  try {
+    const raw = window.localStorage.getItem(MOCK_PRODUCTS_STORAGE_KEY);
+    if (!raw) {
+      return structuredClone(MOCK_CATALOG_PRODUCTS);
+    }
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const existingIds = new Set(parsed.map((p: MockCatalogProduct) => p.id));
+      const merged = [...parsed];
+      for (const initial of MOCK_CATALOG_PRODUCTS) {
+        if (!existingIds.has(initial.id)) {
+          merged.push(structuredClone(initial));
+        }
+      }
+      return merged;
+    }
+  } catch {
+    // Ignore storage parse errors
+  }
+  return structuredClone(MOCK_CATALOG_PRODUCTS);
+}
+
+export function writePersistedProducts(products: MockCatalogProduct[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      MOCK_PRODUCTS_STORAGE_KEY,
+      JSON.stringify(products)
+    );
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
+export function writePersistedOrders(orders: Order[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      MOCK_ORDERS_STORAGE_KEY,
+      JSON.stringify(orders)
+    );
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
 function createInitialDb(): MockDatabase {
   return {
     currentUser: { ...MOCK_USERS.user! },
@@ -147,8 +272,8 @@ function createInitialDb(): MockDatabase {
     unlockedSlugs: new Set<string>(),
     paymentsByRef: {},
     idempotencyCache: {},
-    products: structuredClone(MOCK_CATALOG_PRODUCTS),
-    orders: structuredClone(INITIAL_ORDERS),
+    products: readPersistedProducts(),
+    orders: readPersistedOrders(),
     notifications: structuredClone(INITIAL_NOTIFICATIONS),
     notificationPrefs: { ...INITIAL_NOTIFICATION_PREFS },
     moderationQueue: structuredClone(INITIAL_MODERATION_QUEUE),
@@ -161,6 +286,14 @@ function createInitialDb(): MockDatabase {
 let db: MockDatabase = createInitialDb();
 
 export function resetMockDatabase(): void {
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.removeItem(MOCK_ORDERS_STORAGE_KEY);
+      window.localStorage.removeItem(MOCK_PRODUCTS_STORAGE_KEY);
+    } catch {
+      // Ignore
+    }
+  }
   db = createInitialDb();
 }
 
@@ -201,7 +334,8 @@ function setBrowserMockCookie(name: string, value: string, maxAge = 86_400): voi
 
 function clearBrowserMockCookie(name: string): void {
   if (typeof document === "undefined") return;
-  document.cookie = `${name}=; path=/; max-age=0`;
+  document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; SameSite=Lax`;
+  document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0`;
 }
 
 function decodeBase64Url(input: string): string {
@@ -224,23 +358,48 @@ function decodeBase64Url(input: string): string {
 }
 
 function resolveUserFromCookie(cookieHeader?: string): User | null {
-  if (!cookieHeader) return null;
-  const match = cookieHeader.match(/givvly_at=([^;]+)/);
-  if (!match || !match[1]) return null;
-  try {
-    const raw = decodeURIComponent(match[1]);
-    const parts = raw.split(".");
-    const payloadPart = parts[1];
-    if (!payloadPart) return null;
-    const jsonStr = decodeBase64Url(payloadPart);
-    const payload = JSON.parse(jsonStr) as { sub?: string; role?: Role };
-    if (payload.role === "ADMIN" || payload.sub?.includes("admin") || payload.sub?.includes("vendor")) {
-      return { ...MOCK_USERS.admin! };
+  if (cookieHeader) {
+    const match = cookieHeader.match(/givvly_at=([^;]+)/);
+    if (match && match[1]) {
+      try {
+        const raw = decodeURIComponent(match[1]);
+        const parts = raw.split(".");
+        const payloadPart = parts[1];
+        if (payloadPart) {
+          const jsonStr = decodeBase64Url(payloadPart);
+          const payload = JSON.parse(jsonStr) as {
+            sub?: string;
+            role?: Role;
+            email?: string;
+            name?: string;
+          };
+          if (
+            payload.role === "ADMIN" ||
+            payload.sub?.includes("admin") ||
+            payload.sub?.includes("vendor")
+          ) {
+            return { ...MOCK_USERS.admin! };
+          }
+          if (db.currentUser && db.currentUser.id === payload.sub) {
+            return db.currentUser;
+          }
+          if (payload.sub && payload.sub !== MOCK_USERS.user?.id) {
+            return {
+              id: payload.sub,
+              email: payload.email || "user@givvly.store",
+              name: payload.name || "Test User",
+              role: (payload.role as Role) || "USER",
+              emailVerified: true,
+            };
+          }
+          return { ...MOCK_USERS.user! };
+        }
+      } catch {
+        // Fallback below
+      }
     }
-    return { ...MOCK_USERS.user! };
-  } catch {
-    return null;
   }
+  return db.currentUser ?? null;
 }
 
 function slugify(input: string): string {
@@ -315,11 +474,9 @@ export async function handleMockApiRequest<T>(
 
   // --- AUTH ENDPOINTS ---
   if (method === "GET" && normalizedPath === "/auth/me") {
-    if (opts.cookieHeader) {
+    if (opts.cookieHeader !== undefined) {
       const userFromCookie = resolveUserFromCookie(opts.cookieHeader);
-      if (userFromCookie) {
-        db.currentUser = userFromCookie;
-      }
+      db.currentUser = userFromCookie;
     }
     if (!db.currentUser) {
       throwMockError(401, "UNAUTHENTICATED", "Not signed in");
@@ -420,6 +577,7 @@ export async function handleMockApiRequest<T>(
     db.currentUser = null;
     clearBrowserMockCookie("givvly_at");
     clearBrowserMockCookie("givvly_rt");
+    clearBrowserMockCookie("givvly_csrf");
     return wrapSuccess({ message: "Signed out" } as unknown as T);
   }
 
@@ -1574,18 +1732,11 @@ export async function handleMockApiRequest<T>(
     const maxPriceKobo = Number(searchParams.get("maxPriceKobo") ?? "0");
     const q = (searchParams.get("q") ?? "").trim().toLowerCase();
 
+    db.products = readPersistedProducts();
     let list = [...db.products];
 
     if (mainCategory && mainCategory !== "ALL") {
-      if (mainCategory === "COMBOS") {
-        list = list.filter((p) => p.isCombo);
-      } else {
-        list = list.filter(
-          (p) =>
-            p.mainCategories?.includes(mainCategory) ||
-            p.category?.toUpperCase() === mainCategory
-        );
-      }
+      list = list.filter((p) => matchesProductCategory(p, mainCategory));
     }
 
     if (isComboParam === "true") {
@@ -1598,6 +1749,7 @@ export async function handleMockApiRequest<T>(
       list = list.filter(
         (p) =>
           p.giftType === giftType ||
+          matchesProductCategory(p, giftType) ||
           p.category.toUpperCase().includes(giftType.replace(/_/g, " "))
       );
     }
@@ -1681,6 +1833,81 @@ export async function handleMockApiRequest<T>(
     return wrapSuccess(product as unknown as T);
   }
 
+  const reviewEligibilityMatch =
+    /^\/catalog\/products\/([^/]+)\/review-eligibility$/.exec(normalizedPath);
+  if (reviewEligibilityMatch && method === "GET") {
+    const slug = decodeURIComponent(reviewEligibilityMatch[1]!);
+    const lower = slug.toLowerCase();
+    const user = resolveUserFromCookie(opts.cookieHeader);
+
+    if (!user) {
+      return wrapSuccess({
+        canReview: false,
+        reason: "UNAUTHENTICATED",
+        message: "Please log in to submit a review.",
+      } as unknown as T);
+    }
+
+    const prod = db.products.find(
+      (p) => p.slug === slug || p.id === slug || p.slug === lower
+    );
+
+    // Check if user already reviewed
+    const existing = (db.reviewsByProduct[slug] || []).find(
+      (r) =>
+        r.authorName.toLowerCase() === (user.name || "").toLowerCase() ||
+        (r as any).userId === user.id
+    );
+    if (existing) {
+      return wrapSuccess({
+        canReview: false,
+        reason: "ALREADY_REVIEWED",
+        message: "You have already reviewed this gift.",
+      } as unknown as T);
+    }
+
+    // Check if user has purchased this product
+    const purchasedOrder = db.orders.find((o) => {
+      const isBuyer =
+        o.buyerUserId === user.id ||
+        Boolean(
+          o.buyerEmail &&
+            user.email &&
+            o.buyerEmail.toLowerCase() === user.email.toLowerCase()
+        );
+      const isValidStatus =
+        o.status === "CONFIRMED" ||
+        o.status === "PACKED" ||
+        o.status === "SHIPPED" ||
+        o.status === "DELIVERED";
+      const hasProduct = o.items.some(
+        (it) =>
+          (prod &&
+            (it.productId === prod.id ||
+              ((it.title || (it as any).name || "").toLowerCase() ===
+                (prod.name || "").toLowerCase()))) ||
+          it.productId === slug ||
+          it.productId === lower
+      );
+      return isBuyer && isValidStatus && hasProduct;
+    });
+
+    if (!purchasedOrder) {
+      return wrapSuccess({
+        canReview: false,
+        reason: "NOT_PURCHASED",
+        message:
+          "Only verified customers who have purchased this gift can leave a review.",
+      } as unknown as T);
+    }
+
+    return wrapSuccess({
+      canReview: true,
+      orderId: purchasedOrder.id,
+      orderNumber: purchasedOrder.number,
+    } as unknown as T);
+  }
+
   const productReviewsMatch = /^\/catalog\/products\/([^/]+)\/reviews$/.exec(
     normalizedPath
   );
@@ -1750,24 +1977,81 @@ export async function handleMockApiRequest<T>(
     }
 
     if (method === "POST") {
-      const body = (opts.body ?? {}) as CreateProductReviewInput;
       const user = resolveUserFromCookie(opts.cookieHeader);
+      if (!user) {
+        throwMockError(
+          401,
+          "UNAUTHORIZED",
+          "You must be logged in to submit a review"
+        );
+      }
+
+      const body = (opts.body ?? {}) as CreateProductReviewInput;
       const prod = db.products.find(
         (p) => p.slug === slug || p.id === slug || p.slug === lower
       );
+
+      // Check if user already reviewed
+      const existing = (db.reviewsByProduct[slug] || []).find(
+        (r) =>
+          r.authorName.toLowerCase() === (user.name || "").toLowerCase() ||
+          (r as any).userId === user.id
+      );
+      if (existing) {
+        throwMockError(
+          400,
+          "BAD_REQUEST",
+          "You have already reviewed this product."
+        );
+      }
+
+      // Check if user has purchased this product
+      const purchasedOrder = db.orders.find((o) => {
+        const isBuyer =
+          o.buyerUserId === user.id ||
+          Boolean(
+            o.buyerEmail &&
+              user.email &&
+              o.buyerEmail.toLowerCase() === user.email.toLowerCase()
+          );
+        const isValidStatus =
+          o.status === "CONFIRMED" ||
+          o.status === "PACKED" ||
+          o.status === "SHIPPED" ||
+          o.status === "DELIVERED";
+        const hasProduct = o.items.some(
+          (it) =>
+            (prod &&
+              (it.productId === prod.id ||
+                ((it.title || (it as any).name || "").toLowerCase() ===
+                  (prod.name || "").toLowerCase()))) ||
+            it.productId === slug ||
+            it.productId === lower
+        );
+        return isBuyer && isValidStatus && hasProduct;
+      });
+
+      if (!purchasedOrder) {
+        throwMockError(
+          403,
+          "FORBIDDEN",
+          "Only verified customers who have purchased this gift can leave a review."
+        );
+      }
 
       const newReview: ProductReview = {
         id: `rev_${Date.now()}`,
         productId: prod?.id,
         productSlug: slug,
-        authorName: (body.authorName || user?.name || "Verified Customer").trim(),
-        verified: Boolean(user) || body.verified === true,
+        authorName: (body.authorName || user.name || "Verified Customer").trim(),
+        verified: true,
         rating: Number(body.rating) || 5,
         title: (body.title || "Wonderful Gift Selection").trim(),
         comment: (body.comment || "Arrived in beautiful condition.").trim(),
         date: "Just now",
         timestamp: Date.now(),
       };
+      (newReview as any).userId = user.id;
 
       if (!db.reviewsByProduct[slug]) {
         db.reviewsByProduct[slug] = [];
@@ -1788,6 +2072,9 @@ export async function handleMockApiRequest<T>(
 
   if (normalizedPath === "/orders") {
     if (method === "GET") {
+      if (typeof window !== "undefined") {
+        db.orders = readPersistedOrders();
+      }
       return wrapSuccess(db.orders as unknown as T);
     }
     if (method === "POST") {
@@ -1799,7 +2086,9 @@ export async function handleMockApiRequest<T>(
         db.products.find(
           (p) => p.slug === body.productSlug || p.id === body.productSlug
         ) ?? db.products[0]!;
-      const isVtuOrder = Boolean(body.vtuType) || Boolean(product.isDigital);
+      const isMultiItem = Array.isArray(body.items) && body.items.length > 0;
+      const isVtuOrder =
+        !isMultiItem && (Boolean(body.vtuType) || Boolean(product.isDigital));
       const wrappingFeeKobo = isVtuOrder
         ? 0
         : body.wrapping
@@ -1876,6 +2165,7 @@ export async function handleMockApiRequest<T>(
         createdAt: now,
       };
       db.orders.unshift(created);
+      writePersistedOrders(db.orders);
       if (opts.idempotencyKey) {
         db.idempotencyCache[opts.idempotencyKey] = created;
       }
@@ -1886,10 +2176,17 @@ export async function handleMockApiRequest<T>(
   const orderVerifyMatch = /^\/orders\/([^/]+)\/verify$/.exec(normalizedPath);
   if (method === "POST" && orderVerifyMatch) {
     const id = decodeURIComponent(orderVerifyMatch[1]!);
-    const order = db.orders.find((o) => o.id === id || o.number === id);
+    if (typeof window !== "undefined") {
+      db.orders = readPersistedOrders();
+    }
+    const order = db.orders.find(
+      (o) => o.id === id || o.number === id || o.trackingToken === id
+    );
     if (!order) {
       throwMockError(404, "NOT_FOUND", "Order not found");
     }
+    order.status = "CONFIRMED";
+    writePersistedOrders(db.orders);
     return wrapSuccess({
       order,
       verified: true,
@@ -1949,18 +2246,44 @@ export async function handleMockApiRequest<T>(
   const orderDetailMatch = /^\/orders\/([^/]+)$/.exec(normalizedPath);
   if (method === "GET" && orderDetailMatch) {
     const id = decodeURIComponent(orderDetailMatch[1]!);
-    const order = db.orders.find((o) => o.id === id || o.number === id);
+    if (typeof window !== "undefined") {
+      db.orders = readPersistedOrders();
+    }
+    const order = db.orders.find(
+      (o) => o.id === id || o.number === id || o.trackingToken === id
+    );
     if (!order) {
       throwMockError(404, "NOT_FOUND", "Order not found");
     }
     return wrapSuccess(order as unknown as T);
   }
 
-  const publicTrackMatch = /^\/public\/track\/([^/]+)$/.exec(normalizedPath);
+  const publicTrackMatch =
+    /^\/(?:public\/track|orders\/track|track)\/([^/]+)$/.exec(normalizedPath);
   if (method === "GET" && publicTrackMatch) {
-    const order = db.orders[0];
+    const rawToken = decodeURIComponent(publicTrackMatch[1]!);
+    if (typeof window !== "undefined") {
+      db.orders = readPersistedOrders();
+    }
+    const order =
+      db.orders.find(
+        (o) =>
+          o.trackingToken === rawToken ||
+          o.id === rawToken ||
+          o.number === rawToken
+      ) ??
+      db.orders.find(
+        (o) =>
+          o.id.toLowerCase() === rawToken.toLowerCase() ||
+          o.number.toLowerCase() === rawToken.toLowerCase() ||
+          o.trackingToken?.toLowerCase() === rawToken.toLowerCase()
+      );
     if (!order) {
-      throwMockError(404, "NOT_FOUND", "Tracking link not found");
+      throwMockError(
+        404,
+        "NOT_FOUND",
+        `Order tracking record not found for '${rawToken}'`
+      );
     }
     return wrapSuccess(order as unknown as T);
   }
@@ -2127,6 +2450,7 @@ export async function handleMockApiRequest<T>(
     normalizedPath === "/admin/products"
   ) {
     if (method === "GET") {
+      db.products = readPersistedProducts();
       return wrapSuccess(db.products as unknown as T);
     }
     if (method === "POST") {
@@ -2135,7 +2459,15 @@ export async function handleMockApiRequest<T>(
         description: string;
         priceKobo: number;
         category: string;
+        mainCategories?: string[];
+        giftType?: string;
+        gender?: "MALE" | "FEMALE" | "UNISEX";
+        occasions?: string[];
+        relationships?: string[];
         inStock: boolean;
+        isCombo?: boolean;
+        comboItems?: Array<{ name: string; qty: number; tag?: string }>;
+        imageUrl?: string;
       };
       const created: MockCatalogProduct = {
         id: `prod_${Date.now()}`,
@@ -2144,29 +2476,112 @@ export async function handleMockApiRequest<T>(
         description: body.description,
         priceKobo: body.priceKobo,
         category: body.category,
-        occasions: ["WEDDING", "BIRTHDAY"],
-        relationships: ["FRIEND", "PARTNER"],
+        mainCategories: body.mainCategories ?? [body.category],
+        giftType: body.giftType,
+        gender: body.gender ?? "UNISEX",
+        occasions: body.occasions ?? ["WEDDING", "BIRTHDAY"],
+        relationships: body.relationships ?? ["FRIEND", "PARTNER"],
         vendorName: "Givvly Curated",
+        imageUrl: body.imageUrl || "/images/gifts/box-luxury.jpg",
         inStock: body.inStock,
+        isCombo: body.isCombo,
+        comboItems: body.comboItems,
         rating: 5.0,
         reviewCount: 1,
       };
       db.products.unshift(created);
+      writePersistedProducts(db.products);
       return wrapSuccess(created as unknown as T);
     }
   }
 
   const vendorProductItemMatch =
     /^\/(?:vendor|admin)\/products\/([^/]+)$/.exec(normalizedPath);
+  if (method === "GET" && vendorProductItemMatch) {
+    const prodId = decodeURIComponent(vendorProductItemMatch[1]!);
+    const prod = db.products.find((p) => p.id === prodId || p.slug === prodId);
+    if (!prod) {
+      throwMockError(404, "NOT_FOUND", "Product not found");
+    }
+    return wrapSuccess({ ...prod } as unknown as T);
+  }
+
   if (method === "PATCH" && vendorProductItemMatch) {
     const prodId = decodeURIComponent(vendorProductItemMatch[1]!);
     const prod = db.products.find((p) => p.id === prodId || p.slug === prodId);
     if (!prod) {
       throwMockError(404, "NOT_FOUND", "Product not found");
     }
-    const patch = (opts.body ?? {}) as Partial<MockCatalogProduct>;
+    const patch = (opts.body ?? {}) as any;
+    if (patch.name) {
+      prod.name = patch.name;
+      (prod as any).title = patch.name;
+    }
+    if (patch.slug) {
+      prod.slug = patch.slug;
+    }
+    if (patch.description !== undefined) {
+      prod.description = patch.description;
+    }
+    if (patch.priceKobo !== undefined) {
+      prod.priceKobo = patch.priceKobo;
+    }
+    if (patch.category !== undefined) {
+      prod.category = patch.category;
+    }
+    if (patch.mainCategories !== undefined) {
+      prod.mainCategories = patch.mainCategories;
+    }
+    if (patch.giftType !== undefined) {
+      prod.giftType = patch.giftType;
+    }
+    if (patch.gender !== undefined) {
+      prod.gender = patch.gender;
+    }
+    if (patch.occasions !== undefined) {
+      prod.occasions = patch.occasions;
+    }
+    if (patch.relationships !== undefined) {
+      prod.relationships = patch.relationships;
+    }
+    if (patch.vendorName !== undefined) {
+      prod.vendorName = patch.vendorName;
+    }
+    if (patch.packagingIncluded !== undefined) {
+      (prod as any).packagingIncluded = patch.packagingIncluded;
+    }
+    if (patch.imageUrl !== undefined) {
+      prod.imageUrl = patch.imageUrl;
+      (prod as any).images = [patch.imageUrl];
+    }
+    if (patch.inStock !== undefined) {
+      prod.inStock = patch.inStock;
+      (prod as any).stock = patch.inStock ? (patch.stock ?? 50) : 0;
+    }
+    if (patch.stock !== undefined) {
+      (prod as any).stock = patch.stock;
+    }
+    if (patch.isCombo !== undefined) {
+      prod.isCombo = patch.isCombo;
+    }
+    if (patch.comboItems !== undefined) {
+      prod.comboItems = patch.comboItems;
+    }
     Object.assign(prod, patch);
+    writePersistedProducts(db.products);
     return wrapSuccess({ ...prod } as unknown as T);
+  }
+
+  if (method === "DELETE" && vendorProductItemMatch) {
+    const prodId = decodeURIComponent(vendorProductItemMatch[1]!);
+    const idx = db.products.findIndex((p) => p.id === prodId || p.slug === prodId);
+    if (idx === -1) {
+      throwMockError(404, "NOT_FOUND", "Product not found");
+    }
+    const deleted = db.products[idx]!;
+    db.products.splice(idx, 1);
+    writePersistedProducts(db.products);
+    return wrapSuccess({ success: true, id: deleted.id } as unknown as T);
   }
 
   if (method === "GET" && normalizedPath === "/admin/moderation") {

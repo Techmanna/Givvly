@@ -12,7 +12,9 @@ import { StatusStepper } from "@/features/vendor";
 import { LedgerTable } from "@/features/admin";
 import { OrderTimeline } from "./components/OrderTimeline";
 import { CheckoutForm } from "./components/CheckoutForm";
+import { BoxCheckoutForm } from "./components/BoxCheckoutForm";
 import { useCartStore } from "@/stores/cart-store";
+import { createDirectOrder, fetchOrderTracking } from "./api";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -232,5 +234,129 @@ describe("Phase 3 Commerce, Registry, Vendor & Admin", () => {
     expect(
       screen.getByLabelText(/Your email address/i)
     ).toBeInTheDocument();
+  });
+
+  it("manages multi-item Box flow with addItem, updateItemQty, removeItem, and clearBox", () => {
+    const store = useCartStore.getState();
+    store.clearBox();
+    expect(useCartStore.getState().items).toHaveLength(0);
+
+    // Add first item
+    store.addItem({
+      id: "prod_01",
+      slug: "luxury-candle",
+      name: "Hand-Poured Scented Candle",
+      priceKobo: 2_500_000,
+      imageUrl: "https://images.unsplash.com/photo-1603006905003-be475563bc59",
+      vendorName: "Lagos Botanicals",
+    });
+
+    expect(useCartStore.getState().items).toHaveLength(1);
+    expect(useCartStore.getState().items[0]?.qty).toBe(1);
+
+    // Add same item again -> increments quantity
+    store.addItem({
+      id: "prod_01",
+      slug: "luxury-candle",
+      name: "Hand-Poured Scented Candle",
+      priceKobo: 2_500_000,
+    });
+    expect(useCartStore.getState().items).toHaveLength(1);
+    expect(useCartStore.getState().items[0]?.qty).toBe(2);
+
+    // Add second item
+    store.addItem({
+      id: "prod_02",
+      slug: "artisanal-chocolate",
+      name: "Single-Origin Dark Chocolate",
+      priceKobo: 1_200_000,
+    });
+    expect(useCartStore.getState().items).toHaveLength(2);
+
+    // Update quantity
+    store.updateItemQty("prod_01", 3);
+    expect(useCartStore.getState().items.find((i) => i.id === "prod_01")?.qty).toBe(3);
+
+    // Remove item
+    store.removeItem("prod_01");
+    expect(useCartStore.getState().items).toHaveLength(1);
+    expect(useCartStore.getState().items[0]?.id).toBe("prod_02");
+
+    // Clear box
+    store.clearBox();
+    expect(useCartStore.getState().items).toHaveLength(0);
+  });
+
+  it("renders BoxCheckoutForm with item count, luxury wrapping option, and recipient fields", () => {
+    const store = useCartStore.getState();
+    store.clearBox();
+    store.addItem(
+      {
+        id: "item_test_01",
+        slug: "leather-passport-holder",
+        name: "Personalized Leather Passport Holder",
+        priceKobo: 4_500_000,
+      },
+      2
+    );
+
+    render(<BoxCheckoutForm />, {
+      wrapper: createTestWrapper(),
+    });
+
+    expect(screen.getByText("Checkout Your Gift Box")).toBeInTheDocument();
+    expect(screen.getByText("Personalized Leather Passport Holder")).toBeInTheDocument();
+    expect(screen.getByText(/Luxury Whole-Box Gift Presentation/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Recipient Full Name/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Recipient Phone/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Street Address/i)).toBeInTheDocument();
+  });
+
+  it("tracks multi-item box order by orderId or trackingToken with exact items and total", async () => {
+    const createdRes = await createDirectOrder(
+      {
+        items: [
+          {
+            name: "Artisan Leather Journal",
+            qty: 2,
+            unitPriceKobo: 15_000_000,
+          },
+          {
+            name: "Pure Wildflower Honey",
+            qty: 1,
+            unitPriceKobo: 10_000_000,
+          },
+        ],
+        wrapping: true,
+        recipientName: "Bisi Akande",
+        recipientPhone: "08031234567",
+        address: {
+          street: "12 Marina Road",
+          area: "Lagos Island",
+          city: "Lagos",
+          state: "Lagos",
+        },
+      },
+      "idem_test_tracking_01"
+    );
+
+    expect(createdRes.order.totalKobo).toBe(40_250_000); // (2*15m + 10m) + 2.5k wrapping
+    expect(createdRes.order.items).toHaveLength(2);
+
+    // Track by order ID
+    const trackedById = await fetchOrderTracking(createdRes.order.id);
+    expect(trackedById.id).toBe(createdRes.order.id);
+    expect(trackedById.recipientName).toBe("Bisi Akande");
+    expect(trackedById.items).toHaveLength(2);
+    expect(trackedById.totalKobo).toBe(40_250_000);
+
+    // Track by tracking token
+    if (createdRes.order.trackingToken) {
+      const trackedByToken = await fetchOrderTracking(
+        createdRes.order.trackingToken
+      );
+      expect(trackedByToken.id).toBe(createdRes.order.id);
+      expect(trackedByToken.totalKobo).toBe(40_250_000);
+    }
   });
 });

@@ -79,6 +79,10 @@ export function readCookie(name: string, cookieSource?: string): string | undefi
 }
 
 function getBaseUrl(): string {
+  if (process.env.NODE_ENV === "test") {
+    return env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+  }
+
   if (typeof window === "undefined") {
     const internal = process.env.API_INTERNAL_URL || process.env.BACKEND_API_URL;
     if (internal && internal.startsWith("http")) {
@@ -94,21 +98,10 @@ function getBaseUrl(): string {
     return "http://localhost:4000/api/v1";
   }
 
-  if (env.NEXT_PUBLIC_API_URL.startsWith("/")) {
-    return env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
-  }
-
-  // When deployed (e.g. on Vercel), route via the first-party proxy "/api/v1"
-  // so all auth cookies are set as first-party on the current domain
-  if (
-    typeof window !== "undefined" &&
-    (window.location.hostname.endsWith("vercel.app") ||
-      !env.NEXT_PUBLIC_API_URL.includes(window.location.hostname))
-  ) {
-    return "/api/v1";
-  }
-
-  return env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+  // In the browser, always route via the first-party proxy "/api/v1"
+  // (rewritten in next.config.ts to the backend API) so all auth cookies
+  // are first-party and immune to cross-origin/cross-port browser drops.
+  return "/api/v1";
 }
 
 async function getServerCookieHeader(): Promise<string | undefined> {
@@ -181,12 +174,19 @@ export async function apiWithMeta<T>(
     headers["Idempotency-Key"] = opts.idempotencyKey;
   }
 
+  let serverCookie: string | undefined;
   if (typeof window === "undefined") {
-    const serverCookie = await getServerCookieHeader();
+    serverCookie = await getServerCookieHeader();
     if (serverCookie && !headers["Cookie"]) {
       headers["Cookie"] = serverCookie;
     }
   }
+
+  const effectiveCookieHeader =
+    headers["Cookie"] ??
+    (typeof window === "undefined"
+      ? (serverCookie !== undefined ? serverCookie : "")
+      : (typeof document !== "undefined" ? document.cookie : undefined));
 
   if (isMockApiEnabled()) {
     try {
@@ -194,9 +194,7 @@ export async function apiWithMeta<T>(
         method,
         body: opts.body,
         idempotencyKey: opts.idempotencyKey,
-        cookieHeader:
-          headers["Cookie"] ??
-          (typeof document !== "undefined" ? document.cookie : undefined),
+        cookieHeader: effectiveCookieHeader,
       });
 
       if (process.env.NODE_ENV === "development" && opts.schema) {
@@ -259,9 +257,7 @@ export async function apiWithMeta<T>(
           method,
           body: opts.body,
           idempotencyKey: opts.idempotencyKey,
-          cookieHeader:
-            headers["Cookie"] ??
-            (typeof document !== "undefined" ? document.cookie : undefined),
+          cookieHeader: effectiveCookieHeader,
         });
         return mockFallback;
       } catch (mockErr) {
@@ -335,6 +331,13 @@ export async function apiWithMeta<T>(
       details,
       requestId: errRequestId,
     });
+  }
+
+  if (response.status === 204 || (!responseText && response.ok)) {
+    return {
+      data: { success: true, message: "Success" } as unknown as T,
+      meta: undefined,
+    };
   }
 
   const envelope = parsed as ApiSuccess<T> | null;

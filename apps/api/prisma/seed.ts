@@ -488,6 +488,79 @@ async function main() {
     });
   }
 
+  // 4b. Product Reviews
+  console.log("⭐ Seeding product reviews...");
+  const reviewsData = [
+    {
+      productId: createdProducts["royal-wedding-keepsake-hamper"]?.id,
+      rating: 5,
+      title: "Exceeded all expectations!",
+      authorName: "Vanessa O.",
+      comment: "The satin presentation and engraved crystal flute were flawless. The couple was genuinely touched.",
+      verified: true,
+    },
+    {
+      productId: createdProducts["royal-wedding-keepsake-hamper"]?.id,
+      rating: 5,
+      title: "Pristine gift hamper",
+      authorName: "Chidi N.",
+      comment: "Arrived in Lagos on exact schedule. Beautiful packaging that looked even better than the catalog photos.",
+      verified: true,
+    },
+    {
+      productId: createdProducts["kenwood-titanium-stand-mixer"]?.id,
+      rating: 5,
+      title: "An absolute powerhouse in the kitchen",
+      authorName: "Amina Bello",
+      comment: "Delivered promptly for my sister's wedding gift. Very sturdy and comes with complete accessories.",
+      verified: true,
+    },
+    {
+      productId: createdProducts["oud-amber-luxury-perfume-box"]?.id,
+      rating: 5,
+      title: "Distinctive and luxurious scent",
+      authorName: "Olumide A.",
+      comment: "The fragrance notes linger wonderfully. The unboxing experience was truly top tier.",
+      verified: true,
+    },
+  ];
+
+  for (const r of reviewsData) {
+    if (!r.productId) continue;
+    const existing = await prisma.review.findFirst({
+      where: {
+        productId: r.productId,
+        authorName: r.authorName,
+      },
+    });
+    if (!existing) {
+      await prisma.review.create({ data: r });
+    }
+  }
+
+  // Recalculate rating aggregates on products that have reviews
+  for (const slug of [
+    "royal-wedding-keepsake-hamper",
+    "kenwood-titanium-stand-mixer",
+    "oud-amber-luxury-perfume-box",
+  ]) {
+    const prod = createdProducts[slug];
+    if (prod) {
+      const agg = await prisma.review.aggregate({
+        where: { productId: prod.id },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+      await prisma.product.update({
+        where: { id: prod.id },
+        data: {
+          ratingAvg: agg._avg.rating ?? 0,
+          ratingCount: agg._count.rating,
+        },
+      });
+    }
+  }
+
   // 5. Events with Registries, Pools, RSVPs, and Wall Posts
   console.log("🎉 Seeding events...");
 

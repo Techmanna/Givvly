@@ -12,22 +12,34 @@ import { usePublicEventsList } from "../hooks/useEvents";
 import type { EventType, PublicEvent } from "../types";
 
 const CEREMONY_FILTERS: Array<{ value: "ALL" | EventType; label: string }> = [
-  { value: "ALL", label: "All Ceremonies" },
-  { value: "WEDDING", label: "Weddings" },
+  { value: "ALL", label: "All Celebrations" },
   { value: "BIRTHDAY", label: "Milestone Birthdays" },
-  { value: "OTHER", label: "Send-Forths & Honours" },
-  { value: "BABY_SHOWER", label: "Naming & Baby Showers" },
+  { value: "WEDDING", label: "Weddings" },
+  { value: "HOUSEWARMING", label: "Housewarmings" },
+  { value: "ANNIVERSARY", label: "Anniversaries" },
+  { value: "BRIDAL_SHOWER", label: "Bridal Showers" },
+  { value: "BABY_SHOWER", label: "Baby Showers" },
+  { value: "NAMING_CEREMONY", label: "Naming Ceremonies" },
   { value: "GRADUATION", label: "Graduations & Inductions" },
+  { value: "SEND_OFF", label: "Send-Offs & Bon Voyage" },
+  { value: "RETIREMENT", label: "Retirements" },
+  { value: "MEMORIAL", label: "Memorials & Tributes" },
+  { value: "OTHER", label: "Send-Forths & Honours" },
 ];
 
-const EVENT_TYPE_BADGES: Record<string, string> = {
-  WEDDING: "Wedding Celebration",
+const EVENT_TYPE_BADGES: Record<EventType, string> = {
   BIRTHDAY: "Milestone Birthday",
-  OTHER: "Send-Forth & Honour",
-  BABY_SHOWER: "Naming & Baby Welcome",
-  GRADUATION: "Graduation & Induction",
-  ANNIVERSARY: "Anniversary",
+  WEDDING: "Wedding Celebration",
   HOUSEWARMING: "Housewarming",
+  ANNIVERSARY: "Anniversary",
+  BRIDAL_SHOWER: "Bridal Shower",
+  BABY_SHOWER: "Baby Shower",
+  NAMING_CEREMONY: "Naming Ceremony",
+  GRADUATION: "Graduation & Induction",
+  SEND_OFF: "Send-Off Celebration",
+  RETIREMENT: "Retirement Milestone",
+  MEMORIAL: "Memorial & Tribute",
+  OTHER: "Send-Forth & Honour",
 };
 
 export interface LiveCelebrationsDirectoryProps {
