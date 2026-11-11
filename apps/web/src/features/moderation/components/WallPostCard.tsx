@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, Flag, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Flag, Trash2, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { isVideoMediaUrl } from "@/features/events/api";
 import { formatDate } from "@/lib/format";
@@ -36,9 +37,20 @@ export function WallPostCard({
         <CardContent className="space-y-2.5 p-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-sm font-semibold text-foreground">
-                {post.authorName}
-              </p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-sm font-semibold text-foreground">
+                  {post.authorName}
+                </p>
+                {post.isHost && (
+                  <Badge
+                    variant="outline"
+                    className="border-primary/30 bg-primary/10 text-primary text-[10px] font-semibold px-1.5 py-0 inline-flex items-center gap-1"
+                  >
+                    <Crown className="h-2.5 w-2.5 text-primary" />
+                    Host
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
                 {formatDate(post.createdAt, "d MMM yyyy, h:mm a")}
               </p>

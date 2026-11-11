@@ -35,12 +35,14 @@ export type RegistryGridProps = {
   slug: string;
   items: RegistryItem[];
   moneyGiftsEnabled: boolean;
+  isOwner?: boolean;
 };
 
 export function RegistryGrid({
   slug,
   items,
   moneyGiftsEnabled,
+  isOwner = false,
 }: RegistryGridProps) {
   const router = useRouter();
   const idempotencyKey = useGiveDraftStore((s) => s.draft.idempotencyKey);
@@ -203,7 +205,17 @@ export function RegistryGrid({
                   </p>
                 ) : null}
 
-                {isAirtimeOrData ? (
+                {isOwner ? (
+                  <div className="pt-1">
+                    <span className="text-xs text-muted-foreground italic">
+                      {isClaimed
+                        ? "Claimed by a guest"
+                        : item.status === "RESERVED"
+                        ? "Reserved by a guest"
+                        : "Available for guests to claim"}
+                    </span>
+                  </div>
+                ) : isAirtimeOrData ? (
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/digital?event=${encodeURIComponent(slug)}`}>
                       <Smartphone className="h-3.5 w-3.5" aria-hidden="true" />

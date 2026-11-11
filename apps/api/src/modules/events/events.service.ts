@@ -231,6 +231,7 @@ export class EventsService {
 
     return {
       id: event.id,
+      ownerId: event.ownerId,
       slug: event.slug,
       name: event.name,
       hostName:
@@ -711,6 +712,7 @@ export class EventsService {
 
     return {
       id: event.id,
+      ownerId: event.ownerId,
       slug: event.slug,
       name: event.name,
       hostName: firstName,
@@ -839,7 +841,11 @@ export class EventsService {
   async getPublicWall(slug: string, limit = 50) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
-      select: { id: true },
+      select: {
+        id: true,
+        ownerId: true,
+        owner: { select: { email: true } },
+      },
     });
 
     if (!event) {
@@ -862,6 +868,12 @@ export class EventsService {
       authorName: p.authorName,
       text: p.text,
       status: p.status,
+      isHost: Boolean(
+        (p.authorUserId && p.authorUserId === event.ownerId) ||
+        (event.owner?.email &&
+          p.authorEmail &&
+          p.authorEmail.toLowerCase() === event.owner.email.toLowerCase())
+      ),
       media: this.formatWallMedia(p.media),
       createdAt: p.createdAt,
     }));

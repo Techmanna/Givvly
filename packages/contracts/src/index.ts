@@ -103,6 +103,7 @@ export type InviteTemplateData = {
 export type PublicEvent = EventSummary & {
   story?: string;
   ownerFirstName: string;
+  ownerId?: string;
   allowPlusOne: boolean;
   registry: RegistryItem[];
   pools: PoolItem[];
@@ -132,6 +133,7 @@ export type WallPost = {
   id: string;
   authorName: string;
   text?: string;
+  isHost?: boolean;
   media: { url: string; type: "IMAGE" | "VIDEO" }[];
   status: WallPostStatus;
   createdAt: string;

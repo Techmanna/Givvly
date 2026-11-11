@@ -6,7 +6,7 @@ import { makeQueryClient } from "@/lib/query-client";
 import { LoginForm } from "./LoginForm";
 import { SignupForm } from "./SignupForm";
 import { ResetPasswordForm } from "./ResetPasswordForm";
-import { mapAuthErrorToForm } from "./mapAuthError";
+import { humanizeValidationMessage, mapAuthErrorToForm } from "./mapAuthError";
 import * as authApi from "../api";
 import { ApiClientError } from "@/lib/api-client";
 
@@ -248,6 +248,18 @@ describe("LoginForm & SignupForm", () => {
     expect(result.formError).toBe(
       "This link is invalid or has expired. Please request a new one."
     );
+  });
+
+  it("humanizeValidationMessage handles concatenated run-on validator strings and deduplicates", () => {
+    const raw = "newPassword must be longer than or equal to 8 characters newPassword must be a string";
+    const cleaned = humanizeValidationMessage(raw);
+    expect(cleaned).toBe("Password must be at least 8 characters long.");
+  });
+
+  it("humanizeValidationMessage transforms email validation constraints cleanly", () => {
+    const raw = "email must be an email email should not be empty";
+    const cleaned = humanizeValidationMessage(raw);
+    expect(cleaned).toBe("Email address must be a valid email address.");
   });
 });
 

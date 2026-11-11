@@ -42,6 +42,7 @@ import { WallPostCard } from "./WallPostCard";
 export type WallOfLoveProps = {
   slug: string;
   ownerFirstName: string;
+  isOwner?: boolean;
 };
 
 type UploadedPhoto = {
@@ -63,7 +64,7 @@ const ALLOWED_MIME_TYPES = new Set([
   "video/quicktime",
 ]);
 
-export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
+export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLoveProps) {
   const [flaggedNotice, setFlaggedNotice] = useState<string | null>(null);
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -76,7 +77,7 @@ export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
     resolver: zodResolver(wallPostSchema),
     mode: "onBlur",
     defaultValues: {
-      authorName: "",
+      authorName: isOwner ? `${ownerFirstName} (Host)` : "",
       text: "",
     },
   });
@@ -221,10 +222,14 @@ export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
       <Card className="shadow-none">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            Leave a note for {ownerFirstName}
+            {isOwner
+              ? "Post a Host Announcement or Thank-You Note"
+              : `Leave a note for ${ownerFirstName}`}
           </CardTitle>
           <CardDescription>
-            Share your wishes and up to 3 celebration photos.
+            {isOwner
+              ? "Share an official thank-you note or update with your guests on the Wall of Love."
+              : "Share your wishes and up to 3 celebration photos."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -377,7 +382,11 @@ export function WallOfLove({ slug, ownerFirstName }: WallOfLoveProps) {
             >
               <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
               <span>
-                {createMutation.isPending ? "Posting..." : "Post message"}
+                {createMutation.isPending
+                  ? "Posting..."
+                  : isOwner
+                  ? "Post host note"
+                  : "Post message"}
               </span>
             </Button>
           </form>
