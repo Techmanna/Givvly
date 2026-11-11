@@ -39,11 +39,13 @@ import { LedgerTable } from "./LedgerTable";
 import { ProductManagementView } from "./ProductManagementView";
 import { OrderManagementView } from "./OrderManagementView";
 import { UserManagementView } from "./UserManagementView";
+import { BespokeQuotesView } from "./BespokeQuotesView";
 
 export type AdminSection =
   | "overview"
   | "products"
   | "orders"
+  | "quotes"
   | "events"
   | "payments"
   | "payouts"
@@ -60,6 +62,7 @@ export type AdminConsoleViewProps = {
 const NAV_ITEMS: Array<{ key: AdminSection; label: string; href: string }> = [
   { key: "overview", label: "Overview", href: "/admin" },
   { key: "orders", label: "Orders & Shipping", href: "/admin/orders" },
+  { key: "quotes", label: "Custom Quotes", href: "/admin/quotes" },
   { key: "products", label: "Gifts & Combos", href: "/admin/products" },
   { key: "events", label: "Celebrations", href: "/admin/events" },
   { key: "payments", label: "Payment Inflow", href: "/admin/payments" },
@@ -324,6 +327,9 @@ export function AdminConsoleView({
 
       {/* Section: Orders */}
       {section === "orders" && <OrderManagementView />}
+
+      {/* Section: Custom Wish Quotes */}
+      {section === "quotes" && <BespokeQuotesView />}
 
       {/* Section: Users */}
       {section === "users" && <UserManagementView />}

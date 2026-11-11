@@ -9,12 +9,13 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { PaymentGatewayRegistry } from "../../infra/payments/payment-gateway.registry";
-import { OrderStatus, PaymentStatus, DisputeStatus, Direction } from "@prisma/client";
+import { OrderStatus, PaymentStatus, DisputeStatus, Direction, Channel } from "@prisma/client";
 import { LedgerService } from "../ledger/ledger.service";
 import { DigitalGiftsService } from "../digital-gifts/digital-gifts.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { CreateOrderDto } from "./dto/create-order.dto";
 import { ReviewOrderDto, DisputeOrderDto } from "./dto/order-feedback.dto";
+import { CreateBespokeWishPackageInput } from "./dto/bespoke-wish.dto";
 import { canOrderTransition } from "./order-state-machine";
 import { generateOrderWhatsAppLink } from "./utils/whatsapp-order.util";
 import * as crypto from "crypto";
@@ -985,6 +986,249 @@ export class OrdersService {
         recipientName: order.recipientName,
         deliveryCity,
       }),
+    };
+  }
+
+  /**
+   * Submit a Bespoke Wish Package for Admin Quotation (No Event Required)
+   */
+  async createBespokeWishPackage(
+    dto: CreateBespokeWishPackageInput,
+    user?: { id: string; email: string; name?: string }
+  ) {
+    const buyerEmail = user?.email || dto.buyerEmail;
+    const buyerUserId = user?.id || null;
+
+    const orderYear = new Date().getFullYear();
+    const orderHex = crypto.randomBytes(3).toString("hex").toUpperCase();
+    const orderNumber = `GV-WISH-${orderYear}-${orderHex}`;
+    const trackingToken = `trk_${crypto.randomBytes(12).toString("hex")}`;
+
+    const addressPayload = {
+      street: dto.street,
+      area: dto.area,
+      city: dto.city,
+      state: dto.state,
+      country: "Nigeria",
+    };
+
+    const customWishData = {
+      isBespokeWish: true,
+      occasion: dto.occasion,
+      buyerName: dto.buyerName,
+      buyerPhone: dto.buyerPhone,
+      targetBudgetHint: dto.targetBudgetHint || undefined,
+      wrapStyle: dto.wrapStyle,
+      items: dto.items,
+      adminNote: undefined,
+      quotedAt: undefined,
+      estimatedDeliveryDays: undefined,
+    };
+
+    const order = await this.prisma.order.create({
+      data: {
+        number: orderNumber,
+        buyerUserId,
+        buyerEmail,
+        recipientName: dto.recipientName,
+        recipientPhone: dto.recipientPhone,
+        recipientEmail: dto.recipientEmail || null,
+        address: addressPayload,
+        giftNote: dto.giftNote || null,
+        wrapStyle: dto.wrapStyle,
+        status: OrderStatus.AWAITING_QUOTE,
+        subtotalKobo: 0,
+        packagingFeeKobo: 0,
+        deliveryFeeKobo: 0,
+        feeKobo: 0,
+        totalKobo: 0,
+        trackingToken,
+        customWishData,
+        history: {
+          create: [
+            {
+              status: OrderStatus.AWAITING_QUOTE,
+              note: `Bespoke wish package submitted with ${dto.items.length} item(s) for quotation.`,
+              actorId: buyerUserId,
+            },
+          ],
+        },
+      },
+      include: {
+        history: { orderBy: { createdAt: "asc" } },
+      },
+    });
+
+    // Notify user via email
+    if (this.notifications) {
+      void this.notifications.notify({
+        userId: buyerUserId || undefined,
+        toAddress: buyerEmail,
+        channel: Channel.EMAIL,
+        type: "BESPOKE_WISH_SUBMITTED",
+        category: "ORDERS",
+        title: `Your Givvly Bespoke Wish Package (${orderNumber}) is under review!`,
+        body: `We've received your bespoke wish package with ${dto.items.length} item(s). Our concierge team is sourcing verified pricing and will send you an itemized quote shortly.`,
+      }).catch((err: unknown) => this.logger.warn(`Failed to send bespoke wish confirmation email: ${err}`));
+    }
+
+    return {
+      id: order.id,
+      number: order.number,
+      trackingToken: order.trackingToken,
+      status: order.status,
+      recipientName: order.recipientName,
+      itemsCount: dto.items.length,
+      createdAt: order.createdAt.toISOString(),
+    };
+  }
+
+  /**
+   * Fetch Bespoke Wish Package Detail by tracking token (or order ID)
+   */
+  async getBespokeWishDetailByToken(token: string) {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        OR: [{ trackingToken: token }, { id: token }],
+      },
+      include: {
+        history: { orderBy: { createdAt: "asc" } },
+        payment: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Bespoke wish order not found for token '${token}'`);
+    }
+
+    const wishData = (order.customWishData as any) || {};
+    const address = (order.address as any) || {};
+
+    return {
+      id: order.id,
+      orderNumber: order.number,
+      trackingToken: order.trackingToken,
+      status: order.status,
+      buyerName: wishData.buyerName,
+      buyerEmail: order.buyerEmail,
+      buyerPhone: wishData.buyerPhone,
+      recipientName: order.recipientName,
+      recipientPhone: order.recipientPhone,
+      recipientEmail: order.recipientEmail,
+      deliveryAddress: {
+        street: address.street || "",
+        area: address.area || "",
+        city: address.city || "",
+        state: address.state || "",
+      },
+      wrapStyle: order.wrapStyle,
+      giftNote: order.giftNote,
+      subtotalKobo: order.subtotalKobo,
+      packagingFeeKobo: order.packagingFeeKobo,
+      deliveryFeeKobo: order.deliveryFeeKobo,
+      totalKobo: order.totalKobo,
+      customWishData: {
+        isBespokeWish: Boolean(wishData.isBespokeWish),
+        occasion: wishData.occasion || "Celebration",
+        targetBudgetHint: wishData.targetBudgetHint,
+        items: Array.isArray(wishData.items) ? wishData.items : [],
+        adminNote: wishData.adminNote,
+        quotedAt: wishData.quotedAt,
+        estimatedDeliveryDays: wishData.estimatedDeliveryDays,
+      },
+      payment: order.payment
+        ? {
+            id: order.payment.id,
+            status: order.payment.status,
+            reference: order.payment.reference,
+          }
+        : null,
+      history: order.history.map((h) => ({
+        status: h.status,
+        note: h.note,
+        createdAt: h.createdAt.toISOString(),
+      })),
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: order.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Initialize Paystack Payment for a QUOTED Bespoke Wish Order
+   */
+  async initializeQuotePayment(
+    token: string,
+    user?: { id?: string; email?: string }
+  ) {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        OR: [{ trackingToken: token }, { id: token }],
+      },
+      include: { payment: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order not found for token '${token}'`);
+    }
+
+    if (order.status !== OrderStatus.QUOTED) {
+      if (order.status === OrderStatus.CONFIRMED || order.status === OrderStatus.PACKED) {
+        throw new BadRequestException("This bespoke order quote has already been paid and confirmed.");
+      }
+      throw new BadRequestException(`Order cannot be paid while in status '${order.status}'. It must be QUOTED first.`);
+    }
+
+    if (order.totalKobo <= 0) {
+      throw new BadRequestException("Total quote amount must be greater than zero.");
+    }
+
+    const gateway = this.paymentGatewayRegistry.getGateway("PAYSTACK");
+    const paymentReference = `ord_wish_${crypto.randomBytes(12).toString("hex")}`;
+
+    const paymentInit = await gateway.initializePayment({
+      reference: paymentReference,
+      amountSubunits: order.totalKobo,
+      currency: "NGN",
+      customerEmail: order.buyerEmail,
+      metadata: {
+        orderId: order.id,
+        orderNumber: order.number,
+        type: "BESPOKE_WISH_PACKAGE",
+      },
+    });
+
+    // Record payment
+    const payment = await this.prisma.payment.create({
+      data: {
+        reference: paymentReference,
+        currency: "NGN",
+        amountKobo: order.totalKobo,
+        feeKobo: 0,
+        status: PaymentStatus.INITIATED,
+        accessCode: paymentInit.accessCode,
+        authorizationUrl: paymentInit.authorizationUrl,
+        payerEmail: order.buyerEmail,
+        provider: "PAYSTACK",
+        metadata: {
+          orderId: order.id,
+          orderNumber: order.number,
+        },
+      },
+    });
+
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        paymentId: payment.id,
+      },
+    });
+
+    return {
+      orderId: order.id,
+      orderNumber: order.number,
+      totalKobo: order.totalKobo,
+      authorizationUrl: paymentInit.authorizationUrl,
+      reference: paymentReference,
     };
   }
 }

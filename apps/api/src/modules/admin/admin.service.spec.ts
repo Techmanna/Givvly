@@ -457,4 +457,104 @@ describe("AdminService", () => {
       expect(report.trialBalance.totalDebit).toBe(5000000);
     });
   });
+
+  describe("Bespoke Wish Quotes", () => {
+    it("lists and normalizes bespoke wish quotes with customWishData and address", async () => {
+      const mockWishOrder = {
+        id: "wish-ord-1",
+        number: "GV-WISH-2026-60B0D8",
+        status: OrderStatus.AWAITING_QUOTE,
+        buyerEmail: "buyer@example.com",
+        recipientName: "David Enabs",
+        recipientPhone: "08166551496",
+        address: JSON.stringify({
+          street: "3 Glad Tidings Way",
+          area: "Gonin Gora",
+          city: "Kaduna",
+          state: "Kaduna",
+        }),
+        customWishData: JSON.stringify({
+          isBespokeWish: true,
+          occasion: "Birthday",
+          targetBudgetHint: "₦150,000",
+          items: [
+            {
+              title: "Vintage Mechanical Watch",
+              category: "Timepieces",
+              quantity: 1,
+            },
+          ],
+        }),
+        subtotalKobo: 0,
+        packagingFeeKobo: 0,
+        deliveryFeeKobo: 0,
+        totalKobo: 0,
+        trackingToken: "trk_wish_123",
+        createdAt: new Date(),
+        items: [],
+      };
+
+      prisma.order.findMany = jest.fn().mockResolvedValue([mockWishOrder]);
+      prisma.order.count = jest.fn().mockResolvedValue(1);
+
+      const result = await service.getBespokeWishQuotes({});
+      expect(result.total).toBe(1);
+      expect(result.orders.length).toBe(1);
+      const quote = result.orders[0];
+      expect(quote.orderNumber).toBe("GV-WISH-2026-60B0D8");
+      expect(quote.status).toBe(OrderStatus.AWAITING_QUOTE);
+      expect(quote.recipientName).toBe("David Enabs");
+      expect(quote.deliveryAddress.city).toBe("Kaduna");
+      expect(quote.customWishData.occasion).toBe("Birthday");
+      expect(quote.items.length).toBe(1);
+      expect(quote.items[0].title).toBe("Vintage Mechanical Watch");
+    });
+
+    it("updates order pricing and transitions status to QUOTED", async () => {
+      const mockAwaitingOrder = {
+        id: "wish-ord-1",
+        number: "GV-WISH-2026-60B0D8",
+        status: OrderStatus.AWAITING_QUOTE,
+        buyerEmail: "buyer@example.com",
+        recipientName: "David Enabs",
+        customWishData: {
+          isBespokeWish: true,
+          occasion: "Birthday",
+          items: [{ title: "Item 1", quantity: 1 }],
+        },
+      };
+
+      prisma.order.findUnique = jest.fn().mockResolvedValue(mockAwaitingOrder);
+      prisma.order.update = jest.fn().mockImplementation(({ data }: any) =>
+        Promise.resolve({ ...mockAwaitingOrder, ...data, status: OrderStatus.QUOTED })
+      );
+
+      const updated = await service.provideBespokeQuote(
+        "wish-ord-1",
+        {
+          subtotalKobo: 12000000,
+          packagingFeeKobo: 1250000,
+          deliveryFeeKobo: 250000,
+          adminNote: "Sourced with full manufacturer warranty",
+          estimatedDeliveryDays: 3,
+        },
+        "admin-1"
+      );
+
+      expect(updated.status).toBe(OrderStatus.QUOTED);
+      expect(updated.totalKobo).toBe(13500000);
+      expect(prisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "wish-ord-1" },
+          data: expect.objectContaining({
+            status: OrderStatus.QUOTED,
+            subtotalKobo: 12000000,
+            packagingFeeKobo: 1250000,
+            deliveryFeeKobo: 250000,
+            totalKobo: 13500000,
+          }),
+        })
+      );
+    });
+  });
 });

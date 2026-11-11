@@ -8,5 +8,11 @@ export type {
   DisputeType,
   ReviewFormInput,
   SavedAddress,
+  CreateBespokeWishPackageInput,
+  ProvideBespokeQuoteInput,
+  BespokeWishPackageDetail,
+  BespokeWishItem,
+  BespokeWishCategory,
+  BespokeWrapStyle,
 } from "@givvly/contracts";
 

@@ -24,6 +24,7 @@ import {
   LogOut,
   Sliders,
   Share,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/admin", label: "Executive Overview", icon: LayoutDashboard },
       { href: "/admin/orders", label: "Orders & Shipping", icon: ShoppingBag, badge: "Live" },
+      { href: "/admin/quotes", label: "Custom Quotes", icon: Sparkles, badge: "Wish" },
       { href: "/admin/products", label: "Gifts & Combos", icon: Package },
       { href: "/admin/events", label: "Celebrations", icon: Share },
     ],

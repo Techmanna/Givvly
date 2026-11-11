@@ -75,14 +75,21 @@ export class ForgotPasswordRequestDto {
 
 export class ResetPasswordRequestDto {
   @ApiProperty({ example: "tok_password_reset_xyz", description: "Password reset token" })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: "Password reset token is required" })
+  @IsNotEmpty({ message: "Password reset token is required" })
   token: string;
 
-  @ApiProperty({ example: "NewSecretP@ssw0rd!", description: "New password (minimum 8 characters)" })
-  @IsString()
-  @MinLength(8)
-  newPassword: string;
+  @ApiPropertyOptional({ example: "NewSecretP@ssw0rd!", description: "New password (minimum 8 characters)" })
+  @IsOptional()
+  @IsString({ message: "Please enter a valid password" })
+  @MinLength(8, { message: "Password must be at least 8 characters long" })
+  newPassword?: string;
+
+  @ApiPropertyOptional({ example: "NewSecretP@ssw0rd!", description: "Password (minimum 8 characters)" })
+  @IsOptional()
+  @IsString({ message: "Please enter a valid password" })
+  @MinLength(8, { message: "Password must be at least 8 characters long" })
+  password?: string;
 }
 
 export class UserProfileResponseDto {

@@ -5,6 +5,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { makeQueryClient } from "@/lib/query-client";
 import { LoginForm } from "./LoginForm";
 import { SignupForm } from "./SignupForm";
+import { ResetPasswordForm } from "./ResetPasswordForm";
+import { mapAuthErrorToForm } from "./mapAuthError";
 import * as authApi from "../api";
 import { ApiClientError } from "@/lib/api-client";
 
@@ -198,6 +200,54 @@ describe("LoginForm & SignupForm", () => {
       // Displays the helper link to sign in
       expect(screen.getByRole("link", { name: /sign in instead/i })).toBeInTheDocument();
     });
+  });
+
+  it("ResetPasswordForm maps technical validation errors to friendly messages without raw camelCase", async () => {
+    vi.spyOn(authApi, "confirmPasswordReset").mockRejectedValueOnce(
+      new ApiClientError({
+        status: 400,
+        code: "Bad Request",
+        message: "Validation failed",
+        details: [
+          "newPassword must be longer than or equal to 8 characters",
+          "newPassword must be a string",
+        ] as any,
+        requestId: "req_reset_err",
+      })
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<ResetPasswordForm token="tok_test_123" />);
+
+    await user.type(screen.getByLabelText(/^new password$/i), "GJuum6JW86fSamH");
+    await user.type(screen.getByLabelText(/^confirm new password$/i), "GJuum6JW86fSamH");
+    await user.click(screen.getByRole("button", { name: /reset password/i }));
+
+    await waitFor(() => {
+      // Must NOT display raw developer error strings
+      expect(screen.queryByText(/newPassword must be longer than/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/newPassword must be a string/i)).not.toBeInTheDocument();
+      // Must display user-friendly message mapped to password field
+      expect(screen.getByText(/Password must be at least 8 characters long\./i)).toBeInTheDocument();
+    });
+  });
+
+  it("mapAuthErrorToForm maps expired token to clear friendly message", () => {
+    const setError = vi.fn();
+    const result = mapAuthErrorToForm(
+      new ApiClientError({
+        status: 400,
+        code: "BAD_REQUEST",
+        message: "Invalid or expired password reset token",
+        requestId: "req_token",
+      }),
+      setError,
+      ["password", "confirmPassword", "token"]
+    );
+
+    expect(result.formError).toBe(
+      "This link is invalid or has expired. Please request a new one."
+    );
   });
 });
 

@@ -7,6 +7,7 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  BadRequestException,
   UnauthorizedException,
   UseGuards,
   UsePipes,
@@ -148,7 +149,11 @@ export class AuthController {
   async resetPassword(
     @Body() dto: ResetPasswordRequestDto
   ): Promise<MessageResponseDto> {
-    return this.authService.resetPassword(dto.token, dto.newPassword);
+    const password = (dto.newPassword || dto.password || "").trim();
+    if (!password || password.length < 8) {
+      throw new BadRequestException("Password must be at least 8 characters long");
+    }
+    return this.authService.resetPassword(dto.token, password);
   }
 
   @Public()

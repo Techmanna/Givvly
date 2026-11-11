@@ -13,6 +13,17 @@ export function canOrderTransition(
   if (current === next) return false;
 
   switch (current) {
+    case OrderStatus.AWAITING_QUOTE:
+      if (next === OrderStatus.QUOTED && actor === "ADMIN") return true;
+      if (next === OrderStatus.CANCELLED && (actor === "BUYER" || actor === "ADMIN")) return true;
+      return false;
+
+    case OrderStatus.QUOTED:
+      if (next === OrderStatus.CONFIRMED && actor === "SYSTEM") return true;
+      if (next === OrderStatus.PENDING_PAYMENT && (actor === "BUYER" || actor === "SYSTEM")) return true;
+      if (next === OrderStatus.CANCELLED && (actor === "BUYER" || actor === "ADMIN")) return true;
+      return false;
+
     case OrderStatus.PENDING_PAYMENT:
       if (next === OrderStatus.CONFIRMED && actor === "SYSTEM") return true;
       if (next === OrderStatus.CANCELLED) return true; // System (expiry), buyer, or admin

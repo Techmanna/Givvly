@@ -19,6 +19,8 @@ export type StatusKind =
   | "VISIBLE"
   | "HIDDEN"
   | "REMOVED"
+  | "AWAITING_QUOTE"
+  | "QUOTED"
   | "PENDING_PAYMENT"
   | "CONFIRMED"
   | "PACKED"
@@ -53,6 +55,8 @@ const STATUS_CONFIG: Record<
   VISIBLE: { label: "Visible", variant: "success" },
   HIDDEN: { label: "Hidden", variant: "secondary" },
   REMOVED: { label: "Removed", variant: "destructive" },
+  AWAITING_QUOTE: { label: "Awaiting quote", variant: "warning" },
+  QUOTED: { label: "Quoted", variant: "default" },
   PENDING_PAYMENT: { label: "Pending payment", variant: "warning" },
   CONFIRMED: { label: "Confirmed", variant: "outline" },
   PACKED: { label: "Packed", variant: "secondary" },

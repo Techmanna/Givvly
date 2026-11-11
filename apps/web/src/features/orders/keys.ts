@@ -3,5 +3,6 @@ export const orderKeys = {
   list: () => ["orders", "list"] as const,
   detail: (id: string) => ["orders", "detail", id] as const,
   tracking: (token: string) => ["orders", "tracking", token] as const,
+  quoteDetail: (token: string) => ["orders", "quote", token] as const,
 };
 

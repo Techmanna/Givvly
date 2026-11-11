@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createDirectOrder,
+  createBespokeWishPackage,
+  fetchBespokeWishDetail,
+  payBespokeWishQuote,
   fetchOrderDetail,
   fetchOrders,
   fetchOrderTracking,
@@ -84,3 +87,40 @@ export function useSubmitOrderDispute(orderId: string) {
     },
   });
 }
+
+export function useBespokeWishDetail(token: string) {
+  return useQuery({
+    queryKey: orderKeys.quoteDetail(token),
+    queryFn: () => fetchBespokeWishDetail(token),
+    enabled: Boolean(token),
+  });
+}
+
+export function useCreateBespokeWishPackage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: import("../types").CreateBespokeWishPackageInput) =>
+      createBespokeWishPackage(payload),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      queryClient.invalidateQueries({
+        queryKey: orderKeys.quoteDetail(result.trackingToken),
+      });
+    },
+  });
+}
+
+export function usePayBespokeWishQuote(token: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => payBespokeWishQuote(token),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: orderKeys.quoteDetail(token),
+      });
+    },
+  });
+}
+

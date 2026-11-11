@@ -73,11 +73,13 @@ export function requestPasswordReset(
 export function confirmPasswordReset(
   payload: ResetPasswordInput
 ): Promise<MessageResponse> {
+  const password = payload.password;
   return api<MessageResponse>("/auth/reset-password", {
     method: "POST",
     body: {
       token: payload.token,
-      password: payload.password,
+      password,
+      newPassword: password,
     },
   });
 }

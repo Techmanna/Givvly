@@ -138,13 +138,16 @@ export type WallPost = {
 };
 
 export type OrderStatus =
+  | "AWAITING_QUOTE"
+  | "QUOTED"
   | "PENDING_PAYMENT"
   | "CONFIRMED"
   | "PACKED"
   | "SHIPPED"
   | "DELIVERED"
   | "CANCELLED"
-  | "DISPUTED";
+  | "DISPUTED"
+  | "REFUNDED";
 
 export type Order = {
   id: string;

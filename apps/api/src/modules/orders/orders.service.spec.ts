@@ -92,6 +92,44 @@ describe("OrdersService", () => {
           }
           return Promise.resolve(null);
         }),
+        findFirst: jest.fn().mockImplementation(({ where }: any) => {
+          if (
+            where?.id === "ord-1" ||
+            where?.trackingToken === "trk_test123" ||
+            (Array.isArray(where?.OR) &&
+              where.OR.some(
+                (cond: any) =>
+                  cond.id === "ord-1" ||
+                  cond.trackingToken === "trk_test123" ||
+                  cond.number === "GV-2026-ABC123"
+              ))
+          ) {
+            return Promise.resolve({
+              id: "ord-1",
+              number: "GV-2026-ABC123",
+              trackingToken: "trk_test123",
+              buyerUserId: "user-1",
+              buyerEmail: "buyer@example.com",
+              recipientName: "Jane Doe",
+              status: OrderStatus.PENDING_PAYMENT,
+              subtotalKobo: 5000000,
+              deliveryFeeKobo: 250000,
+              totalKobo: 5250000,
+              items: [
+                {
+                  id: "item-1",
+                  productId: mockProduct.id,
+                  title: mockProduct.title,
+                  unitPriceKobo: 5000000,
+                  qty: 1,
+                },
+              ],
+              history: [],
+              createdAt: new Date(),
+            });
+          }
+          return Promise.resolve(null);
+        }),
         update: jest.fn().mockImplementation(({ data }: any) =>
           Promise.resolve({ id: "ord-1", ...data })
         ),
@@ -260,5 +298,81 @@ describe("OrdersService", () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe("Bespoke Wish Packages", () => {
+    it("creates a bespoke wish package order in AWAITING_QUOTE status", async () => {
+      const dto = {
+        buyerName: "Folake Ade",
+        buyerEmail: "folake@example.com",
+        buyerPhone: "08031234567",
+        recipientName: "Bisi Akande",
+        recipientPhone: "08020000000",
+        street: "12 Marina Road",
+        area: "Lagos Island",
+        city: "Lagos",
+        state: "Lagos",
+        occasion: "Birthday Celebration",
+        wrapStyle: "SIGNATURE_VELVET_BOX" as const,
+        giftNote: "Happy 30th Birthday!",
+        items: [
+          {
+            title: "Apple Watch Ultra 2 Titanium",
+            category: "TECH_GADGETS" as const,
+            qty: 1,
+            specs: "49mm Ocean Band",
+          },
+        ],
+      };
+
+      const result = await service.createBespokeWishPackage(dto, {
+        id: "user-1",
+        email: "folake@example.com",
+        name: "Folake Ade",
+      });
+
+      expect(result).toBeDefined();
+      expect(result.status).toBe(OrderStatus.AWAITING_QUOTE);
+      expect(result.itemsCount).toBe(1);
+      expect(prisma.order.create).toHaveBeenCalled();
+    });
+
+    it("rejects payment initialization on order that is still AWAITING_QUOTE", async () => {
+      prisma.order.findFirst.mockResolvedValueOnce({
+        id: "ord-wish-1",
+        number: "GV-WISH-001",
+        trackingToken: "trk_wish_123",
+        status: OrderStatus.AWAITING_QUOTE,
+        totalKobo: 0,
+        buyerEmail: "folake@example.com",
+      });
+
+      await expect(
+        service.initializeQuotePayment("trk_wish_123")
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("initializes payment via Paystack when order is QUOTED with a valid total", async () => {
+      prisma.order.findFirst.mockResolvedValueOnce({
+        id: "ord-wish-1",
+        number: "GV-WISH-001",
+        trackingToken: "trk_wish_123",
+        status: OrderStatus.QUOTED,
+        totalKobo: 12500000, // ₦125,000
+        buyerEmail: "folake@example.com",
+      });
+
+      const res = await service.initializeQuotePayment("trk_wish_123");
+
+      expect(res).toBeDefined();
+      expect(res.authorizationUrl).toBe("https://checkout.paystack.com/acc_123");
+      expect(mockGateway.initializePayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amountSubunits: 12500000,
+          customerEmail: "folake@example.com",
+        })
+      );
+    });
+  });
 });
+
 

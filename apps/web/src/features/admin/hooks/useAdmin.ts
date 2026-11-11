@@ -20,6 +20,8 @@ import {
   retryAdminPayout,
   updateAdminOrderStatus,
   updateAdminProduct,
+  fetchAdminBespokeQuotes,
+  provideAdminBespokeQuote,
 } from "../api";
 import { adminKeys } from "../keys";
 
@@ -230,3 +232,29 @@ export function useUpdateAdminOrderStatus() {
     },
   });
 }
+
+export function useAdminBespokeQuotes() {
+  return useQuery({
+    queryKey: adminKeys.quotes(),
+    queryFn: () => fetchAdminBespokeQuotes(),
+  });
+}
+
+export function useProvideAdminBespokeQuote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      orderId,
+      payload,
+    }: {
+      orderId: string;
+      payload: import("@givvly/contracts").ProvideBespokeQuoteInput;
+    }) => provideAdminBespokeQuote(orderId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.quotes() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.orders() });
+    },
+  });
+}
+

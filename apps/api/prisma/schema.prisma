@@ -104,6 +104,8 @@ enum PoolStatus {
 }
 
 enum OrderStatus {
+  AWAITING_QUOTE
+  QUOTED
   PENDING_PAYMENT
   CONFIRMED
   PACKED
@@ -552,8 +554,10 @@ model Order {
   status          OrderStatus          @default(PENDING_PAYMENT)
   subtotalKobo    Int
   deliveryFeeKobo Int                  @default(0)
+  packagingFeeKobo Int                 @default(0)
   feeKobo         Int                  @default(0)
   totalKobo       Int
+  customWishData  Json?
   paymentId       String?              @unique
   trackingToken   String               @unique
   deliveredAt     DateTime?

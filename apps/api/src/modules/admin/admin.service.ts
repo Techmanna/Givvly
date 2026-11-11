@@ -16,6 +16,7 @@ import {
   UserStatus,
   PostStatus,
   Direction,
+  Channel,
 } from "@prisma/client";
 import {
   CreateProductDto,
@@ -25,6 +26,8 @@ import {
 import { UpdateOrderStatusDto } from "./dto/admin-orders.dto";
 import { ResolveDisputeDto, IssueRefundDto } from "./dto/admin-disputes.dto";
 import { canOrderTransition } from "../orders/order-state-machine";
+import { ProvideBespokeQuoteInput } from "../orders/dto/bespoke-wish.dto";
+import { NotificationsService } from "../notifications/notifications.service";
 
 @Injectable()
 export class AdminService {
@@ -34,7 +37,8 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
-    @Optional() slugService?: SlugService
+    @Optional() slugService?: SlugService,
+    @Optional() private readonly notifications?: NotificationsService
   ) {
     this.slugService = slugService ?? new SlugService(this.prisma);
   }
@@ -580,6 +584,205 @@ export class AdminService {
       newStatus: dto.status,
       note: dto.note,
     });
+
+    return updated;
+  }
+
+  // ==================== BESPOKE WISH QUOTES ====================
+
+  async getBespokeWishQuotes(query: {
+    status?: OrderStatus;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const where: any = {
+      OR: [
+        { customWishData: { not: null } },
+        { status: { in: [OrderStatus.AWAITING_QUOTE, OrderStatus.QUOTED] } },
+      ],
+    };
+
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    if (query.search && query.search.trim()) {
+      const term = query.search.trim();
+      where.AND = [
+        {
+          OR: [
+            { number: { contains: term, mode: "insensitive" } },
+            { buyerEmail: { contains: term, mode: "insensitive" } },
+            { recipientName: { contains: term, mode: "insensitive" } },
+          ],
+        },
+      ];
+    }
+
+    const take = query.limit ? Math.min(Number(query.limit), 100) : 50;
+    const skip = query.offset ? Number(query.offset) : 0;
+
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+        include: {
+          items: true,
+          payment: true,
+          history: { orderBy: { createdAt: "desc" }, take: 1 },
+        },
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    const mapped = orders.map((o) => {
+      let wishData: any = {};
+      if (typeof o.customWishData === "string") {
+        try {
+          wishData = JSON.parse(o.customWishData);
+        } catch {
+          wishData = {};
+        }
+      } else if (o.customWishData && typeof o.customWishData === "object") {
+        wishData = o.customWishData;
+      }
+
+      let address: any = { street: "", area: "", city: "", state: "" };
+      if (typeof o.address === "string") {
+        try {
+          address = JSON.parse(o.address);
+        } catch {
+          address = { street: o.address, area: "", city: "", state: "" };
+        }
+      } else if (o.address && typeof o.address === "object") {
+        address = o.address;
+      }
+
+      const wishItems =
+        Array.isArray(wishData.items) && wishData.items.length > 0
+          ? wishData.items
+          : (o.items || []).map((it) => ({
+              title: it.title,
+              description: it.title,
+              category: "Gift Item",
+              quantity: it.qty,
+            }));
+
+      return {
+        id: o.id,
+        orderNumber: o.number,
+        trackingToken: o.trackingToken,
+        status: o.status,
+        buyerName: wishData.buyerName || o.recipientName || "Valued Customer",
+        buyerEmail: o.buyerEmail || "",
+        buyerPhone: wishData.buyerPhone || o.recipientPhone || "",
+        recipientName: o.recipientName || "Recipient",
+        recipientPhone: o.recipientPhone || "",
+        recipientEmail: o.recipientEmail || "",
+        deliveryAddress: {
+          street: address.street || "",
+          area: address.area || "",
+          city: address.city || "",
+          state: address.state || "",
+        },
+        wrapStyle: o.wrapStyle || "SIGNATURE_VELVET_BOX",
+        giftNote: o.giftNote,
+        subtotalKobo: o.subtotalKobo,
+        packagingFeeKobo: o.packagingFeeKobo,
+        deliveryFeeKobo: o.deliveryFeeKobo,
+        totalKobo: o.totalKobo,
+        customWishData: {
+          isBespokeWish: Boolean(wishData.isBespokeWish ?? true),
+          occasion: wishData.occasion || "Celebration",
+          targetBudgetHint: wishData.targetBudgetHint,
+          items: wishItems,
+          adminNote: wishData.adminNote,
+          quotedAt: wishData.quotedAt,
+          estimatedDeliveryDays: wishData.estimatedDeliveryDays,
+        },
+        items: wishItems,
+        createdAt: o.createdAt.toISOString(),
+      };
+    });
+
+    return { orders: mapped, total, limit: take, offset: skip };
+  }
+
+  async provideBespokeQuote(
+    orderId: string,
+    dto: ProvideBespokeQuoteInput,
+    adminId?: string
+  ) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order '${orderId}' not found`);
+    }
+
+    if (
+      order.status !== OrderStatus.AWAITING_QUOTE &&
+      order.status !== OrderStatus.QUOTED
+    ) {
+      throw new BadRequestException(
+        `Cannot provide quote for order in status '${order.status}'`
+      );
+    }
+
+    const totalKobo = dto.subtotalKobo + dto.packagingFeeKobo + dto.deliveryFeeKobo;
+    const existingWishData = (order.customWishData as any) || {};
+
+    const updatedWishData = {
+      ...existingWishData,
+      adminNote: dto.adminNote,
+      quotedAt: new Date().toISOString(),
+      estimatedDeliveryDays: dto.estimatedDeliveryDays,
+    };
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: OrderStatus.QUOTED,
+        subtotalKobo: dto.subtotalKobo,
+        packagingFeeKobo: dto.packagingFeeKobo,
+        deliveryFeeKobo: dto.deliveryFeeKobo,
+        totalKobo,
+        customWishData: updatedWishData,
+        history: {
+          create: [
+            {
+              status: OrderStatus.QUOTED,
+              note: `Quote provided by concierge team: ₦${Math.round(totalKobo / 100).toLocaleString()}. Note: ${dto.adminNote}`,
+              actorId: adminId,
+            },
+          ],
+        },
+      },
+    });
+
+    await this.logAudit(adminId, "ORDER_QUOTE_PROVIDED", "Order", orderId, {
+      totalKobo,
+      subtotalKobo: dto.subtotalKobo,
+      packagingFeeKobo: dto.packagingFeeKobo,
+      deliveryFeeKobo: dto.deliveryFeeKobo,
+    });
+
+    // Send email notification to customer
+    if (this.notifications) {
+      void this.notifications.notify({
+        userId: order.buyerUserId || undefined,
+        toAddress: order.buyerEmail,
+        channel: Channel.EMAIL,
+        type: "BESPOKE_QUOTE_READY",
+        category: "ORDERS",
+        title: `Your Givvly Bespoke Wish Package Quote (${order.number}) is Ready!`,
+        body: `Our concierge team has prepared your quote: ₦${Math.round(totalKobo / 100).toLocaleString()}. Note: ${dto.adminNote}`,
+      }).catch((err: unknown) => this.logger.warn(`Failed to dispatch quote ready email: ${err}`));
+    }
 
     return updated;
   }

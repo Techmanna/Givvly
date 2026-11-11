@@ -11,4 +11,5 @@ export const adminKeys = {
   products: () => ["admin", "products"] as const,
   vendors: () => ["admin", "vendors"] as const,
   users: () => ["admin", "users"] as const,
+  quotes: () => ["admin", "quotes"] as const,
 };

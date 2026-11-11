@@ -42,6 +42,10 @@ import {
   IssueRefundDto,
   issueRefundSchema,
 } from "./dto/admin-disputes.dto";
+import {
+  provideBespokeQuoteSchema,
+  ProvideBespokeQuoteInput,
+} from "../orders/dto/bespoke-wish.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles, CurrentUser } from "../../common/decorators/auth.decorator";
@@ -186,6 +190,23 @@ export class AdminController {
     });
   }
 
+  @Get("orders/quotes")
+  @ApiOperation({ summary: "List and filter all bespoke wish packages requiring quotation" })
+  @ApiOkResponse({ description: "Paginated bespoke wish orders." })
+  async getBespokeWishQuotes(
+    @Query("status") status?: OrderStatus,
+    @Query("search") search?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string
+  ) {
+    return this.adminService.getBespokeWishQuotes({
+      status,
+      search,
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
   @Get("orders/:id")
   @ApiOperation({ summary: "Get detailed order information by ID" })
   @ApiParam({ name: "id", description: "Order UUID" })
@@ -205,6 +226,19 @@ export class AdminController {
     @CurrentUser() admin: { id: string }
   ) {
     return this.adminService.updateOrderStatus(id, dto, admin.id);
+  }
+
+  @Post("orders/:id/provide-quote")
+  @ApiOperation({ summary: "Provide official pricing quote for a bespoke wish package" })
+  @ApiParam({ name: "id", description: "Order UUID" })
+  @ApiOkResponse({ description: "Quote provided and customer notified via email." })
+  @UsePipes(new ZodValidationPipe(provideBespokeQuoteSchema))
+  async provideBespokeQuote(
+    @Param("id") id: string,
+    @Body() dto: ProvideBespokeQuoteInput,
+    @CurrentUser() admin: { id: string }
+  ) {
+    return this.adminService.provideBespokeQuote(id, dto, admin.id);
   }
 
   // ==================== USERS ====================

@@ -18,3 +18,5 @@ export {
   type AdminConsoleViewProps,
   type AdminSection,
 } from "./components/AdminConsoleView";
+export { BespokeQuotesView } from "./components/BespokeQuotesView";
+

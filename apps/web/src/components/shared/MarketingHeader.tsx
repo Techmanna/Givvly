@@ -44,6 +44,7 @@ import { BoxButton } from "./BoxButton";
 
 const navigationLinks = [
   { label: "Gift Atelier", href: "/gifts", icon: Gift },
+  { label: "Bespoke Gift", href: "/custom-gift", icon: Sparkles },
   { label: "Live Celebrations", href: "/celebrations", icon: Sparkles },
   { label: "Concierge & FAQ", href: "/help", icon: HelpCircle },
 ];

@@ -17,4 +17,7 @@ export {
   type SavedAddressSelectorProps,
   type SaveAddressToggleProps,
 } from "./components/SavedAddressSelector";
+export { BespokeWishBuilder } from "./components/BespokeWishBuilder";
+export { BespokeQuoteView, type BespokeQuoteViewProps } from "./components/BespokeQuoteView";
+
 

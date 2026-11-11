@@ -33,6 +33,10 @@ import {
   ReviewResponseDto,
   DisputeResponseDto,
 } from "./dto/order-feedback.dto";
+import {
+  createBespokeWishPackageSchema,
+  CreateBespokeWishPackageInput,
+} from "./dto/bespoke-wish.dto";
 import { Public, CurrentUser } from "../../common/decorators/auth.decorator";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
@@ -56,6 +60,39 @@ export class OrdersController {
     @CurrentUser() user?: { id: string; email: string; name?: string }
   ): Promise<OrderPaymentInitResponseDto> {
     return this.ordersService.createOrder(dto, user) as any;
+  }
+
+  @Public()
+  @Post("orders/custom-quote")
+  @ApiOperation({ summary: "Submit a bespoke wish package for admin quotation (no event required)" })
+  @ApiCreatedResponse({ description: "Bespoke wish package registered and queued for quotation." })
+  @UsePipes(new ZodValidationPipe(createBespokeWishPackageSchema))
+  async createBespokeWishPackage(
+    @Body() dto: CreateBespokeWishPackageInput,
+    @CurrentUser() user?: { id: string; email: string; name?: string }
+  ) {
+    return this.ordersService.createBespokeWishPackage(dto, user);
+  }
+
+  @Public()
+  @Get("orders/quote/:token")
+  @ApiOperation({ summary: "Get bespoke wish package details & quote status by token" })
+  @ApiParam({ name: "token", description: "Tracking token or order ID" })
+  @ApiOkResponse({ description: "Bespoke wish package details and quote breakdown." })
+  async getBespokeWishDetail(@Param("token") token: string) {
+    return this.ordersService.getBespokeWishDetailByToken(token);
+  }
+
+  @Public()
+  @Post("orders/quote/:token/pay")
+  @ApiOperation({ summary: "Accept official quote and initialize Paystack payment" })
+  @ApiParam({ name: "token", description: "Tracking token or order ID" })
+  @ApiOkResponse({ description: "Paystack authorization URL and payment reference." })
+  async payBespokeQuote(
+    @Param("token") token: string,
+    @CurrentUser() user?: { id?: string; email?: string }
+  ) {
+    return this.ordersService.initializeQuotePayment(token, user);
   }
 
   @Public()

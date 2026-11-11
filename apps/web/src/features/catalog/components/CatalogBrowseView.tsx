@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Smartphone, Wifi } from "lucide-react";
+import { Smartphone, Wifi, Sparkles, ArrowRight } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -206,6 +206,30 @@ export function CatalogBrowseView() {
             Gift Data Bundle
           </Link>
         </div>
+      </div>
+
+      {/* Bespoke Wish Concierge Callout */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-card to-primary/10 p-5 sm:flex-row sm:items-center">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+            <Sparkles className="h-3 w-3" />
+            Custom Concierge
+          </div>
+          <h2 className="font-heading text-lg font-semibold text-foreground">
+            Have something specific in mind? Build a Bespoke Wish Package
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Send us product links, specs, or photos. Our concierge procures verified items, wraps them in luxury keepsake boxes, and gives you an itemized quote to approve.
+          </p>
+        </div>
+
+        <Link
+          href="/custom-gift"
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-95 shrink-0"
+        >
+          Build Custom Wish
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
 
       {productsQuery.isLoading ? (

@@ -295,9 +295,12 @@ export async function apiWithMeta<T>(
   if (!response.ok) {
     const errEnvelope = parsed as Partial<ApiError> | null;
     const code = errEnvelope?.error?.code ?? "INTERNAL_ERROR";
-    const message =
-      errEnvelope?.error?.message ??
-      `Request failed with status ${response.status}`;
+    const rawMsg = errEnvelope?.error?.message;
+    const message = Array.isArray(rawMsg)
+      ? rawMsg.join(". ")
+      : typeof rawMsg === "string"
+      ? rawMsg
+      : `Request failed with status ${response.status}`;
     const details = errEnvelope?.error?.details;
     const errRequestId = errEnvelope?.error?.requestId ?? requestId;
 

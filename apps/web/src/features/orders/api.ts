@@ -166,3 +166,42 @@ export async function fetchOrderTracking(token: string): Promise<Order> {
   const res = await api<any>(`/public/track/${encodeURIComponent(token)}`);
   return normalizeOrder(res?.order ?? res);
 }
+
+export async function createBespokeWishPackage(
+  payload: import("./types").CreateBespokeWishPackageInput
+): Promise<{
+  id: string;
+  number: string;
+  trackingToken: string;
+  status: string;
+  recipientName: string;
+  itemsCount: number;
+  createdAt: string;
+}> {
+  const res = await api<any>("/orders/custom-quote", {
+    method: "POST",
+    body: payload,
+  });
+  return res?.data ?? res;
+}
+
+export async function fetchBespokeWishDetail(
+  token: string
+): Promise<import("./types").BespokeWishPackageDetail> {
+  const res = await api<any>(`/orders/quote/${encodeURIComponent(token)}`);
+  return res?.data ?? res;
+}
+
+export async function payBespokeWishQuote(
+  token: string
+): Promise<{
+  authorizationUrl: string;
+  reference: string;
+  amountKobo: number;
+}> {
+  const res = await api<any>(`/orders/quote/${encodeURIComponent(token)}/pay`, {
+    method: "POST",
+  });
+  return res?.data ?? res;
+}
+

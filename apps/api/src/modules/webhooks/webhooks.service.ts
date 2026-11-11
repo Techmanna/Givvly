@@ -613,8 +613,12 @@ export class WebhooksService {
         }
       }
 
-      // 3. If associated with Direct Order, confirm order, update inventory & post ledger
-      if (payment.order && payment.order.status === OrderStatus.PENDING_PAYMENT) {
+      // 3. If associated with Direct Order or Bespoke Wish Order, confirm order, update inventory & post ledger
+      if (
+        payment.order &&
+        (payment.order.status === OrderStatus.PENDING_PAYMENT ||
+          payment.order.status === OrderStatus.QUOTED)
+      ) {
         const order = payment.order;
 
         await tx.order.update({

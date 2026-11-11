@@ -301,3 +301,109 @@ body:has(iframe[src*="paystack"]) > [data-radix-portal] {
   display: none !important;
 }
 
+/* =========================================================================
+   Givvly Brand Sonner Toast Theme
+   Stationery elevation, tactile warmth, Fraunces/DM Sans typography,
+   and bespoke Nigerian celebration palette (Emerald, Terracotta, Ochre Gold)
+   ========================================================================= */
+[data-sonner-toaster] {
+  --border-radius: 18px !important;
+
+  --normal-bg: #FFFFFF;
+  --normal-border: #ECDCD6;
+  --normal-text: #332022;
+
+  --success-bg: #F0F7F3;
+  --success-border: #C6E2D2;
+  --success-text: #1F5C40;
+
+  --error-bg: #FDF2F4;
+  --error-border: #F2CBD2;
+  --error-text: #962E3E;
+
+  --warning-bg: #FDF8EC;
+  --warning-border: #F2DFB8;
+  --warning-text: #875510;
+
+  --info-bg: #FAF3EF;
+  --info-border: #EAD7CD;
+  --info-text: #963847;
+}
+
+.dark [data-sonner-toaster] {
+  --normal-bg: #2A1C1F;
+  --normal-border: #43303A;
+  --normal-text: #F5E9E4;
+
+  --success-bg: #16271E;
+  --success-border: #224A35;
+  --success-text: #7FD3A8;
+
+  --error-bg: #2C151A;
+  --error-border: #57212D;
+  --error-text: #F391A1;
+
+  --warning-bg: #2A1F0D;
+  --warning-border: #523A15;
+  --warning-text: #F2BE58;
+
+  --info-bg: #28181C;
+  --info-border: #4B2832;
+  --info-text: #E08595;
+}
+
+/* Tactile stationery elevation and hairline gold-tinted border */
+[data-sonner-toast] {
+  font-family: var(--font-dm-sans), sans-serif !important;
+  border-radius: 18px !important;
+  box-shadow:
+    0 16px 38px -12px rgba(51, 32, 34, 0.16),
+    0 1px 0 0 rgba(255, 255, 255, 0.9) inset,
+    0 0 0 1px rgba(212, 169, 89, 0.22) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+.dark [data-sonner-toast] {
+  box-shadow:
+    0 20px 44px -12px rgba(0, 0, 0, 0.6),
+    0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+    0 0 0 1px rgba(226, 189, 119, 0.18) !important;
+}
+
+[data-sonner-toast] [data-icon] {
+  width: auto !important;
+  height: auto !important;
+  align-self: flex-start !important;
+  margin-top: 1px !important;
+  margin-right: 8px !important;
+}
+
+[data-sonner-toast] [data-title] {
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+}
+
+[data-sonner-toast] [data-description] {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  opacity: 0.88 !important;
+}
+
+[data-sonner-toast] [data-close-button] {
+  top: 10px !important;
+  right: 10px !important;
+  border-radius: 9999px !important;
+  border: 1px solid rgba(212, 169, 89, 0.3) !important;
+  background: var(--card) !important;
+  color: var(--muted-foreground) !important;
+  transition: all 160ms ease !important;
+}
+
+[data-sonner-toast] [data-close-button]:hover {
+  background: var(--muted) !important;
+  color: var(--foreground) !important;
+  transform: scale(1.05) !important;
+}
+
+

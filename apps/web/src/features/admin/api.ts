@@ -277,3 +277,22 @@ export function updateAdminOrderStatus(
     body: { status },
   });
 }
+
+export async function fetchAdminBespokeQuotes(): Promise<import("@givvly/contracts").BespokeWishPackageDetail[]> {
+  const res = await api<any>("/admin/orders/quotes");
+  return Array.isArray(res) ? res : (res?.orders ?? res?.quotes ?? res?.data ?? []);
+}
+
+export function provideAdminBespokeQuote(
+  orderId: string,
+  payload: import("@givvly/contracts").ProvideBespokeQuoteInput
+) {
+  return api<{ ok: boolean; orderId: string; status: string; totalKobo: number }>(
+    `/admin/orders/${encodeURIComponent(orderId)}/provide-quote`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
