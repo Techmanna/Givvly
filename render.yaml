@@ -26,11 +26,11 @@ services:
           name: givvly-redis
           property: connectionString
       - key: APP_URL
-        sync: false
+        value: https://www.givvly.store
       - key: API_URL
-        sync: false
+        value: https://api.givvly.store
       - key: CORS_ORIGINS
-        sync: false
+        value: https://givvly.store,https://www.givvly.store,http://localhost:3000
       - key: JWT_SECRET
         generateValue: true
       - key: ENCRYPTION_KEY

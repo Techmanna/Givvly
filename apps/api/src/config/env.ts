@@ -13,7 +13,7 @@ export const envSchema = z.object({
   API_URL: z.string().url().default("http://localhost:4000"),
   CORS_ORIGINS: z
     .string()
-    .default("http://localhost:3000")
+    .default("http://localhost:3000,https://givvly.store,https://www.givvly.store")
     .transform((val) => val.split(",").map((s) => s.trim())),
   COOKIE_DOMAIN: z.string().optional(),
 

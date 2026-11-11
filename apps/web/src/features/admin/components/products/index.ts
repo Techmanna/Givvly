@@ -6,3 +6,4 @@ export * from "./ProductOverviewTab";
 export * from "./ProductActivityTab";
 export * from "./ProductEditForm";
 export * from "./ProductDetailModal";
+export * from "./BulkActionBar";

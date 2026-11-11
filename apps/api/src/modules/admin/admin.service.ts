@@ -294,6 +294,106 @@ export class AdminService {
     return updated;
   }
 
+  async bulkDeleteProducts(
+    ids: string[],
+    permanent = false,
+    adminId?: string
+  ) {
+    if (!ids || ids.length === 0) {
+      return { count: 0, deletedIds: [], permanent };
+    }
+
+    if (permanent) {
+      await this.prisma.$transaction(async (tx: any) => {
+        await tx.registryItem.updateMany({
+          where: { productId: { in: ids } },
+          data: { productId: null },
+        });
+        await tx.review.updateMany({
+          where: { productId: { in: ids } },
+          data: { productId: null },
+        });
+        await tx.product.deleteMany({
+          where: { id: { in: ids } },
+        });
+      });
+
+      await this.logAudit(
+        adminId,
+        "PRODUCT_BULK_DELETE_PERMANENT",
+        "Product",
+        ids.join(","),
+        { count: ids.length, ids }
+      );
+      return { count: ids.length, deletedIds: ids, permanent: true };
+    }
+
+    const result = await this.prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data: { active: false },
+    });
+
+    await this.logAudit(
+      adminId,
+      "PRODUCT_BULK_DEACTIVATE",
+      "Product",
+      ids.join(","),
+      { count: result.count, ids }
+    );
+
+    return { count: result.count, deletedIds: ids, permanent: false };
+  }
+
+  async bulkUpdateProductStock(
+    ids: string[],
+    inStock: boolean,
+    adminId?: string
+  ) {
+    if (!ids || ids.length === 0) {
+      return { count: 0, updatedIds: [], inStock };
+    }
+
+    const result = await this.prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data: { stock: inStock ? 50 : 0 },
+    });
+
+    await this.logAudit(
+      adminId,
+      inStock ? "PRODUCT_BULK_RESTOCK" : "PRODUCT_BULK_UNSTOCK",
+      "Product",
+      ids.join(","),
+      { count: result.count, inStock, ids }
+    );
+
+    return { count: result.count, updatedIds: ids, inStock };
+  }
+
+  async bulkUpdateProductStatus(
+    ids: string[],
+    active: boolean,
+    adminId?: string
+  ) {
+    if (!ids || ids.length === 0) {
+      return { count: 0, updatedIds: [], active };
+    }
+
+    const result = await this.prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data: { active },
+    });
+
+    await this.logAudit(
+      adminId,
+      active ? "PRODUCT_BULK_ACTIVATE" : "PRODUCT_BULK_DEACTIVATE",
+      "Product",
+      ids.join(","),
+      { count: result.count, active, ids }
+    );
+
+    return { count: result.count, updatedIds: ids, active };
+  }
+
   // ==================== COLLECTIONS ====================
 
   async getCollections() {

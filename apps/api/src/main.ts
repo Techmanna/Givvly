@@ -8,6 +8,7 @@ import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
 import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
 import { AllExceptionsFilter } from "./common/filters/http-exception.filter";
+import { isAllowedCorsOrigin } from "./common/utils/cors.util";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -19,13 +20,24 @@ async function bootstrap() {
   const port = configService.get<number>("PORT", 4000);
   const rawCors = configService.get<string | string[]>("CORS_ORIGINS", [
     "http://localhost:3000",
+    "https://givvly.store",
+    "https://www.givvly.store",
   ]);
-  const corsOrigins =
-    typeof rawCors === "string"
-      ? rawCors.split(",").map((s) => s.trim())
-      : Array.isArray(rawCors)
-        ? rawCors
-        : [rawCors];
+  const appUrl = configService.get<string>("APP_URL");
+
+  const corsOrigins: string[] = [
+    "https://givvly.store",
+    "https://www.givvly.store",
+    "http://localhost:3000",
+  ];
+  if (Array.isArray(rawCors)) {
+    corsOrigins.push(...rawCors.map((s) => s.trim()));
+  } else if (typeof rawCors === "string") {
+    corsOrigins.push(...rawCors.split(",").map((s) => s.trim()));
+  }
+  if (appUrl) {
+    corsOrigins.push(appUrl.trim());
+  }
 
   // Security Middleware with CSP adjusted for Scalar assets
   app.use(
@@ -64,18 +76,24 @@ async function bootstrap() {
       origin: string | undefined,
       callback: (err: Error | null, allow?: boolean) => void
     ) => {
-      if (
-        !origin ||
-        corsOrigins.includes(origin) ||
-        (process.env.NODE_ENV !== "production" &&
-          /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))
-      ) {
+      if (isAllowedCorsOrigin(origin, corsOrigins)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "X-Request-Id",
+      "X-CSRF-Token",
+      "Idempotency-Key",
+      "Accept",
+    ],
+    exposedHeaders: ["X-Request-Id"],
   });
 
   // Global Envelope & Error Handling

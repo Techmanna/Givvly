@@ -2584,6 +2584,40 @@ export async function handleMockApiRequest<T>(
     return wrapSuccess({ success: true, id: deleted.id } as unknown as T);
   }
 
+  if (method === "POST" && normalizedPath === "/admin/products/bulk-delete") {
+    const body = (opts.body ?? {}) as { ids?: string[]; permanent?: boolean };
+    const ids = body.ids ?? [];
+    let count = 0;
+    const deletedIds: string[] = [];
+    db.products = db.products.filter((p) => {
+      if (ids.includes(p.id)) {
+        count++;
+        deletedIds.push(p.id);
+        return false;
+      }
+      return true;
+    });
+    writePersistedProducts(db.products);
+    return wrapSuccess({ count, deletedIds, permanent: Boolean(body.permanent) } as unknown as T);
+  }
+
+  if (method === "POST" && normalizedPath === "/admin/products/bulk-stock") {
+    const body = (opts.body ?? {}) as { ids?: string[]; inStock: boolean };
+    const ids = body.ids ?? [];
+    let count = 0;
+    const updatedIds: string[] = [];
+    for (const p of db.products) {
+      if (ids.includes(p.id)) {
+        p.inStock = body.inStock;
+        (p as any).stock = body.inStock ? 50 : 0;
+        count++;
+        updatedIds.push(p.id);
+      }
+    }
+    writePersistedProducts(db.products);
+    return wrapSuccess({ count, updatedIds, inStock: body.inStock } as unknown as T);
+  }
+
   if (method === "GET" && normalizedPath === "/admin/moderation") {
     return wrapSuccess(db.moderationQueue as unknown as T);
   }

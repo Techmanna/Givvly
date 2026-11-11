@@ -4,6 +4,7 @@ import { Eye, Layers, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Money } from "@/components/shared/Money";
 import type { AdminProduct } from "../../types";
@@ -13,6 +14,8 @@ interface ProductCardItemProps {
   onSelect: (product: AdminProduct, tab?: "overview" | "activity" | "edit") => void;
   onToggleStock: (id: string, currentStock: boolean) => void;
   isStockPending?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export function ProductCardItem({
@@ -20,20 +23,39 @@ export function ProductCardItem({
   onSelect,
   onToggleStock,
   isStockPending = false,
+  isSelected = false,
+  onToggleSelect,
 }: ProductCardItemProps) {
   return (
     <Card
       key={product.id}
       className={`overflow-hidden border transition-all duration-200 hover:shadow-soft flex flex-col justify-between ${
-        product.inStock
-          ? "border-border/80 bg-card hover:border-primary/40"
-          : "border-border/40 bg-muted/20 opacity-80"
+        isSelected
+          ? "ring-2 ring-primary border-primary/60 bg-primary/[0.02]"
+          : product.inStock
+            ? "border-border/80 bg-card hover:border-primary/40"
+            : "border-border/40 bg-muted/20 opacity-80"
       }`}
     >
       <div className="flex h-full flex-col justify-between p-4">
         <div className="space-y-2.5">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+              {onToggleSelect && (
+                <div
+                  className="flex items-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id={`select-product-${product.id}`}
+                    data-testid="product-select-checkbox"
+                    checked={isSelected}
+                    onCheckedChange={() => onToggleSelect(product.id)}
+                    aria-label={`Select ${product.name}`}
+                    className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  />
+                </div>
+              )}
               {product.isCombo ? (
                 <Badge
                   variant="secondary"

@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  bulkDeleteAdminProducts,
+  bulkUpdateAdminProductStock,
   createAdminProduct,
   deleteAdminProduct,
   fetchAdminDisputes,
@@ -177,6 +179,30 @@ export function useDeleteAdminProduct() {
 
   return useMutation({
     mutationFn: (productId: string) => deleteAdminProduct(productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.products() });
+    },
+  });
+}
+
+export function useBulkDeleteAdminProducts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ ids, permanent }: { ids: string[]; permanent?: boolean }) =>
+      bulkDeleteAdminProducts(ids, permanent),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.products() });
+    },
+  });
+}
+
+export function useBulkUpdateAdminProductStock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ ids, inStock }: { ids: string[]; inStock: boolean }) =>
+      bulkUpdateAdminProductStock(ids, inStock),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.products() });
     },

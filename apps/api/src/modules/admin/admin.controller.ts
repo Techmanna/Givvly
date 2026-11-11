@@ -25,6 +25,10 @@ import {
   createProductSchema,
   UpdateProductDto,
   updateProductSchema,
+  BulkDeleteProductsDto,
+  bulkDeleteProductsSchema,
+  BulkUpdateStockDto,
+  bulkUpdateStockSchema,
   CreateCollectionDto,
   createCollectionSchema,
 } from "./dto/admin-product.dto";
@@ -107,6 +111,28 @@ export class AdminController {
     @CurrentUser() admin: { id: string }
   ) {
     return this.adminService.deleteProduct(id, admin.id);
+  }
+
+  @Post("products/bulk-delete")
+  @ApiOperation({ summary: "Bulk delete / deactivate products" })
+  @ApiOkResponse({ description: "Products deleted / deactivated in bulk." })
+  @UsePipes(new ZodValidationPipe(bulkDeleteProductsSchema))
+  async bulkDeleteProducts(
+    @Body() dto: BulkDeleteProductsDto,
+    @CurrentUser() admin: { id: string }
+  ) {
+    return this.adminService.bulkDeleteProducts(dto.ids, dto.permanent, admin.id);
+  }
+
+  @Post("products/bulk-stock")
+  @ApiOperation({ summary: "Bulk update product stock status" })
+  @ApiOkResponse({ description: "Product stock statuses updated in bulk." })
+  @UsePipes(new ZodValidationPipe(bulkUpdateStockSchema))
+  async bulkUpdateProductStock(
+    @Body() dto: BulkUpdateStockDto,
+    @CurrentUser() admin: { id: string }
+  ) {
+    return this.adminService.bulkUpdateProductStock(dto.ids, dto.inStock, admin.id);
   }
 
   // ==================== COLLECTIONS ====================

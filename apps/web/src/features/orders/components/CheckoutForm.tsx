@@ -46,7 +46,12 @@ import { useCreateDirectOrder, useOrdersList } from "../hooks/useOrders";
 import { createSingleProductWhatsAppLink } from "@/lib/whatsapp";
 import { trackEvent } from "@/lib/analytics";
 import { WhatsAppOrderSection } from "@/components/shared/WhatsAppOrderSection";
-import type { DirectCheckoutInput, Order } from "../types";
+import {
+  SavedAddressSelector,
+  SaveAddressToggle,
+} from "./SavedAddressSelector";
+import { useSavedAddressStore } from "@/stores/saved-address-store";
+import type { DirectCheckoutInput, Order, SavedAddress } from "../types";
 
 type DirectCheckoutFormValues = Omit<DirectCheckoutInput, "wrapping"> & {
   wrapping?: boolean;
@@ -133,6 +138,12 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
     },
     []
   );
+
+  // Presaved Addresses state
+  const { addresses, addAddress } = useSavedAddressStore();
+  const [selectedAddressId, setSelectedAddressId] = React.useState<string | null>(null);
+  const [saveAddressEnabled, setSaveAddressEnabled] = React.useState(true);
+  const [addressLabel, setAddressLabel] = React.useState("");
 
   const isVtuProduct = Boolean(
     product?.isDigital ||
@@ -291,6 +302,61 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
   const watchedState =
     useWatch({ control: form.control, name: "state" });
 
+  const handleSelectSavedAddress = (addr: SavedAddress) => {
+    setSelectedAddressId(addr.id);
+    form.setValue("recipientName", addr.recipientName, { shouldValidate: true });
+    form.setValue("recipientPhone", addr.recipientPhone, { shouldValidate: true });
+    form.setValue("street", addr.street, { shouldValidate: true });
+    form.setValue("area", addr.area, { shouldValidate: true });
+    form.setValue("city", addr.city, { shouldValidate: true });
+    form.setValue("state", addr.state, { shouldValidate: true });
+    if (addr.buyerEmail && !form.getValues("buyerEmail")) {
+      form.setValue("buyerEmail", addr.buyerEmail, { shouldValidate: true });
+    }
+  };
+
+  const handleClearSelectedAddress = () => {
+    setSelectedAddressId(null);
+    form.setValue("recipientName", "");
+    form.setValue("recipientPhone", "");
+    form.setValue("street", "");
+    form.setValue("area", "");
+    form.setValue("city", "Lagos");
+    form.setValue("state", "Lagos");
+  };
+
+  const canSaveNow = Boolean(
+    watchedStreet &&
+      watchedStreet.trim().length >= 3 &&
+      watchedPhone &&
+      watchedStreet !== "Instant VTU Digital Delivery"
+  );
+
+  const handleSaveCurrentAddress = () => {
+    const values = form.getValues();
+    if (
+      !values.street ||
+      values.street.trim().length < 3 ||
+      !values.recipientPhone ||
+      values.street === "Instant VTU Digital Delivery"
+    ) {
+      toast.error("Please enter a phone number and street address first.");
+      return;
+    }
+    const saved = addAddress({
+      label: addressLabel.trim() || undefined,
+      recipientName: values.recipientName || "Recipient",
+      recipientPhone: values.recipientPhone,
+      buyerEmail: values.buyerEmail || undefined,
+      street: values.street,
+      area: values.area || "Area",
+      city: values.city || "Lagos",
+      state: values.state || "Lagos",
+    });
+    setSelectedAddressId(saved.id);
+    toast.success(`Saved "${saved.label || saved.recipientName}" to your address book!`);
+  };
+
   const parsedAllPhones = React.useMemo(() => {
     const primary = (watchedPhone || "").trim();
     if (!multiPhoneMode || !extraPhonesInput.trim()) {
@@ -396,6 +462,33 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
       });
 
       setCreatedOrder(result.order);
+
+      // Auto-save delivery address for future checkouts if requested
+      if (
+        !isVtuProduct &&
+        saveAddressEnabled &&
+        values.street &&
+        values.street !== "Instant VTU Digital Delivery" &&
+        values.recipientPhone
+      ) {
+        const exists = addresses.some(
+          (a) =>
+            a.recipientPhone === values.recipientPhone &&
+            a.street.toLowerCase() === values.street.toLowerCase()
+        );
+        if (!exists) {
+          addAddress({
+            label: addressLabel.trim() || undefined,
+            recipientName: resolvedRecipientName,
+            recipientPhone: values.recipientPhone,
+            buyerEmail: buyerEmail || undefined,
+            street: values.street,
+            area: values.area || "Area",
+            city: values.city || "Lagos",
+            state: values.state || "Lagos",
+          });
+        }
+      }
 
       if (paymentMethod === "wallet" && walletSummary) {
         if (!walletSummary.security.hasPin) {
@@ -768,6 +861,14 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!isVtuProduct && (
+              <SavedAddressSelector
+                selectedAddressId={selectedAddressId}
+                onSelectAddress={handleSelectSavedAddress}
+                onClearSelection={handleClearSelectedAddress}
+                pastOrders={pastOrders}
+              />
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="recipientPhone">
@@ -955,6 +1056,16 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                     )}
                   </div>
                 </div>
+
+                {/* Save Address Toggle for future orders */}
+                <SaveAddressToggle
+                  enabled={saveAddressEnabled}
+                  onToggle={setSaveAddressEnabled}
+                  label={addressLabel}
+                  onLabelChange={setAddressLabel}
+                  onSaveNow={handleSaveCurrentAddress}
+                  canSaveNow={canSaveNow}
+                />
               </>
             )}
           </CardContent>

@@ -13,7 +13,12 @@ import { LedgerTable } from "@/features/admin";
 import { OrderTimeline } from "./components/OrderTimeline";
 import { CheckoutForm } from "./components/CheckoutForm";
 import { BoxCheckoutForm } from "./components/BoxCheckoutForm";
+import {
+  SavedAddressSelector,
+  SaveAddressToggle,
+} from "./components/SavedAddressSelector";
 import { useCartStore } from "@/stores/cart-store";
+import { useSavedAddressStore } from "@/stores/saved-address-store";
 import { createDirectOrder, fetchOrderTracking } from "./api";
 
 vi.mock("next/navigation", () => ({
@@ -358,5 +363,88 @@ describe("Phase 3 Commerce, Registry, Vendor & Admin", () => {
       expect(trackedByToken.id).toBe(createdRes.order.id);
       expect(trackedByToken.totalKobo).toBe(40_250_000);
     }
+  });
+
+  it("renders SavedAddressSelector and selects a presaved delivery address", () => {
+    useSavedAddressStore.getState().clearAddresses();
+    const addr1 = useSavedAddressStore.getState().addAddress({
+      label: "Home Lekki",
+      recipientName: "David Enabulele",
+      recipientPhone: "08031234567",
+      street: "14 Admiralty Way",
+      area: "Lekki Phase 1",
+      city: "Lagos",
+      state: "Lagos",
+    });
+
+    const addr2 = useSavedAddressStore.getState().addAddress({
+      label: "Office VI",
+      recipientName: "David Office",
+      recipientPhone: "08099887766",
+      street: "Plot 5 Victoria Island",
+      area: "VI",
+      city: "Lagos",
+      state: "Lagos",
+    });
+
+    const onSelect = vi.fn();
+    render(
+      <SavedAddressSelector
+        selectedAddressId={addr1.id}
+        onSelectAddress={onSelect}
+      />
+    );
+
+    expect(screen.getByText("Presaved Delivery Addresses")).toBeInTheDocument();
+    expect(screen.getByText("Home Lekki")).toBeInTheDocument();
+    expect(screen.getByText("Office VI")).toBeInTheDocument();
+    expect(screen.getByText(/14 Admiralty Way/i)).toBeInTheDocument();
+    expect(screen.getByText(/Plot 5 Victoria Island/i)).toBeInTheDocument();
+
+    // Click second address
+    const officeCard = screen.getByText("Office VI").closest('[role="button"]');
+    expect(officeCard).not.toBeNull();
+    officeCard?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: addr2.id }));
+  });
+
+  it("renders SaveAddressToggle with toggle state and label input", () => {
+    const onToggle = vi.fn();
+    const onLabelChange = vi.fn();
+    const onSaveNow = vi.fn();
+
+    const { rerender } = render(
+      <SaveAddressToggle
+        enabled={false}
+        onToggle={onToggle}
+        label=""
+        onLabelChange={onLabelChange}
+        onSaveNow={onSaveNow}
+        canSaveNow={false}
+      />
+    );
+
+    expect(
+      screen.getByText(/Save this delivery address & contact for next time/i)
+    ).toBeInTheDocument();
+
+    // Re-render with enabled=true to show label and save now button
+    rerender(
+      <SaveAddressToggle
+        enabled={true}
+        onToggle={onToggle}
+        label="Mom's Place"
+        onLabelChange={onLabelChange}
+        onSaveNow={onSaveNow}
+        canSaveNow={true}
+      />
+    );
+
+    expect(
+      screen.getByPlaceholderText(/Give this address a label/i)
+    ).toHaveValue("Mom's Place");
+    expect(
+      screen.getByRole("button", { name: /Save to Address Book/i })
+    ).toBeInTheDocument();
   });
 });

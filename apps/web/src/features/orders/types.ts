@@ -7,5 +7,6 @@ export type {
   DisputeRecord,
   DisputeType,
   ReviewFormInput,
+  SavedAddress,
 } from "@givvly/contracts";
 

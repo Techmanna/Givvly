@@ -258,6 +258,41 @@ export class UpdateProductDto {
   active?: boolean;
 }
 
+export const bulkDeleteProductsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "At least one product ID must be provided"),
+  permanent: z.boolean().optional(),
+});
+
+export class BulkDeleteProductsDto {
+  @ApiProperty({ example: ["uuid-1", "uuid-2"] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  ids: string[];
+
+  @ApiPropertyOptional({ example: false, description: "Permanently delete instead of deactivating" })
+  @IsOptional()
+  @IsBoolean()
+  permanent?: boolean;
+}
+
+export const bulkUpdateStockSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "At least one product ID must be provided"),
+  inStock: z.boolean(),
+});
+
+export class BulkUpdateStockDto {
+  @ApiProperty({ example: ["uuid-1", "uuid-2"] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  ids: string[];
+
+  @ApiProperty({ example: true, description: "Set inStock true or false" })
+  @IsBoolean()
+  inStock: boolean;
+}
+
 export const createCollectionSchema = z.object({
   name: z.string().trim().min(3).max(80),
   slug: z.string().trim().min(3).max(80),

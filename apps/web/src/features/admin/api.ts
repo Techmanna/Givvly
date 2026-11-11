@@ -248,6 +248,26 @@ export function deleteAdminProduct(productId: string) {
   );
 }
 
+export function bulkDeleteAdminProducts(ids: string[], permanent = false) {
+  return api<{ count: number; deletedIds: string[]; permanent: boolean }>(
+    "/admin/products/bulk-delete",
+    {
+      method: "POST",
+      body: { ids, permanent },
+    }
+  );
+}
+
+export function bulkUpdateAdminProductStock(ids: string[], inStock: boolean) {
+  return api<{ count: number; updatedIds: string[]; inStock: boolean }>(
+    "/admin/products/bulk-stock",
+    {
+      method: "POST",
+      body: { ids, inStock },
+    }
+  );
+}
+
 export function updateAdminOrderStatus(
   orderId: string,
   status: Order["status"]

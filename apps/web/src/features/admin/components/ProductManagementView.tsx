@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PaginationBar } from "@/components/shared/PaginationBar";
 import { matchesProductCategory } from "@/features/catalog";
@@ -10,6 +12,8 @@ import {
   useAdminOrders,
   useAdminProducts,
   useUpdateAdminProduct,
+  useBulkDeleteAdminProducts,
+  useBulkUpdateAdminProductStock,
 } from "../hooks/useAdmin";
 import type { AdminProduct } from "../types";
 import {
@@ -17,12 +21,15 @@ import {
   ProductFiltersBar,
   ProductCardItem,
   ProductDetailModal,
+  BulkActionBar,
 } from "./products";
 
 export function ProductManagementView() {
   const productsQuery = useAdminProducts();
   const ordersQuery = useAdminOrders();
   const updateProductMutation = useUpdateAdminProduct();
+  const bulkDeleteMutation = useBulkDeleteAdminProducts();
+  const bulkUpdateStockMutation = useBulkUpdateAdminProductStock();
 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
@@ -30,6 +37,7 @@ export function ProductManagementView() {
   const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null);
   const [page, setPage] = useState(1);
   const [dialogTab, setDialogTab] = useState<"overview" | "activity" | "edit">("overview");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const PAGE_SIZE = 12;
 
@@ -52,6 +60,12 @@ export function ProductManagementView() {
     currentPage * PAGE_SIZE
   );
 
+  const pageIds = paginatedProducts.map((p) => p.id);
+  const isAllOnPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const isSomeOnPageSelected =
+    pageIds.some((id) => selectedIds.has(id)) && !isAllOnPageSelected;
+
   const handleSearchChange = (val: string) => {
     setSearch(val);
     setPage(1);
@@ -65,6 +79,73 @@ export function ProductManagementView() {
   const handleCombosToggle = (checked: boolean) => {
     setCombosOnly(checked);
     setPage(1);
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAllOnPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (isAllOnPageSelected) {
+        pageIds.forEach((id) => next.delete(id));
+      } else {
+        pageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    try {
+      const res = await bulkDeleteMutation.mutateAsync({ ids });
+      const count = res.count ?? ids.length;
+      toast.success(
+        `Successfully deleted ${count} ${count === 1 ? "product" : "products"}`
+      );
+      setSelectedIds(new Set());
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to bulk delete products"
+      );
+      throw err;
+    }
+  };
+
+  const handleBulkUpdateStock = async (inStock: boolean) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    try {
+      const res = await bulkUpdateStockMutation.mutateAsync({ ids, inStock });
+      const count = res.count ?? ids.length;
+      toast.success(
+        `Marked ${count} ${count === 1 ? "product" : "products"} ${
+          inStock ? "in stock" : "out of stock"
+        }`
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update product stock"
+      );
+      throw err;
+    }
   };
 
   const handleToggleStock = async (id: string, currentStock: boolean) => {
@@ -134,7 +215,46 @@ export function ProductManagementView() {
           description="Try clearing search filters or add a new gift product to the catalog."
         />
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
+          {/* Page Selection Bar */}
+          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="select-all-page"
+                data-testid="select-all-page-checkbox"
+                checked={
+                  isAllOnPageSelected
+                    ? true
+                    : isSomeOnPageSelected
+                      ? "indeterminate"
+                      : false
+                }
+                onCheckedChange={handleToggleSelectAllOnPage}
+                aria-label="Select all products on current page"
+              />
+              <label
+                htmlFor="select-all-page"
+                className="cursor-pointer font-medium text-muted-foreground select-none hover:text-foreground"
+              >
+                {selectedIds.size > 0
+                  ? `${selectedIds.size} of ${filteredProducts.length} selected`
+                  : `Select all on page (${paginatedProducts.length})`}
+              </label>
+            </div>
+
+            {selectedIds.size > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleClearSelection}
+                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear selection
+              </Button>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {paginatedProducts.map((product) => (
               <ProductCardItem
@@ -143,6 +263,8 @@ export function ProductManagementView() {
                 onSelect={handleSelectProduct}
                 onToggleStock={handleToggleStock}
                 isStockPending={updateProductMutation.isPending}
+                isSelected={selectedIds.has(product.id)}
+                onToggleSelect={handleToggleSelect}
               />
             ))}
           </div>
@@ -157,6 +279,19 @@ export function ProductManagementView() {
           />
         </div>
       )}
+
+      {/* Floating Bulk Actions Bar */}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        totalOnPage={paginatedProducts.length}
+        isAllOnPageSelected={isAllOnPageSelected}
+        onSelectAllOnPage={handleToggleSelectAllOnPage}
+        onClearSelection={handleClearSelection}
+        onBulkDelete={handleBulkDelete}
+        onBulkUpdateStock={handleBulkUpdateStock}
+        isDeleting={bulkDeleteMutation.isPending}
+        isUpdatingStock={bulkUpdateStockMutation.isPending}
+      />
 
       {/* Product Detail, Activities & Quick Edit Modal */}
       <ProductDetailModal

@@ -74,6 +74,18 @@ describe("AdminService", () => {
         update: jest.fn().mockImplementation(({ data }: any) =>
           Promise.resolve({ id: "prod-1", ...data })
         ),
+        updateMany: jest.fn().mockImplementation(({ where, data }: any) =>
+          Promise.resolve({ count: where?.id?.in?.length ?? 1 })
+        ),
+        deleteMany: jest.fn().mockImplementation(({ where }: any) =>
+          Promise.resolve({ count: where?.id?.in?.length ?? 1 })
+        ),
+      },
+      registryItem: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      review: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       collection: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -243,6 +255,78 @@ describe("AdminService", () => {
     it("soft-deactivates product", async () => {
       const deactivated = await service.deleteProduct("prod-1", "admin-1");
       expect(deactivated.active).toBe(false);
+    });
+
+    it("bulk soft-deactivates products and records audit log", async () => {
+      const result = await service.bulkDeleteProducts(
+        ["prod-1", "prod-2"],
+        false,
+        "admin-1"
+      );
+
+      expect(result.count).toBe(2);
+      expect(result.deletedIds).toEqual(["prod-1", "prod-2"]);
+      expect(result.permanent).toBe(false);
+      expect(prisma.product.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ["prod-1", "prod-2"] } },
+        data: { active: false },
+      });
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "PRODUCT_BULK_DEACTIVATE",
+          }),
+        })
+      );
+    });
+
+    it("bulk permanently deletes products within transaction and cleans up relationships", async () => {
+      const result = await service.bulkDeleteProducts(
+        ["prod-1", "prod-2"],
+        true,
+        "admin-1"
+      );
+
+      expect(result.count).toBe(2);
+      expect(result.permanent).toBe(true);
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.registryItem.updateMany).toHaveBeenCalledWith({
+        where: { productId: { in: ["prod-1", "prod-2"] } },
+        data: { productId: null },
+      });
+      expect(prisma.review.updateMany).toHaveBeenCalledWith({
+        where: { productId: { in: ["prod-1", "prod-2"] } },
+        data: { productId: null },
+      });
+      expect(prisma.product.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["prod-1", "prod-2"] } },
+      });
+    });
+
+    it("bulk updates product stock (marks in stock and out of stock)", async () => {
+      const inStockRes = await service.bulkUpdateProductStock(
+        ["prod-1", "prod-2"],
+        true,
+        "admin-1"
+      );
+      expect(inStockRes.count).toBe(2);
+      expect(inStockRes.inStock).toBe(true);
+      expect(prisma.product.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ["prod-1", "prod-2"] } },
+        data: { stock: 50 },
+      });
+
+      const outOfStockRes = await service.bulkUpdateProductStock(
+        ["prod-1"],
+        false,
+        "admin-1"
+      );
+      expect(outOfStockRes.count).toBe(1);
+      expect(outOfStockRes.inStock).toBe(false);
+      expect(prisma.product.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ["prod-1"] } },
+        data: { stock: 0 },
+      });
     });
   });
 

@@ -232,6 +232,20 @@ export type CreateDirectOrderRequest = {
   customAmountKobo?: number;
 };
 
+export type SavedAddress = {
+  id: string;
+  label?: string; // e.g. "Home", "Office", "Mom's Place"
+  recipientName: string;
+  recipientPhone: string;
+  buyerEmail?: string;
+  street: string;
+  area: string;
+  city: string;
+  state: string;
+  isDefault?: boolean;
+  createdAt: string;
+};
+
 // Dispute schema (Section 8.1)
 export const DISPUTE_TYPES = [
   "DAMAGED",

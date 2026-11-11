@@ -41,8 +41,14 @@ import {
 import { PaymentGatewayModal } from "./PaymentGatewayModal";
 import { openPaystackCheckout } from "@/features/gifts/paystack";
 import { verifyOrderPayment } from "../api";
-import { useCreateDirectOrder } from "../hooks/useOrders";
+import { useCreateDirectOrder, useOrdersList } from "../hooks/useOrders";
+import {
+  SavedAddressSelector,
+  SaveAddressToggle,
+} from "./SavedAddressSelector";
+import { useSavedAddressStore } from "@/stores/saved-address-store";
 import type { Order } from "../types";
+import type { SavedAddress } from "@givvly/contracts";
 import { NIGERIAN_PHONE_REGEX } from "@givvly/contracts";
 
 const WRAPPING_FEE_KOBO = 250_000; // ₦2,500 flat for luxury whole-box presentation
@@ -131,6 +137,13 @@ export function BoxCheckoutForm() {
     email: string;
   } | null>(null);
 
+  // Presaved Addresses state
+  const { data: pastOrders = [] } = useOrdersList();
+  const { addresses, addAddress } = useSavedAddressStore();
+  const [selectedAddressId, setSelectedAddressId] = React.useState<string | null>(null);
+  const [saveAddressEnabled, setSaveAddressEnabled] = React.useState(true);
+  const [addressLabel, setAddressLabel] = React.useState("");
+
   const subtotalKobo = items.reduce(
     (acc, item) => acc + item.priceKobo * item.qty,
     0
@@ -151,6 +164,55 @@ export function BoxCheckoutForm() {
       buyerEmail: user?.email || draft.buyerEmail || "",
     },
   });
+
+  const handleSelectSavedAddress = (addr: SavedAddress) => {
+    setSelectedAddressId(addr.id);
+    form.setValue("recipientName", addr.recipientName, { shouldValidate: true });
+    form.setValue("recipientPhone", addr.recipientPhone, { shouldValidate: true });
+    form.setValue("street", addr.street, { shouldValidate: true });
+    form.setValue("area", addr.area, { shouldValidate: true });
+    form.setValue("city", addr.city, { shouldValidate: true });
+    form.setValue("state", addr.state, { shouldValidate: true });
+    if (addr.buyerEmail && !form.getValues("buyerEmail")) {
+      form.setValue("buyerEmail", addr.buyerEmail, { shouldValidate: true });
+    }
+  };
+
+  const handleClearSelectedAddress = () => {
+    setSelectedAddressId(null);
+    form.setValue("recipientName", "");
+    form.setValue("recipientPhone", "");
+    form.setValue("street", "");
+    form.setValue("area", "");
+    form.setValue("city", "Lagos");
+    form.setValue("state", "Lagos");
+  };
+
+  const watchedStreet = form.watch("street");
+  const watchedPhone = form.watch("recipientPhone");
+  const canSaveNow = Boolean(
+    watchedStreet && watchedStreet.trim().length >= 3 && watchedPhone
+  );
+
+  const handleSaveCurrentAddress = () => {
+    const values = form.getValues();
+    if (!values.street || values.street.trim().length < 3 || !values.recipientPhone) {
+      toast.error("Please enter a phone number and street address first.");
+      return;
+    }
+    const saved = addAddress({
+      label: addressLabel.trim() || undefined,
+      recipientName: values.recipientName || "Recipient",
+      recipientPhone: values.recipientPhone,
+      buyerEmail: values.buyerEmail || undefined,
+      street: values.street,
+      area: values.area || "City Center",
+      city: values.city || "Lagos",
+      state: values.state || "Lagos",
+    });
+    setSelectedAddressId(saved.id);
+    toast.success(`Saved "${saved.label || saved.recipientName}" to your address book!`);
+  };
 
   const isWrappingSelected = form.watch("wrapping");
   const wrappingFeeKobo = isWrappingSelected ? WRAPPING_FEE_KOBO : 0;
@@ -224,6 +286,27 @@ export function BoxCheckoutForm() {
       });
 
       setCreatedOrder(result.order);
+
+      // Auto-save delivery address for future checkouts if requested
+      if (saveAddressEnabled && values.street && values.recipientPhone) {
+        const exists = addresses.some(
+          (a) =>
+            a.recipientPhone === values.recipientPhone &&
+            a.street.toLowerCase() === values.street.toLowerCase()
+        );
+        if (!exists) {
+          addAddress({
+            label: addressLabel.trim() || undefined,
+            recipientName: values.recipientName,
+            recipientPhone: values.recipientPhone,
+            buyerEmail: values.buyerEmail || undefined,
+            street: values.street,
+            area: values.area,
+            city: values.city,
+            state: values.state,
+          });
+        }
+      }
 
       // Wallet Payment flow
       if (paymentMethod === "wallet" && walletSummary) {
@@ -350,6 +433,14 @@ export function BoxCheckoutForm() {
         {/* Form Fields: Recipient, Delivery, Note */}
         <div className="lg:col-span-7 space-y-6">
           <form id="box-checkout-form" onSubmit={onSubmit} className="space-y-6">
+            {/* Presaved Addresses Selector */}
+            <SavedAddressSelector
+              selectedAddressId={selectedAddressId}
+              onSelectAddress={handleSelectSavedAddress}
+              onClearSelection={handleClearSelectedAddress}
+              pastOrders={pastOrders}
+            />
+
             {/* Recipient Details Card */}
             <Card className="rounded-2xl border-border/80 shadow-xs">
               <CardHeader className="pb-4 border-b border-border/60">
@@ -476,6 +567,16 @@ export function BoxCheckoutForm() {
                     )}
                   </div>
                 </div>
+
+                {/* Save Address for Next Time */}
+                <SaveAddressToggle
+                  enabled={saveAddressEnabled}
+                  onToggle={setSaveAddressEnabled}
+                  label={addressLabel}
+                  onLabelChange={setAddressLabel}
+                  onSaveNow={handleSaveCurrentAddress}
+                  canSaveNow={canSaveNow}
+                />
               </CardContent>
             </Card>
 

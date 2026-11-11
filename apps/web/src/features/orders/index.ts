@@ -11,4 +11,10 @@ export { BoxCheckoutForm } from "./components/BoxCheckoutForm";
 export { OrdersListView } from "./components/OrdersListView";
 export { OrderDetailView, type OrderDetailViewProps } from "./components/OrderDetailView";
 export { PaymentGatewayModal, type PaymentGatewayModalProps } from "./components/PaymentGatewayModal";
+export {
+  SavedAddressSelector,
+  SaveAddressToggle,
+  type SavedAddressSelectorProps,
+  type SaveAddressToggleProps,
+} from "./components/SavedAddressSelector";
 
