@@ -3,6 +3,15 @@ import { NIGERIAN_PHONE_REGEX } from "./auth";
 import { SAFE_MEDIA_URL_REGEX } from "./events";
 import type { OrderStatus, PoolItem, RegistryItem } from "./index";
 
+export type ProductVariant = {
+  id: string;
+  name: string;
+  priceKobo: number;
+  stock?: number | null;
+  sku?: string | null;
+  active?: boolean;
+};
+
 export type CatalogProduct = {
   id: string;
   slug: string;
@@ -23,6 +32,9 @@ export type CatalogProduct = {
   reviewCount: number;
   isCombo?: boolean;
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
+  variants?: ProductVariant[];
+  minPriceKobo?: number;
+  maxPriceKobo?: number;
   packagingIncluded?: string;
   isDigital?: boolean;
   digitalKind?: "AIRTIME" | "DATA" | "VOUCHER" | "GIFT_CARD";

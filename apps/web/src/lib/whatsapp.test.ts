@@ -29,6 +29,17 @@ describe("WhatsApp Order Links", () => {
     expect(decoded).toContain("🔗 *Link*: https://givvly.com/gifts/luxury-silk-robe");
   });
 
+  it("generates deterministic canonical link when origin is omitted (SSR hydration safe)", () => {
+    const url = createSingleProductWhatsAppLink({
+      name: "Luxury Silk Robe",
+      priceKobo: 2500000,
+      slug: "luxury-silk-robe",
+    });
+
+    const decoded = decodeURIComponent(url);
+    expect(decoded).toContain("🔗 *Link*: https://givvly.store/gifts/luxury-silk-robe");
+  });
+
   it("generates predefined combo inclusions in single product WhatsApp message", () => {
     const url = createSingleProductWhatsAppLink({
       name: "Celebration Champagne Hamper",

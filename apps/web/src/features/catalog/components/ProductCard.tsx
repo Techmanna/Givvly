@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowUpRight, Gift, PackageCheck, PackagePlus, Star } from "lucide-react";
+import { ArrowUpRight, Gift, PackageCheck, PackagePlus, Star, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/shared/Money";
 import { useCartStore } from "@/stores/cart-store";
 import type { CatalogProduct } from "../types";
+import { ChooseOptionsDialog } from "./ChooseOptionsDialog";
 
 export type ProductCardProps = {
   product: CatalogProduct;
@@ -16,16 +17,32 @@ export type ProductCardProps = {
 
 export function ProductCard({ product }: ProductCardProps) {
   const [imageError, setImageError] = React.useState(false);
+  const [chooseOptionsOpen, setChooseOptionsOpen] = React.useState(false);
   const items = useCartStore((s) => s.items);
   const addItem = useCartStore((s) => s.addItem);
   const openBox = useCartStore((s) => s.openBox);
 
+  const activeVariants = (product.variants || []).filter((v) => v.active !== false);
+  const hasVariants = activeVariants.length > 0;
+
+  const minVariantPrice = hasVariants
+    ? Math.min(...activeVariants.map((v) => v.priceKobo))
+    : product.priceKobo;
+  const maxVariantPrice = hasVariants
+    ? Math.max(...activeVariants.map((v) => v.priceKobo))
+    : product.priceKobo;
+  const hasPriceRange = hasVariants && minVariantPrice !== maxVariantPrice;
+
   const inBoxItem = items.find((i) => i.slug === product.slug);
   const hasImage = Boolean(product.imageUrl && !imageError);
 
-  const handleAddToBox = (e: React.MouseEvent) => {
+  const handleActionClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (hasVariants) {
+      setChooseOptionsOpen(true);
+      return;
+    }
     addItem(product);
     toast.success(`Added ${product.name} to your Gift Box!`, {
       action: {
@@ -156,12 +173,24 @@ export function ProductCard({ product }: ProductCardProps) {
 
       <div className="mt-5 space-y-3 border-t border-border/70 pt-4">
         <div className="flex items-center justify-between">
-          <Money
-            amountKobo={product.priceKobo}
-            className="font-heading text-xl font-semibold text-foreground"
-          />
+          {hasPriceRange ? (
+            <div className="flex items-center gap-1 font-heading text-lg font-bold text-foreground">
+              <Money amountKobo={minVariantPrice} />
+              <span className="text-muted-foreground font-normal text-sm">–</span>
+              <Money amountKobo={maxVariantPrice} />
+            </div>
+          ) : (
+            <Money
+              amountKobo={product.priceKobo}
+              className="font-heading text-xl font-semibold text-foreground"
+            />
+          )}
           {!product.inStock ? (
             <Badge variant="secondary">Out of stock</Badge>
+          ) : hasVariants ? (
+            <Badge variant="outline" className="text-[10px] uppercase font-semibold border-primary/30 text-primary">
+              {activeVariants.length} options
+            </Badge>
           ) : (
             <span className="text-[11px] font-medium text-success">
               Ready to dispatch
@@ -173,7 +202,7 @@ export function ProductCard({ product }: ProductCardProps) {
           <Button
             type="button"
             size="sm"
-            onClick={handleAddToBox}
+            onClick={handleActionClick}
             className={`flex-1 rounded-full text-xs font-semibold gap-1.5 transition-all ${
               inBoxItem
                 ? "bg-primary/90 text-primary-foreground hover:bg-primary"
@@ -181,7 +210,12 @@ export function ProductCard({ product }: ProductCardProps) {
             }`}
             disabled={!product.inStock}
           >
-            {inBoxItem ? (
+            {hasVariants ? (
+              <>
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span>Choose options</span>
+              </>
+            ) : inBoxItem ? (
               <>
                 <PackageCheck className="h-3.5 w-3.5" />
                 <span>In Box ({inBoxItem.qty}) • Add</span>
@@ -205,6 +239,14 @@ export function ProductCard({ product }: ProductCardProps) {
           </Button>
         </div>
       </div>
+
+      {hasVariants && (
+        <ChooseOptionsDialog
+          open={chooseOptionsOpen}
+          onOpenChange={setChooseOptionsOpen}
+          product={product}
+        />
+      )}
     </article>
   );
 }

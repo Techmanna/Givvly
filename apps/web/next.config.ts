@@ -54,6 +54,21 @@ const nextConfig: NextConfig = {
         destination: "/gifts",
         permanent: false,
       },
+      {
+        source: "/privacy-policy",
+        destination: "/privacy",
+        permanent: true,
+      },
+      {
+        source: "/terms-and-conditions",
+        destination: "/terms",
+        permanent: true,
+      },
+      {
+        source: "/cookie-policy",
+        destination: "/cookies",
+        permanent: true,
+      },
     ];
   },
   async rewrites() {

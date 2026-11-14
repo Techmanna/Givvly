@@ -11,6 +11,7 @@ import {
   PackageCheck,
   Minus,
   Plus,
+  SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,7 @@ import { Money } from "@/components/shared/Money";
 import { useCartStore } from "@/stores/cart-store";
 import { createSingleProductWhatsAppLink } from "@/lib/whatsapp";
 import { WhatsAppOrderSection } from "@/components/shared/WhatsAppOrderSection";
-import type { CatalogProduct } from "../types";
+import type { CatalogProduct, ProductVariant } from "@givvly/contracts";
 import { ProductGallery } from "./ProductGallery";
 import { ProductReviewsSection } from "./ProductReviewsSection";
 import { RelatedProductsSection } from "./RelatedProductsSection";
@@ -34,11 +35,69 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
   const addItem = useCartStore((s) => s.addItem);
   const openBox = useCartStore((s) => s.openBox);
 
-  const inBoxItem = items.find((i) => i.slug === product.slug);
+  const activeVariants: ProductVariant[] = (product.variants || []).filter(
+    (v) => v.active !== false
+  );
+  const hasVariants = activeVariants.length > 0;
+
+  const minVariantPrice = hasVariants
+    ? Math.min(...activeVariants.map((v) => v.priceKobo))
+    : product.priceKobo;
+  const maxVariantPrice = hasVariants
+    ? Math.max(...activeVariants.map((v) => v.priceKobo))
+    : product.priceKobo;
+  const hasPriceRange = hasVariants && minVariantPrice !== maxVariantPrice;
+
+  const [selectedVariant, setSelectedVariant] = React.useState<ProductVariant | null>(
+    hasVariants && activeVariants.length > 0 ? activeVariants[0] ?? null : null
+  );
+
+  const effectivePriceKobo = selectedVariant
+    ? selectedVariant.priceKobo
+    : product.priceKobo;
+
+  const inBoxItem = items.find((i) => {
+    if (selectedVariant) {
+      return (
+        i.slug === product.slug &&
+        (i.variantId === selectedVariant.id ||
+          i.id === `${product.id}__${selectedVariant.id}`)
+      );
+    }
+    return i.slug === product.slug;
+  });
 
   const handleAddToBox = () => {
-    addItem(product, quantity);
-    toast.success(`Added ${quantity} × ${product.name} to your Gift Box!`, {
+    if (hasVariants && !selectedVariant) {
+      toast.error("Please select an option first");
+      return;
+    }
+
+    addItem(
+      {
+        id: product.id,
+        slug: product.slug,
+        name: product.name,
+        priceKobo: effectivePriceKobo,
+        imageUrl: product.imageUrl,
+        vendorName: product.vendorName,
+        inStock: selectedVariant
+          ? selectedVariant.stock === null ||
+            selectedVariant.stock === undefined ||
+            selectedVariant.stock > 0
+          : product.inStock,
+        isDigital: product.isDigital,
+        variantId: selectedVariant?.id,
+        variantName: selectedVariant?.name,
+      },
+      quantity
+    );
+
+    const displayName = selectedVariant
+      ? `${product.name} (${selectedVariant.name})`
+      : product.name;
+
+    toast.success(`Added ${quantity} × ${displayName} to your Gift Box!`, {
       action: {
         label: "View Box",
         onClick: () => openBox(),
@@ -47,8 +106,10 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
   };
 
   const whatsAppLink = createSingleProductWhatsAppLink({
-    name: product.name,
-    priceKobo: product.priceKobo,
+    name: selectedVariant
+      ? `${product.name} (${selectedVariant.name})`
+      : product.name,
+    priceKobo: effectivePriceKobo,
     category: product.category,
     slug: product.slug,
     isCombo: product.isCombo,
@@ -92,14 +153,73 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
               {product.name}
             </h1>
 
-            <p className="font-heading text-2xl font-bold text-primary">
-              <Money amountKobo={product.priceKobo} />
-            </p>
+            <div className="font-heading text-2xl font-bold text-primary">
+              {hasPriceRange && !selectedVariant ? (
+                <div className="flex items-center gap-1.5">
+                  <Money amountKobo={minVariantPrice} />
+                  <span className="text-muted-foreground text-lg font-normal">–</span>
+                  <Money amountKobo={maxVariantPrice} />
+                </div>
+              ) : (
+                <Money amountKobo={effectivePriceKobo} />
+              )}
+            </div>
           </div>
 
           <p className="text-sm leading-relaxed text-foreground">
             {product.description}
           </p>
+
+          {/* Variant Selection Chips */}
+          {hasVariants && (
+            <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/20 p-4">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-foreground flex items-center gap-1.5">
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+                  Choose Option:
+                </span>
+                {selectedVariant && (
+                  <span className="text-muted-foreground">
+                    Selected: <strong className="text-foreground">{selectedVariant.name}</strong> •{" "}
+                    <Money amountKobo={selectedVariant.priceKobo} className="text-primary font-semibold" />
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {activeVariants.map((variant) => {
+                  const isSelected = selectedVariant?.id === variant.id;
+                  const isOutOfStock = variant.stock === 0;
+
+                  return (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      disabled={isOutOfStock}
+                      onClick={() => setSelectedVariant(variant)}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium border transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary text-primary-foreground shadow-xs"
+                          : "border-border/80 bg-background text-foreground hover:border-primary/50"
+                      } ${isOutOfStock ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                    >
+                      <span>{variant.name}</span>
+                      <span
+                        className={`text-[11px] ${
+                          isSelected
+                            ? "text-primary-foreground/90 font-semibold"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        • <Money amountKobo={variant.priceKobo} />
+                      </span>
+                      {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {product.isCombo && product.comboItems && (
             <div className="rounded-2xl border border-[#D4A959]/50 bg-[#FAF3EF] p-4 text-xs space-y-2.5">

@@ -2467,14 +2467,28 @@ export async function handleMockApiRequest<T>(
         inStock: boolean;
         isCombo?: boolean;
         comboItems?: Array<{ name: string; qty: number; tag?: string }>;
+        variants?: Array<{
+          id: string;
+          name: string;
+          priceKobo: number;
+          stock?: number | null;
+          sku?: string | null;
+          active?: boolean;
+        }>;
         imageUrl?: string;
       };
+      const activePrices = (body.variants || [])
+        .filter((v) => v.active !== false)
+        .map((v) => v.priceKobo);
       const created: MockCatalogProduct = {
         id: `prod_${Date.now()}`,
         slug: slugify(body.name),
         name: body.name,
         description: body.description,
         priceKobo: body.priceKobo,
+        variants: body.variants,
+        minPriceKobo: activePrices.length > 0 ? Math.min(...activePrices) : body.priceKobo,
+        maxPriceKobo: activePrices.length > 0 ? Math.max(...activePrices) : body.priceKobo,
         category: body.category,
         mainCategories: body.mainCategories ?? [body.category],
         giftType: body.giftType,

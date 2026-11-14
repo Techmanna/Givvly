@@ -129,12 +129,27 @@ export function ProductCardItem({
 
         <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
           <div>
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
               Catalog Price
+              {product.variants && product.variants.length > 0 && (
+                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+                  {product.variants.length} Variants
+                </span>
+              )}
             </span>
-            <p className="font-heading text-base font-bold text-primary">
-              <Money amountKobo={product.priceKobo} />
-            </p>
+            {product.variants &&
+            product.variants.length > 1 &&
+            (product.minPriceKobo ?? product.priceKobo) !== (product.maxPriceKobo ?? product.priceKobo) ? (
+              <div className="flex items-center gap-1 font-heading text-sm font-bold text-primary">
+                <Money amountKobo={product.minPriceKobo ?? product.priceKobo} />
+                <span className="text-muted-foreground text-xs font-normal">–</span>
+                <Money amountKobo={product.maxPriceKobo ?? product.priceKobo} />
+              </div>
+            ) : (
+              <p className="font-heading text-base font-bold text-primary">
+                <Money amountKobo={product.priceKobo} />
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">

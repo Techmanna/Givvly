@@ -110,6 +110,39 @@ export class CatalogService {
         ? "FEMALE"
         : "UNISEX";
 
+    const rawVariants = Array.isArray((product as any).variants)
+      ? ((product as any).variants as any[])
+      : [];
+    const variants =
+      rawVariants.length > 0
+        ? rawVariants.map((v: any, idx: number) => ({
+            id: String(v.id || `var_${idx + 1}`),
+            name: String(v.name || v.title || `Option ${idx + 1}`),
+            priceKobo: Number(v.priceKobo) || product.priceKobo,
+            stock:
+              v.stock !== undefined
+                ? v.stock === null
+                  ? null
+                  : Number(v.stock)
+                : null,
+            sku: v.sku ? String(v.sku) : undefined,
+            active: v.active !== undefined ? Boolean(v.active) : true,
+          }))
+        : undefined;
+
+    let minPriceKobo = product.priceKobo;
+    let maxPriceKobo = product.priceKobo;
+
+    if (variants && variants.length > 0) {
+      const activePrices = variants
+        .filter((v) => v.active !== false)
+        .map((v) => v.priceKobo);
+      if (activePrices.length > 0) {
+        minPriceKobo = Math.min(...activePrices);
+        maxPriceKobo = Math.max(...activePrices);
+      }
+    }
+
     return {
       id: product.id,
       slug: product.slug,
@@ -129,6 +162,9 @@ export class CatalogService {
       reviewCount: product.ratingCount ?? 0,
       isCombo,
       comboItems,
+      variants,
+      minPriceKobo,
+      maxPriceKobo,
       isDigital: Boolean(product.isDigital),
       digitalKind: product.digitalKind ?? undefined,
     };

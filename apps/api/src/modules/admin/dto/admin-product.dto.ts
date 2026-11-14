@@ -37,6 +37,7 @@ export const createProductSchema = z
     inStock: z.boolean().optional(),
     isCombo: z.boolean().optional(),
     comboItems: z.any().optional(),
+    variants: z.any().optional(),
     isDigital: z.boolean().default(false),
     digitalKind: z.string().optional(),
     slug: z.string().trim().min(2).max(120).optional(),
@@ -118,6 +119,10 @@ export class CreateProductDto {
   @IsOptional()
   comboItems?: any;
 
+  @ApiPropertyOptional({ example: [{ id: "var_1", name: "50ml", priceKobo: 150000 }] })
+  @IsOptional()
+  variants?: any;
+
   @ApiPropertyOptional({ example: false, default: false })
   @IsOptional()
   @IsBoolean()
@@ -149,6 +154,7 @@ export const updateProductSchema = z
     inStock: z.boolean().optional(),
     isCombo: z.boolean().optional(),
     comboItems: z.any().optional(),
+    variants: z.any().optional(),
     isDigital: z.boolean().optional(),
     digitalKind: z.string().optional(),
     slug: z.string().trim().min(2).max(120).optional(),
@@ -241,6 +247,10 @@ export class UpdateProductDto {
   @ApiPropertyOptional({ example: [{ name: "Artisan Chocolate", qty: 1 }] })
   @IsOptional()
   comboItems?: any;
+
+  @ApiPropertyOptional({ example: [{ id: "var_1", name: "50ml", priceKobo: 150000 }] })
+  @IsOptional()
+  variants?: any;
 
   @ApiPropertyOptional({ example: false })
   @IsOptional()

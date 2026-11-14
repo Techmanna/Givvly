@@ -14,6 +14,8 @@ export type BoxItem = {
   qty: number;
   inStock?: boolean;
   isDigital?: boolean;
+  variantId?: string;
+  variantName?: string;
 };
 
 export type DirectGiftDraft = {
@@ -162,11 +164,13 @@ export type CartStoreState = {
       vendorName?: string;
       inStock?: boolean;
       isDigital?: boolean;
+      variantId?: string;
+      variantName?: string;
     },
     qty?: number
   ) => void;
-  removeItem: (slug: string) => void;
-  updateItemQty: (slug: string, qty: number) => void;
+  removeItem: (idOrSlug: string) => void;
+  updateItemQty: (idOrSlug: string, qty: number) => void;
   clearBox: () => void;
 
   // Single Direct Gift Draft (preserved for direct /checkout/[slug])
@@ -186,7 +190,14 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
 
   addItem: (product, qty = 1) => {
     const currentItems = get().items;
-    const existingIndex = currentItems.findIndex((i) => i.slug === product.slug);
+    const targetKey = product.variantId
+      ? `${product.slug}__${product.variantId}`
+      : product.slug;
+
+    const existingIndex = currentItems.findIndex((i) => {
+      const existingKey = i.variantId ? `${i.slug}__${i.variantId}` : i.slug;
+      return existingKey === targetKey || (i.id && i.id === product.id);
+    });
 
     let nextItems: BoxItem[];
     if (existingIndex > -1) {
@@ -197,15 +208,21 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
       );
     } else {
       const newItem: BoxItem = {
-        id: product.id || product.slug,
+        id: product.variantId
+          ? `${product.id || product.slug}__${product.variantId}`
+          : product.id || product.slug,
         slug: product.slug,
-        name: product.name,
+        name: product.variantName
+          ? `${product.name} (${product.variantName})`
+          : product.name,
         priceKobo: product.priceKobo,
         imageUrl: product.imageUrl,
         vendorName: product.vendorName,
         qty: Math.max(1, qty),
         inStock: product.inStock ?? true,
         isDigital: product.isDigital,
+        variantId: product.variantId,
+        variantName: product.variantName,
       };
       nextItems = [...currentItems, newItem];
     }
@@ -215,9 +232,10 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
   },
 
   removeItem: (idOrSlug) => {
-    const nextItems = get().items.filter(
-      (item) => item.slug !== idOrSlug && item.id !== idOrSlug
-    );
+    const nextItems = get().items.filter((item) => {
+      const itemKey = item.variantId ? `${item.slug}__${item.variantId}` : item.slug;
+      return item.slug !== idOrSlug && item.id !== idOrSlug && itemKey !== idOrSlug;
+    });
     writeBoxStorage(nextItems);
     set({ items: nextItems });
   },
@@ -227,11 +245,12 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
       get().removeItem(idOrSlug);
       return;
     }
-    const nextItems = get().items.map((item) =>
-      item.slug === idOrSlug || item.id === idOrSlug
+    const nextItems = get().items.map((item) => {
+      const itemKey = item.variantId ? `${item.slug}__${item.variantId}` : item.slug;
+      return item.slug === idOrSlug || item.id === idOrSlug || itemKey === idOrSlug
         ? { ...item, qty }
-        : item
-    );
+        : item;
+    });
     writeBoxStorage(nextItems);
     set({ items: nextItems });
   },

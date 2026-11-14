@@ -212,6 +212,9 @@ export async function fetchAdminProducts(): Promise<AdminProduct[]> {
     reviewCount: p.reviewCount ?? p.ratingCount ?? 16,
     isCombo: p.isCombo ?? false,
     comboItems: p.comboItems ?? [],
+    variants: p.variants ?? [],
+    minPriceKobo: p.minPriceKobo ?? p.priceKobo,
+    maxPriceKobo: p.maxPriceKobo ?? p.priceKobo,
     packagingIncluded: p.packagingIncluded ?? "Luxury Gift Box & Ribbon",
     imageUrl:
       p.imageUrl ??

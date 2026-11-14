@@ -1,7 +1,11 @@
 import { formatNaira } from "@/lib/format";
+import {
+  WHATSAPP_ORDER_NUMBER,
+  WHATSAPP_DISPLAY_PHONE,
+  SITE_CONTACT,
+} from "@/lib/constants";
 
-export const WHATSAPP_ORDER_NUMBER = "2348029176372";
-export const WHATSAPP_DISPLAY_PHONE = "+234 802 917 6372";
+export { WHATSAPP_ORDER_NUMBER, WHATSAPP_DISPLAY_PHONE };
 
 export type SingleProductWhatsAppParams = {
   name: string;
@@ -48,10 +52,13 @@ export function createSingleProductWhatsAppLink(
   }
 
   if (product.slug) {
-    const baseUrl = product.origin || (typeof window !== "undefined" ? window.location.origin : "");
-    if (baseUrl) {
-      lines.push(`🔗 *Link*: ${baseUrl}/gifts/${product.slug}`);
-    }
+    const baseUrl = (
+      product.origin ||
+      (typeof process !== "undefined" && process.env.NEXT_PUBLIC_APP_URL) ||
+      SITE_CONTACT.websiteUrl ||
+      "https://givvly.store"
+    ).replace(/\/$/, "");
+    lines.push(`🔗 *Link*: ${baseUrl}/gifts/${product.slug}`);
   }
 
   lines.push("");

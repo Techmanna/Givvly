@@ -1,7 +1,8 @@
 "use client";
 
-import { Layers } from "lucide-react";
+import { Layers, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Money } from "@/components/shared/Money";
 import { isVideoMediaUrl } from "@/features/events/api";
 import type { AdminProduct } from "../../types";
 
@@ -90,6 +91,52 @@ export function ProductOverviewTab({ product }: ProductOverviewTabProps) {
               </div>
             )}
           </div>
+
+          {/* Variants Breakdown */}
+          {product.variants && product.variants.length > 0 && (
+            <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-foreground text-xs flex items-center gap-1.5">
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+                  Product Variants ({product.variants.length})
+                </span>
+                {product.variants.length > 1 && (
+                  <span className="text-[11px] text-muted-foreground font-semibold">
+                    <Money amountKobo={product.minPriceKobo ?? product.priceKobo} /> –{" "}
+                    <Money amountKobo={product.maxPriceKobo ?? product.priceKobo} />
+                  </span>
+                )}
+              </div>
+              <div className="grid gap-1.5">
+                {product.variants.map((v, idx) => (
+                  <div
+                    key={v.id || idx}
+                    className="flex items-center justify-between rounded-lg border border-border/60 bg-card p-2 text-xs"
+                  >
+                    <div>
+                      <span className="font-medium text-foreground">{v.name}</span>
+                      {v.sku && (
+                        <span className="ml-2 font-mono text-[10px] text-muted-foreground">
+                          {v.sku}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Money
+                        amountKobo={v.priceKobo}
+                        className="font-semibold text-primary"
+                      />
+                      {v.stock !== null && v.stock !== undefined && (
+                        <Badge variant="outline" className="text-[10px]">
+                          Stock: {v.stock}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Combo Breakdown */}
           {product.isCombo && product.comboItems && (

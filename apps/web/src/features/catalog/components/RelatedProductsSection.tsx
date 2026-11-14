@@ -1,14 +1,15 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Star, Gift, PackagePlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star, Gift, PackagePlus, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/shared/Money";
 import { useCartStore } from "@/stores/cart-store";
 import { useCatalogProducts } from "../hooks/useCatalog";
 import type { CatalogProduct } from "../types";
+import { ChooseOptionsDialog } from "./ChooseOptionsDialog";
 
 export function RelatedProductsSection({
   currentProduct,
@@ -19,6 +20,7 @@ export function RelatedProductsSection({
   const productsQuery = useCatalogProducts();
   const addItem = useCartStore((s) => s.addItem);
   const openBox = useCartStore((s) => s.openBox);
+  const [selectedProductForOptions, setSelectedProductForOptions] = useState<CatalogProduct | null>(null);
 
   const handleAddToBox = (product: CatalogProduct) => {
     addItem(product, 1);
@@ -28,6 +30,15 @@ export function RelatedProductsSection({
         onClick: () => openBox(),
       },
     });
+  };
+
+  const handleItemClick = (item: CatalogProduct) => {
+    const activeVariants = (item.variants || []).filter((v) => v.active !== false);
+    if (activeVariants.length > 0) {
+      setSelectedProductForOptions(item);
+    } else {
+      handleAddToBox(item);
+    }
   };
 
   const allProducts = productsQuery.data ?? [];
@@ -213,26 +224,63 @@ export function RelatedProductsSection({
                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     Price
                   </span>
-                  <p className="font-heading text-base font-bold text-primary">
-                    <Money amountKobo={item.priceKobo} />
-                  </p>
+                  {(() => {
+                    const activeVars = (item.variants || []).filter((v) => v.active !== false);
+                    if (activeVars.length > 1) {
+                      const minP = Math.min(...activeVars.map((v) => v.priceKobo));
+                      const maxP = Math.max(...activeVars.map((v) => v.priceKobo));
+                      if (minP !== maxP) {
+                        return (
+                          <div className="flex items-center gap-1 font-heading text-base font-bold text-primary">
+                            <Money amountKobo={minP} />
+                            <span className="text-muted-foreground text-xs">–</span>
+                            <Money amountKobo={maxP} />
+                          </div>
+                        );
+                      }
+                    }
+                    return (
+                      <p className="font-heading text-base font-bold text-primary">
+                        <Money amountKobo={item.priceKobo} />
+                      </p>
+                    );
+                  })()}
                 </div>
 
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => handleAddToBox(item)}
+                  onClick={() => handleItemClick(item)}
                   className="rounded-full text-xs font-semibold gap-1.5 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all"
                 >
-                  <PackagePlus className="h-3.5 w-3.5" />
-                  <span>Add to Box</span>
+                  {(item.variants || []).some((v) => v.active !== false) ? (
+                    <>
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      <span>Choose options</span>
+                    </>
+                  ) : (
+                    <>
+                      <PackagePlus className="h-3.5 w-3.5" />
+                      <span>Add to Box</span>
+                    </>
+                  )}
                 </Button>
               </div>
             </article>
           ))}
         </div>
       </div>
+
+      {selectedProductForOptions && (
+        <ChooseOptionsDialog
+          open={Boolean(selectedProductForOptions)}
+          onOpenChange={(open) => {
+            if (!open) setSelectedProductForOptions(null);
+          }}
+          product={selectedProductForOptions}
+        />
+      )}
     </section>
   );
 }

@@ -70,6 +70,26 @@ export class ComboItemDto {
   tag?: string;
 }
 
+export class ProductVariantDto {
+  @ApiProperty({ example: "var_01" })
+  id: string;
+
+  @ApiProperty({ example: "50ml" })
+  name: string;
+
+  @ApiProperty({ example: 150000 })
+  priceKobo: number;
+
+  @ApiPropertyOptional({ example: 25 })
+  stock?: number | null;
+
+  @ApiPropertyOptional({ example: "SKU-50ML" })
+  sku?: string | null;
+
+  @ApiPropertyOptional({ example: true })
+  active?: boolean;
+}
+
 export class CatalogProductResponseDto {
   @ApiProperty({ example: "a0000000-0000-0000-0000-000000000001" })
   id: string;
@@ -124,6 +144,15 @@ export class CatalogProductResponseDto {
 
   @ApiPropertyOptional({ type: [ComboItemDto] })
   comboItems?: ComboItemDto[];
+
+  @ApiPropertyOptional({ type: [ProductVariantDto] })
+  variants?: ProductVariantDto[];
+
+  @ApiPropertyOptional({ example: 150000, description: "Lowest variant price in kobo" })
+  minPriceKobo?: number;
+
+  @ApiPropertyOptional({ example: 500000, description: "Highest variant price in kobo" })
+  maxPriceKobo?: number;
 
   @ApiPropertyOptional({ example: true })
   isDigital?: boolean;

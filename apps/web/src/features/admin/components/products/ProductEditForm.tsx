@@ -58,11 +58,25 @@ export function ProductEditForm({
     stock: 50,
     isCombo: false,
     comboItems: [] as Array<{ name: string; qty: number }>,
+    variants: [] as Array<{
+      id: string;
+      name: string;
+      priceNaira: string;
+      stock: string;
+      sku: string;
+      active: boolean;
+    }>,
     occasions: [] as string[],
     relationships: [] as string[],
   });
 
   const [editComboItemInput, setEditComboItemInput] = useState({ name: "", qty: 1 });
+  const [variantInput, setVariantInput] = useState({
+    name: "",
+    priceNaira: "",
+    stock: "",
+    sku: "",
+  });
   const [editMediaPreviewUrl, setEditMediaPreviewUrl] = useState<string>("");
   const [editMediaKind, setEditMediaKind] = useState<"IMAGE" | "VIDEO">("IMAGE");
   const [isEditUploadingMedia, setIsEditUploadingMedia] = useState(false);
@@ -93,6 +107,17 @@ export function ProductEditForm({
           }))
         : [];
 
+      const initialVariants = Array.isArray(product.variants)
+        ? product.variants.map((v) => ({
+            id: v.id || `var_${Math.random().toString(36).substring(2, 9)}`,
+            name: v.name || "",
+            priceNaira: String(Math.round((v.priceKobo || 0) / 100)),
+            stock: v.stock === null || v.stock === undefined ? "" : String(v.stock),
+            sku: v.sku || "",
+            active: v.active !== false,
+          }))
+        : [];
+
       setEditFormData({
         name: product.name || "",
         slug: product.slug || "",
@@ -109,6 +134,7 @@ export function ProductEditForm({
         stock: product.stock ?? (product.inStock ? 50 : 0),
         isCombo: Boolean(product.isCombo || items.length > 0),
         comboItems: items,
+        variants: initialVariants,
         occasions: product.occasions ? [...product.occasions] : [],
         relationships: product.relationships ? [...product.relationships] : [],
       });
@@ -116,6 +142,7 @@ export function ProductEditForm({
       setEditMediaPreviewUrl(product.imageUrl || "");
       setEditMediaKind(isVideoMediaUrl(product.imageUrl || "") ? "VIDEO" : "IMAGE");
       setEditComboItemInput({ name: "", qty: 1 });
+      setVariantInput({ name: "", priceNaira: "", stock: "", sku: "" });
       setEditUploadProgress(0);
     }
   }, [product]);
@@ -189,6 +216,59 @@ export function ProductEditForm({
     }));
   };
 
+  const handleAddVariant = () => {
+    const name = variantInput.name.trim();
+    const priceNum = parseFloat(variantInput.priceNaira);
+    if (!name) {
+      toast.error("Please enter an option name (e.g. '500g', 'Large', 'Midnight Blue')");
+      return;
+    }
+    if (isNaN(priceNum) || priceNum <= 0) {
+      toast.error("Please enter a valid price in Naira for this option");
+      return;
+    }
+
+    const newVariant = {
+      id: `var_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name,
+      priceNaira: String(priceNum),
+      stock: variantInput.stock.trim(),
+      sku: variantInput.sku.trim(),
+      active: true,
+    };
+
+    setEditFormData((prev) => ({
+      ...prev,
+      variants: [...prev.variants, newVariant],
+    }));
+
+    setVariantInput({ name: "", priceNaira: "", stock: "", sku: "" });
+    toast.success(`Option "${name}" added`);
+  };
+
+  const handleRemoveVariant = (index: number) => {
+    setEditFormData((prev) => ({
+      ...prev,
+      variants: prev.variants.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleUpdateVariant = (
+    index: number,
+    patch: Partial<{
+      name: string;
+      priceNaira: string;
+      stock: string;
+      sku: string;
+      active: boolean;
+    }>
+  ) => {
+    setEditFormData((prev) => ({
+      ...prev,
+      variants: prev.variants.map((v, i) => (i === index ? { ...v, ...patch } : v)),
+    }));
+  };
+
   const handleToggleOccasion = (occ: string) => {
     setEditFormData((prev) => {
       const exists = prev.occasions.includes(occ);
@@ -254,6 +334,36 @@ export function ProductEditForm({
         ? editFormData.comboItems.filter((c) => c.name.trim().length > 0)
         : undefined;
 
+      // Auto-flush pending variant from input row if user filled it out but didn't click "+"
+      const allVariants = [...editFormData.variants];
+      const pendingName = variantInput.name.trim();
+      const pendingPrice = parseFloat(variantInput.priceNaira);
+      if (pendingName && !isNaN(pendingPrice) && pendingPrice > 0) {
+        allVariants.push({
+          id: `var_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          name: pendingName,
+          priceNaira: String(pendingPrice),
+          stock: variantInput.stock.trim(),
+          sku: variantInput.sku.trim(),
+          active: true,
+        });
+      }
+
+      const variantsPayload = allVariants
+        .filter(
+          (v) => v.name.trim().length > 0 && parseFloat(v.priceNaira) > 0
+        )
+        .map((v) => ({
+          id: v.id,
+          name: v.name.trim(),
+          priceKobo: Math.round(parseFloat(v.priceNaira) * 100),
+          stock: String(v.stock ?? "").trim()
+            ? parseInt(String(v.stock), 10)
+            : null,
+          sku: String(v.sku ?? "").trim() || undefined,
+          active: v.active !== false,
+        }));
+
       await updateProductMutation.mutateAsync({
         productId: product.id,
         patch: {
@@ -272,16 +382,32 @@ export function ProductEditForm({
           stock: editFormData.inStock ? editFormData.stock : 0,
           isCombo: editFormData.isCombo,
           comboItems: comboItemsPayload,
+          variants: variantsPayload,
           occasions: editFormData.occasions,
           relationships: editFormData.relationships,
         },
       });
+
+      const activePrices = (variantsPayload || [])
+        .filter((v) => v.active !== false)
+        .map((v) => v.priceKobo);
+      const minPriceKobo =
+        activePrices.length > 0
+          ? Math.min(...activePrices)
+          : Math.round(priceNum * 100);
+      const maxPriceKobo =
+        activePrices.length > 0
+          ? Math.max(...activePrices)
+          : Math.round(priceNum * 100);
 
       const updated: AdminProduct = {
         ...product,
         name: editFormData.name.trim(),
         slug: cleanSlug || product.slug,
         priceKobo: Math.round(priceNum * 100),
+        variants: variantsPayload,
+        minPriceKobo,
+        maxPriceKobo,
         category: editFormData.category,
         mainCategories: mainCats,
         giftType: dept?.giftType || editFormData.giftType || product.giftType || "LUXURY",
@@ -576,6 +702,200 @@ export function ProductEditForm({
               placeholder="https://cdn.givvly.store/products/box.jpg"
               className="font-mono text-xs"
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Section: Product Options & Variants */}
+      <div className="rounded-xl border border-border/80 bg-card p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Product Options & Variants
+              </h4>
+              {editFormData.variants.length > 0 && (
+                <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  {editFormData.variants.length} option
+                  {editFormData.variants.length === 1 ? "" : "s"}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Define options such as sizes, scents, colors, or bundles with custom prices and inventory.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3 pt-2">
+          {editFormData.variants.length > 0 ? (
+            <div className="space-y-2">
+              <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-[10px] font-semibold uppercase text-muted-foreground px-2">
+                <span className="col-span-4">Option Name</span>
+                <span className="col-span-3">Price (₦)</span>
+                <span className="col-span-2">Stock</span>
+                <span className="col-span-2">SKU</span>
+                <span className="col-span-1 text-right">Action</span>
+              </div>
+              {editFormData.variants.map((variant, idx) => (
+                <div
+                  key={variant.id || idx}
+                  className="flex flex-col sm:grid sm:grid-cols-12 items-start sm:items-center gap-2 rounded-md border border-border/50 bg-card p-2 text-xs"
+                >
+                  <div className="w-full sm:col-span-4">
+                    <Input
+                      value={variant.name}
+                      onChange={(e) =>
+                        handleUpdateVariant(idx, { name: e.target.value })
+                      }
+                      placeholder="e.g. 500g, Large, Rose Gold"
+                      className="h-8 text-xs font-medium"
+                    />
+                  </div>
+                  <div className="w-full sm:col-span-3">
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-serif text-muted-foreground">
+                        ₦
+                      </span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={variant.priceNaira}
+                        onChange={(e) =>
+                          handleUpdateVariant(idx, { priceNaira: e.target.value })
+                        }
+                        placeholder="Price"
+                        className="h-8 pl-6 text-xs font-mono font-semibold"
+                      />
+                    </div>
+                  </div>
+                  <div className="w-full sm:col-span-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      value={variant.stock ?? ""}
+                      onChange={(e) =>
+                        handleUpdateVariant(idx, { stock: e.target.value })
+                      }
+                      placeholder="Unlimited"
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <div className="w-full sm:col-span-2">
+                    <Input
+                      value={variant.sku ?? ""}
+                      onChange={(e) =>
+                        handleUpdateVariant(idx, { sku: e.target.value })
+                      }
+                      placeholder="SKU-001"
+                      className="h-8 text-[11px] font-mono uppercase"
+                    />
+                  </div>
+                  <div className="w-full sm:col-span-1 flex items-center justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveVariant(idx)}
+                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">
+              No custom options yet. The base product price (₦{editFormData.priceNaira || "0"}) will apply to all orders.
+            </p>
+          )}
+
+          {/* Add New Variant Row */}
+          <div className="space-y-2 pt-2 border-t border-border/40">
+            <span className="text-[11px] font-semibold text-foreground">
+              Add New Option
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+              <div className="sm:col-span-4">
+                <Input
+                  placeholder="Option name (e.g. Deluxe 1kg)"
+                  value={variantInput.name}
+                  onChange={(e) =>
+                    setVariantInput((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  className="h-8 text-xs"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddVariant();
+                    }
+                  }}
+                />
+              </div>
+              <div className="sm:col-span-3">
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-serif text-muted-foreground">
+                    ₦
+                  </span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="100"
+                    placeholder="Price in ₦"
+                    value={variantInput.priceNaira}
+                    onChange={(e) =>
+                      setVariantInput((prev) => ({
+                        ...prev,
+                        priceNaira: e.target.value,
+                      }))
+                    }
+                    className="h-8 pl-6 text-xs font-mono"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddVariant();
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="Stock (opt)"
+                  value={variantInput.stock}
+                  onChange={(e) =>
+                    setVariantInput((prev) => ({ ...prev, stock: e.target.value }))
+                  }
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Input
+                  placeholder="SKU (opt)"
+                  value={variantInput.sku}
+                  onChange={(e) =>
+                    setVariantInput((prev) => ({ ...prev, sku: e.target.value }))
+                  }
+                  className="h-8 text-[11px] font-mono uppercase"
+                />
+              </div>
+              <div className="sm:col-span-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddVariant}
+                  className="h-8 w-full text-xs gap-1 px-2"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span className="sm:hidden">Add Option</span>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

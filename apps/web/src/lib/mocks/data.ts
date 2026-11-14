@@ -43,6 +43,16 @@ export type MockCatalogProduct = {
   reviewCount: number;
   isCombo?: boolean;
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
+  variants?: Array<{
+    id: string;
+    name: string;
+    priceKobo: number;
+    stock?: number | null;
+    sku?: string | null;
+    active?: boolean;
+  }>;
+  minPriceKobo?: number;
+  maxPriceKobo?: number;
   packagingIncluded?: string;
   isDigital?: boolean;
   digitalKind?: "AIRTIME" | "DATA" | "VOUCHER" | "GIFT_CARD";

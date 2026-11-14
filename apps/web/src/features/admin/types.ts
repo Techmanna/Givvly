@@ -28,6 +28,15 @@ export type AdminVendorSummary = {
   status: "VERIFIED" | "PENDING_REVIEW";
 };
 
+export type ProductVariant = {
+  id: string;
+  name: string;
+  priceKobo: number;
+  stock?: number | null;
+  sku?: string | null;
+  active?: boolean;
+};
+
 export type AdminProduct = {
   id: string;
   slug: string;
@@ -47,6 +56,9 @@ export type AdminProduct = {
   reviewCount: number;
   isCombo?: boolean;
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
+  variants?: ProductVariant[];
+  minPriceKobo?: number;
+  maxPriceKobo?: number;
   packagingIncluded?: string;
   imageUrl?: string;
   images?: string[];
@@ -72,6 +84,7 @@ export type UpdateProductInput = {
   stock?: number | null;
   isCombo?: boolean;
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
+  variants?: ProductVariant[];
   active?: boolean;
 };
 
@@ -88,6 +101,7 @@ export type CreateProductInput = {
   inStock: boolean;
   isCombo?: boolean;
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
+  variants?: ProductVariant[];
   packagingIncluded?: string;
   imageUrl?: string;
 };

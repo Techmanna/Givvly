@@ -98,9 +98,11 @@ export function BoxDrawer() {
         ) : (
           <>
             <div className="flex-1 overflow-y-auto px-6 py-4 divide-y divide-border/60">
-              {items.map((item) => (
+              {items.map((item) => {
+                const itemKey = item.variantId ? `${item.slug}__${item.variantId}` : (item.id || item.slug);
+                return (
                 <div
-                  key={item.slug}
+                  key={itemKey}
                   className="flex items-center gap-4 py-4 first:pt-0 last:pb-0"
                 >
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-border/80 bg-muted/40">
@@ -123,11 +125,18 @@ export function BoxDrawer() {
                     <h4 className="font-medium text-sm text-foreground line-clamp-1">
                       {item.name}
                     </h4>
-                    {item.vendorName && (
-                      <p className="text-[11px] text-muted-foreground line-clamp-1">
-                        By {item.vendorName}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {item.variantName && (
+                        <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                          {item.variantName}
+                        </span>
+                      )}
+                      {item.vendorName && (
+                        <p className="text-[11px] text-muted-foreground line-clamp-1">
+                          By {item.vendorName}
+                        </p>
+                      )}
+                    </div>
                     <div className="mt-1 flex items-center justify-between">
                       <Money
                         amountKobo={item.priceKobo}
@@ -138,7 +147,7 @@ export function BoxDrawer() {
                         <button
                           type="button"
                           onClick={() =>
-                            updateItemQty(item.slug, item.qty - 1)
+                            updateItemQty(itemKey, item.qty - 1)
                           }
                           aria-label={`Decrease quantity of ${item.name}`}
                           className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
@@ -151,7 +160,7 @@ export function BoxDrawer() {
                         <button
                           type="button"
                           onClick={() =>
-                            updateItemQty(item.slug, item.qty + 1)
+                            updateItemQty(itemKey, item.qty + 1)
                           }
                           aria-label={`Increase quantity of ${item.name}`}
                           className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
@@ -164,14 +173,15 @@ export function BoxDrawer() {
 
                   <button
                     type="button"
-                    onClick={() => removeItem(item.slug)}
+                    onClick={() => removeItem(itemKey)}
                     aria-label={`Remove ${item.name} from box`}
                     className="text-muted-foreground/60 hover:text-destructive transition-colors p-1"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-              ))}
+              );
+            })}
             </div>
 
             <div className="border-t border-border/80 bg-muted/20 p-6 space-y-4">

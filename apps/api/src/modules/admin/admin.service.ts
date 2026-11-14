@@ -130,6 +130,17 @@ export class AdminService {
           p.title.toLowerCase().includes("hamper")
         ),
         comboItems: Array.isArray(p.comboItems) ? (p.comboItems as any[]) : [],
+        variants: Array.isArray(p.variants) ? (p.variants as any[]) : [],
+        minPriceKobo: (() => {
+          const vs = Array.isArray(p.variants) ? (p.variants as any[]) : [];
+          const prices = vs.map((v) => Number(v.priceKobo)).filter((pr) => !isNaN(pr));
+          return prices.length > 0 ? Math.min(...prices) : p.priceKobo;
+        })(),
+        maxPriceKobo: (() => {
+          const vs = Array.isArray(p.variants) ? (p.variants as any[]) : [];
+          const prices = vs.map((v) => Number(v.priceKobo)).filter((pr) => !isNaN(pr));
+          return prices.length > 0 ? Math.max(...prices) : p.priceKobo;
+        })(),
         packagingIncluded: "Luxury Gift Box & Ribbon",
         images: p.images,
         imageUrl: primaryImage,
@@ -176,6 +187,7 @@ export class AdminService {
         isDigital: dto.isDigital || false,
         digitalKind: dto.digitalKind,
         comboItems: dto.comboItems || undefined,
+        variants: dto.variants || undefined,
         active: true,
       },
     });
@@ -240,6 +252,7 @@ export class AdminService {
         ...(dto.isDigital !== undefined && { isDigital: dto.isDigital }),
         ...(dto.digitalKind !== undefined && { digitalKind: dto.digitalKind }),
         ...(comboItems !== undefined && { comboItems: comboItems }),
+        ...(dto.variants !== undefined && { variants: dto.variants }),
         ...(dto.active !== undefined && { active: dto.active }),
       },
     });
@@ -277,6 +290,17 @@ export class AdminService {
         titleLower.includes("hamper")
       ),
       comboItems: Array.isArray(effectiveComboItems) ? (effectiveComboItems as any[]) : [],
+      variants: Array.isArray((updated as any).variants) ? ((updated as any).variants as any[]) : [],
+      minPriceKobo: (() => {
+        const vs = Array.isArray((updated as any).variants) ? ((updated as any).variants as any[]) : [];
+        const prices = vs.map((v) => Number(v.priceKobo)).filter((pr) => !isNaN(pr));
+        return prices.length > 0 ? Math.min(...prices) : updated.priceKobo;
+      })(),
+      maxPriceKobo: (() => {
+        const vs = Array.isArray((updated as any).variants) ? ((updated as any).variants as any[]) : [];
+        const prices = vs.map((v) => Number(v.priceKobo)).filter((pr) => !isNaN(pr));
+        return prices.length > 0 ? Math.max(...prices) : updated.priceKobo;
+      })(),
       packagingIncluded: "Luxury Gift Box & Ribbon",
       imageUrl: primaryImage,
     };
