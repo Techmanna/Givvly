@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowUpRight, Gift, PackageCheck, PackagePlus, Star, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, Gift, Check, ShoppingBag, Star, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const [chooseOptionsOpen, setChooseOptionsOpen] = React.useState(false);
   const items = useCartStore((s) => s.items);
   const addItem = useCartStore((s) => s.addItem);
-  const openBox = useCartStore((s) => s.openBox);
+  const openBag = useCartStore((s) => s.openBag);
 
   const activeVariants = (product.variants || []).filter((v) => v.active !== false);
   const hasVariants = activeVariants.length > 0;
@@ -33,7 +33,7 @@ export function ProductCard({ product }: ProductCardProps) {
     : product.priceKobo;
   const hasPriceRange = hasVariants && minVariantPrice !== maxVariantPrice;
 
-  const inBoxItem = items.find((i) => i.slug === product.slug);
+  const inBagItem = items.find((i) => i.slug === product.slug);
   const hasImage = Boolean(product.imageUrl && !imageError);
 
   const handleActionClick = (e: React.MouseEvent) => {
@@ -44,10 +44,10 @@ export function ProductCard({ product }: ProductCardProps) {
       return;
     }
     addItem(product);
-    toast.success(`Added ${product.name} to your Gift Box!`, {
+    toast.success(`Added ${product.name} to your Shopping Bag!`, {
       action: {
-        label: "View Box",
-        onClick: () => openBox(),
+        label: "View Bag",
+        onClick: () => openBag(),
       },
     });
   };
@@ -142,16 +142,18 @@ export function ProductCard({ product }: ProductCardProps) {
             <span className="uppercase tracking-wider text-[10px] font-medium">
               {product.isCombo ? "Curated Hamper" : "Verified Artisan"}
             </span>
-            <span className="inline-flex items-center gap-1 font-medium text-foreground">
-              <Star
-                className="h-3.5 w-3.5 fill-accent text-accent"
-                aria-hidden="true"
-              />
-              {product.rating.toFixed(1)}{" "}
-              <span className="text-muted-foreground">
-                ({product.reviewCount})
+            {product.reviewCount > 0 ? (
+              <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                <Star
+                  className="h-3.5 w-3.5 fill-accent text-accent"
+                  aria-hidden="true"
+                />
+                {product.rating.toFixed(1)}{" "}
+                <span className="text-muted-foreground">
+                  ({product.reviewCount})
+                </span>
               </span>
-            </span>
+            ) : null}
           </div>
 
           {product.isCombo && product.comboItems ? (
@@ -204,7 +206,7 @@ export function ProductCard({ product }: ProductCardProps) {
             size="sm"
             onClick={handleActionClick}
             className={`flex-1 rounded-full text-xs font-semibold gap-1.5 transition-all ${
-              inBoxItem
+              inBagItem
                 ? "bg-primary/90 text-primary-foreground hover:bg-primary"
                 : ""
             }`}
@@ -215,15 +217,15 @@ export function ProductCard({ product }: ProductCardProps) {
                 <SlidersHorizontal className="h-3.5 w-3.5" />
                 <span>Choose options</span>
               </>
-            ) : inBoxItem ? (
+            ) : inBagItem ? (
               <>
-                <PackageCheck className="h-3.5 w-3.5" />
-                <span>In Box ({inBoxItem.qty}) • Add</span>
+                <Check className="h-3.5 w-3.5" />
+                <span>In Bag ({inBagItem.qty}) • Add</span>
               </>
             ) : (
               <>
-                <PackagePlus className="h-3.5 w-3.5" />
-                <span>Add to Box</span>
+                <ShoppingBag className="h-3.5 w-3.5" />
+                <span>Add to Bag</span>
               </>
             )}
           </Button>

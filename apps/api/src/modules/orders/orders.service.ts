@@ -21,6 +21,7 @@ import { generateOrderWhatsAppLink } from "./utils/whatsapp-order.util";
 import * as crypto from "crypto";
 
 const STANDARD_DELIVERY_FEE_KOBO = 250_000; // ₦2,500
+const GIFT_WRAPPING_FEE_KOBO = 250_000; // ₦2,500
 const FREE_DELIVERY_THRESHOLD_KOBO = 10_000_000; // ₦100,000
 
 @Injectable()
@@ -186,18 +187,42 @@ export class OrdersService {
       };
     });
 
-    // Calculate optional gift wrapping fee
+    // Resolve shipping zone (when physical order) and calculate 7.5% VAT + delivery fee
     const allDigital = products.every((p) => p.isDigital) || Boolean(dto.vtuType);
     const packagingId = dto.packagingId || "standard";
-    const packagingExtraKobo = allDigital ? 0 : dto.wrapping ? 250_000 : 0;
+    const packagingExtraKobo = allDigital
+      ? 0
+      : dto.wrapping
+        ? GIFT_WRAPPING_FEE_KOBO
+        : 0;
 
-    // Calculate delivery fee (free if all products digital or subtotal exceeds threshold)
-    const deliveryFeeKobo =
-      allDigital || subtotalKobo >= FREE_DELIVERY_THRESHOLD_KOBO
-        ? 0
-        : STANDARD_DELIVERY_FEE_KOBO;
+    let selectedShippingZone: { id: string; name: string; priceKobo: number; enabled: boolean } | null = null;
+    if (!allDigital && dto.shippingZoneId) {
+      selectedShippingZone = await this.prisma.shippingZone.findUnique({
+        where: { id: dto.shippingZoneId },
+      });
+      if (!selectedShippingZone || !selectedShippingZone.enabled) {
+        throw new BadRequestException("Selected shipping zone is unavailable.");
+      }
+    }
 
-    const totalKobo = subtotalKobo + deliveryFeeKobo + packagingExtraKobo;
+    const deliveryFeeKobo = allDigital
+      ? 0
+      : selectedShippingZone
+        ? selectedShippingZone.priceKobo
+        : subtotalKobo >= FREE_DELIVERY_THRESHOLD_KOBO
+          ? 0
+          : STANDARD_DELIVERY_FEE_KOBO;
+
+    const vatRate = 0.075;
+    const giftVatKobo = allDigital ? 0 : Math.round(subtotalKobo * vatRate);
+    const shippingVatKobo =
+      !allDigital && deliveryFeeKobo > 0
+        ? deliveryFeeKobo - Math.round(deliveryFeeKobo / (1 + vatRate))
+        : 0;
+    const vatKobo = giftVatKobo + shippingVatKobo;
+
+    const totalKobo = subtotalKobo + giftVatKobo + deliveryFeeKobo + packagingExtraKobo;
     const currency = (dto.currency || "NGN").toUpperCase();
 
     // Generate unique order number and tracking token
@@ -275,6 +300,9 @@ export class OrdersService {
           status: OrderStatus.PENDING_PAYMENT,
           subtotalKobo: subtotalKobo + packagingExtraKobo,
           deliveryFeeKobo,
+          vatKobo,
+          shippingZoneId: selectedShippingZone?.id ?? null,
+          shippingZoneName: selectedShippingZone?.name ?? null,
           totalKobo,
           paymentId: newPayment.id,
           trackingToken,

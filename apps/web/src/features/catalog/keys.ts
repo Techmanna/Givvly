@@ -9,6 +9,7 @@ export const catalogKeys = {
   reviewEligibility: (slug: string, userId?: string) =>
     [...catalogKeys.all, "review-eligibility", slug, userId ?? "anon"] as const,
   collections: () => [...catalogKeys.all, "collections"] as const,
+  shippingZones: () => [...catalogKeys.all, "shipping-zones"] as const,
   vtuProviders: (type: BillSpotVtuType = "airtime") =>
     [...catalogKeys.all, "vtu-providers", type] as const,
   vtuPlans: (provider: string) =>

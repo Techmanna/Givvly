@@ -56,6 +56,9 @@ export type MockCatalogProduct = {
   packagingIncluded?: string;
   isDigital?: boolean;
   digitalKind?: "AIRTIME" | "DATA" | "VOUCHER" | "GIFT_CARD";
+  boxRole?: "ITEM" | "GIFT_BOX";
+  boxMaxItems?: number | null;
+  boxSizeTier?: "SMALL" | "MEDIUM" | "LARGE" | null;
 };
 
 export type MockCatalogCollection = {
@@ -808,6 +811,76 @@ export const INITIAL_RSVPS_BY_EVENT: Record<string, MockRsvp[]> = {
 
 // 9. Curated Catalog Products & Collections (Phase 3)
 export const MOCK_CATALOG_PRODUCTS: MockCatalogProduct[] = [
+  // --- SIGNATURE GIFT BOXES (FOR CURATE YOUR BOX) ---
+  {
+    id: "prod_box_petite_01",
+    slug: "petite-blush-keepsake-box",
+    name: "Petite Blush Keepsake Box",
+    description:
+      "Structured matte blush magnetic keepsake box lined with cream satin tissue and hand-tied grosgrain ribbon. Holds up to 4 curated items.",
+    priceKobo: 1_200_000, // ₦12,000
+    category: "Gift Boxes",
+    giftType: "PACKAGING",
+    mainCategories: ["BIRTHDAY", "ANNIVERSARY", "THANK_YOU"],
+    occasions: ["BIRTHDAY", "ANNIVERSARY", "THANK_YOU", "SELF_CARE"],
+    relationships: ["FRIEND", "PARTNER", "FAMILY", "COLLEAGUE"],
+    gender: "UNISEX",
+    ageGroup: "ADULT",
+    imageUrl: "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=800&auto=format&fit=crop",
+    vendorName: "Givvly Atelier",
+    inStock: true,
+    rating: 4.9,
+    reviewCount: 42,
+    boxRole: "GIFT_BOX",
+    boxMaxItems: 4,
+    boxSizeTier: "SMALL",
+  },
+  {
+    id: "prod_box_velvet_02",
+    slug: "signature-velvet-atelier-box",
+    name: "Signature Velvet Atelier Box",
+    description:
+      "Our bestselling forest-green velvet presentation box with gold foil embossing, cedarwood filler, and wax-sealed card sleeve. Holds up to 6 curated items.",
+    priceKobo: 2_400_000, // ₦24,000
+    category: "Gift Boxes",
+    giftType: "PACKAGING",
+    mainCategories: ["WEDDING", "BIRTHDAY", "ANNIVERSARY", "CORPORATE"],
+    occasions: ["WEDDING", "BIRTHDAY", "ANNIVERSARY", "CORPORATE"],
+    relationships: ["PARTNER", "COUPLE", "FRIEND", "COLLEAGUE"],
+    gender: "UNISEX",
+    ageGroup: "ADULT",
+    imageUrl: "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?w=800&auto=format&fit=crop",
+    vendorName: "Givvly Atelier",
+    inStock: true,
+    rating: 5.0,
+    reviewCount: 68,
+    boxRole: "GIFT_BOX",
+    boxMaxItems: 6,
+    boxSizeTier: "MEDIUM",
+  },
+  {
+    id: "prod_box_trunk_03",
+    slug: "grand-leather-hamper-trunk",
+    name: "Grand Leather Hamper Trunk",
+    description:
+      "Heirloom-grade faux-crocodile leather hamper trunk with brushed brass clasps and plush suede interior. Holds up to 10 curated items including full-size keepsakes.",
+    priceKobo: 4_800_000, // ₦48,000
+    category: "Gift Boxes",
+    giftType: "PACKAGING",
+    mainCategories: ["WEDDING", "CORPORATE", "ANNIVERSARY"],
+    occasions: ["WEDDING", "ANNIVERSARY", "HOUSEWARMING", "CORPORATE"],
+    relationships: ["COUPLE", "PARTNER", "FAMILY", "BOSS"],
+    gender: "UNISEX",
+    ageGroup: "ADULT",
+    imageUrl: "https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=800&auto=format&fit=crop",
+    vendorName: "Givvly Atelier",
+    inStock: true,
+    rating: 5.0,
+    reviewCount: 29,
+    boxRole: "GIFT_BOX",
+    boxMaxItems: 10,
+    boxSizeTier: "LARGE",
+  },
   // --- SINGLE GIFT ITEMS ---
   {
     id: "prod_mixer_01",

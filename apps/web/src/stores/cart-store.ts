@@ -1,10 +1,33 @@
 import { create } from "zustand";
 
+export const BAG_STORAGE_KEY = "givvly.bag.v1";
 export const BOX_STORAGE_KEY = "givvly.box.v1";
 export const CART_STORAGE_KEY = "givvly.cart.v1";
 const CART_STORAGE_VERSION = 1;
 
-export type BoxItem = {
+export type CuratedBoxBundleItem = {
+  productId: string;
+  slug: string;
+  name: string;
+  priceKobo: number;
+  qty: number;
+  variantId?: string;
+  variantName?: string;
+  imageUrl?: string;
+};
+
+export type CuratedBoxBundle = {
+  boxProductId: string;
+  boxSlug: string;
+  boxName: string;
+  boxPriceKobo: number;
+  boxImageUrl?: string;
+  items: CuratedBoxBundleItem[];
+  giftNote?: string;
+  discountKobo?: number;
+};
+
+export type BagItem = {
   id: string;
   slug: string;
   name: string;
@@ -16,7 +39,10 @@ export type BoxItem = {
   isDigital?: boolean;
   variantId?: string;
   variantName?: string;
+  curatedBox?: CuratedBoxBundle;
 };
+
+export type BoxItem = BagItem;
 
 export type DirectGiftDraft = {
   productSlug: string;
@@ -60,10 +86,12 @@ export function createDefaultCartDraft(productSlug = ""): DirectGiftDraft {
   };
 }
 
-function readBoxStorage(): BoxItem[] {
+function readBagStorage(): BagItem[] {
   if (typeof window === "undefined") return [];
   try {
     const raw =
+      window.localStorage.getItem(BAG_STORAGE_KEY) ||
+      window.sessionStorage.getItem(BAG_STORAGE_KEY) ||
       window.localStorage.getItem(BOX_STORAGE_KEY) ||
       window.sessionStorage.getItem(BOX_STORAGE_KEY);
     if (!raw) return [];
@@ -79,11 +107,15 @@ function readBoxStorage(): BoxItem[] {
   return [];
 }
 
-function writeBoxStorage(items: BoxItem[]): void {
+function writeBagStorage(items: BagItem[]): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(BOX_STORAGE_KEY, JSON.stringify(items));
-    window.sessionStorage.setItem(BOX_STORAGE_KEY, JSON.stringify(items));
+    const json = JSON.stringify(items);
+    window.localStorage.setItem(BAG_STORAGE_KEY, json);
+    window.sessionStorage.setItem(BAG_STORAGE_KEY, json);
+    // Also write to legacy box key for transition compatibility
+    window.localStorage.setItem(BOX_STORAGE_KEY, json);
+    window.sessionStorage.setItem(BOX_STORAGE_KEY, json);
   } catch {
     // Ignore storage errors
   }
@@ -148,12 +180,20 @@ function writeCartStorage(draft: DirectGiftDraft): void {
 }
 
 export type CartStoreState = {
-  // Box (Cart) State
-  items: BoxItem[];
+  // Bag (Shopping Cart) State
+  items: BagItem[];
   isOpen: boolean;
+  openBag: () => void;
+  closeBag: () => void;
+  toggleBag: () => void;
+  clearBag: () => void;
+
+  // Backward compatibility aliases for Box
   openBox: () => void;
   closeBox: () => void;
   toggleBox: () => void;
+  clearBox: () => void;
+
   addItem: (
     product: {
       id?: string;
@@ -169,9 +209,9 @@ export type CartStoreState = {
     },
     qty?: number
   ) => void;
+  addCuratedBox: (bundle: CuratedBoxBundle, totalPriceKobo: number) => void;
   removeItem: (idOrSlug: string) => void;
   updateItemQty: (idOrSlug: string, qty: number) => void;
-  clearBox: () => void;
 
   // Single Direct Gift Draft (preserved for direct /checkout/[slug])
   draft: DirectGiftDraft;
@@ -181,12 +221,31 @@ export type CartStoreState = {
 };
 
 export const useCartStore = create<CartStoreState>((set, get) => ({
-  items: readBoxStorage(),
+  items: readBagStorage(),
   isOpen: false,
 
+  openBag: () => set({ isOpen: true }),
+  closeBag: () => set({ isOpen: false }),
+  toggleBag: () => set((state) => ({ isOpen: !state.isOpen })),
+  clearBag: () => {
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem(BAG_STORAGE_KEY);
+        window.sessionStorage.removeItem(BAG_STORAGE_KEY);
+        window.localStorage.removeItem(BOX_STORAGE_KEY);
+        window.sessionStorage.removeItem(BOX_STORAGE_KEY);
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    set({ items: [] });
+  },
+
+  // Aliases for backward compatibility
   openBox: () => set({ isOpen: true }),
   closeBox: () => set({ isOpen: false }),
   toggleBox: () => set((state) => ({ isOpen: !state.isOpen })),
+  clearBox: () => get().clearBag(),
 
   addItem: (product, qty = 1) => {
     const currentItems = get().items;
@@ -199,7 +258,7 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
       return existingKey === targetKey || (i.id && i.id === product.id);
     });
 
-    let nextItems: BoxItem[];
+    let nextItems: BagItem[];
     if (existingIndex > -1) {
       nextItems = currentItems.map((item, idx) =>
         idx === existingIndex
@@ -207,7 +266,7 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
           : item
       );
     } else {
-      const newItem: BoxItem = {
+      const newItem: BagItem = {
         id: product.variantId
           ? `${product.id || product.slug}__${product.variantId}`
           : product.id || product.slug,
@@ -227,8 +286,29 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
       nextItems = [...currentItems, newItem];
     }
 
-    writeBoxStorage(nextItems);
+    writeBagStorage(nextItems);
     set({ items: nextItems });
+  },
+
+  addCuratedBox: (bundle, totalPriceKobo) => {
+    const currentItems = get().items;
+    const uniqueKey = `curated-box-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const totalInnerCount = bundle.items.reduce((sum, i) => sum + i.qty, 0);
+    const newItem: BagItem = {
+      id: uniqueKey,
+      slug: uniqueKey,
+      name: `Curated Box: ${bundle.boxName}`,
+      priceKobo: totalPriceKobo,
+      imageUrl: bundle.boxImageUrl,
+      vendorName: `${totalInnerCount} curated item${totalInnerCount === 1 ? "" : "s"}`,
+      qty: 1,
+      inStock: true,
+      isDigital: false,
+      curatedBox: bundle,
+    };
+    const nextItems = [...currentItems, newItem];
+    writeBagStorage(nextItems);
+    set({ items: nextItems, isOpen: true });
   },
 
   removeItem: (idOrSlug) => {
@@ -236,7 +316,7 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
       const itemKey = item.variantId ? `${item.slug}__${item.variantId}` : item.slug;
       return item.slug !== idOrSlug && item.id !== idOrSlug && itemKey !== idOrSlug;
     });
-    writeBoxStorage(nextItems);
+    writeBagStorage(nextItems);
     set({ items: nextItems });
   },
 
@@ -251,20 +331,8 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
         ? { ...item, qty }
         : item;
     });
-    writeBoxStorage(nextItems);
+    writeBagStorage(nextItems);
     set({ items: nextItems });
-  },
-
-  clearBox: () => {
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.removeItem(BOX_STORAGE_KEY);
-        window.sessionStorage.removeItem(BOX_STORAGE_KEY);
-      } catch {
-        // Ignore storage errors
-      }
-    }
-    set({ items: [] });
   },
 
   // Direct checkout draft implementation

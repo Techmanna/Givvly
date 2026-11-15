@@ -24,7 +24,6 @@ import { PaginationBar } from "@/components/shared/PaginationBar";
 import {
   useAdminDisputes,
   useAdminEvents,
-  useAdminLedger,
   useAdminModerationQueue,
   useAdminOrders,
   useAdminPayments,
@@ -32,20 +31,20 @@ import {
   useAdminUsers,
   useAdminVendors,
   useResolveAdminDispute,
-  useRetryAdminPayout,
 } from "../hooks/useAdmin";
 import { ModerationCard } from "./ModerationCard";
-import { LedgerTable } from "./LedgerTable";
 import { ProductManagementView } from "./ProductManagementView";
 import { OrderManagementView } from "./OrderManagementView";
 import { UserManagementView } from "./UserManagementView";
-import { BespokeQuotesView } from "./BespokeQuotesView";
+import { EventManagementView } from "./EventManagementView";
+import { PaymentManagementView } from "./PaymentManagementView";
+import { PayoutManagementView } from "./PayoutManagementView";
+import { LedgerManagementView } from "./LedgerManagementView";
 
 export type AdminSection =
   | "overview"
   | "products"
   | "orders"
-  | "quotes"
   | "events"
   | "payments"
   | "payouts"
@@ -53,7 +52,8 @@ export type AdminSection =
   | "moderation"
   | "disputes"
   | "users"
-  | "vendors";
+  | "vendors"
+  | "shipping";
 
 export type AdminConsoleViewProps = {
   section?: AdminSection;
@@ -62,7 +62,7 @@ export type AdminConsoleViewProps = {
 const NAV_ITEMS: Array<{ key: AdminSection; label: string; href: string }> = [
   { key: "overview", label: "Overview", href: "/admin" },
   { key: "orders", label: "Orders & Shipping", href: "/admin/orders" },
-  { key: "quotes", label: "Custom Quotes", href: "/admin/quotes" },
+  { key: "shipping", label: "Shipping Zones", href: "/admin/shipping" },
   { key: "products", label: "Gifts & Combos", href: "/admin/products" },
   { key: "events", label: "Celebrations", href: "/admin/events" },
   { key: "payments", label: "Payment Inflow", href: "/admin/payments" },
@@ -81,30 +81,16 @@ export function AdminConsoleView({
   const eventsQuery = useAdminEvents();
   const paymentsQuery = useAdminPayments();
   const payoutsQuery = useAdminPayouts();
-  const ledgerQuery = useAdminLedger();
   const ordersQuery = useAdminOrders();
   const vendorsQuery = useAdminVendors();
   const disputesQuery = useAdminDisputes();
   const usersQuery = useAdminUsers();
-  const retryPayoutMutation = useRetryAdminPayout();
   const resolveDisputeMutation = useResolveAdminDispute();
 
-  const [eventsPage, setEventsPage] = useState(1);
-  const [paymentsPage, setPaymentsPage] = useState(1);
-  const [payoutsPage, setPayoutsPage] = useState(1);
   const [disputesPage, setDisputesPage] = useState(1);
   const [moderationPage, setModerationPage] = useState(1);
 
   const PAGE_SIZE = 8;
-
-  const handleRetryPayout = async (payoutId: string) => {
-    try {
-      await retryPayoutMutation.mutateAsync(payoutId);
-      toast.success("Payout retry initiated via Paystack Transfers");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Payout retry failed");
-    }
-  };
 
   const handleResolveDispute = async (
     disputeId: string,
@@ -134,8 +120,8 @@ export function AdminConsoleView({
 
   return (
     <div className="space-y-6">
-      {/* Horizontal Nav Bar */}
-      <nav
+      {/* Horizontal Nav Bar - Disabled */}
+      {/* <nav
         aria-label="Admin console navigation"
         className="flex flex-wrap gap-2 border-b border-border/80 pb-3"
       >
@@ -153,7 +139,7 @@ export function AdminConsoleView({
             {item.label}
           </Link>
         ))}
-      </nav>
+      </nav> */}
 
       {/* Overview Dashboard */}
       {section === "overview" && (
@@ -328,9 +314,6 @@ export function AdminConsoleView({
       {/* Section: Orders */}
       {section === "orders" && <OrderManagementView />}
 
-      {/* Section: Custom Wish Quotes */}
-      {section === "quotes" && <BespokeQuotesView />}
-
       {/* Section: Users */}
       {section === "users" && <UserManagementView />}
 
@@ -364,173 +347,16 @@ export function AdminConsoleView({
       })()}
 
       {/* Section: Events */}
-      {section === "events" && (() => {
-        const events = eventsQuery.data ?? [];
-        const totalPages = Math.max(1, Math.ceil(events.length / PAGE_SIZE));
-        const curPage = Math.min(eventsPage, totalPages);
-        const paginated = events.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
-
-        return (
-          <div className="space-y-4">
-            <div className="space-y-3">
-              {paginated.map((ev) => (
-                <Card key={ev.id} className="border border-border/80 bg-card">
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={ev.status} />
-                        <span className="font-mono text-xs text-muted-foreground">
-                          /e/{ev.slug}
-                        </span>
-                      </div>
-                      <p className="mt-1 font-heading text-base font-semibold text-foreground">
-                        {ev.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(ev.date)} • {ev.giftCount} gifts •{" "}
-                        {ev.rsvpYesCount} attending
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Received
-                      </span>
-                      <p className="font-heading text-base font-bold text-primary">
-                        <Money amountKobo={ev.totalReceivedKobo} />
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            <PaginationBar
-              currentPage={curPage}
-              totalPages={totalPages}
-              totalItems={events.length}
-              pageSize={PAGE_SIZE}
-              onPageChange={setEventsPage}
-              itemName="celebrations"
-            />
-          </div>
-        );
-      })()}
+      {section === "events" && <EventManagementView />}
 
       {/* Section: Payments */}
-      {section === "payments" && (() => {
-        const payments = paymentsQuery.data ?? [];
-        const totalPages = Math.max(1, Math.ceil(payments.length / PAGE_SIZE));
-        const curPage = Math.min(paymentsPage, totalPages);
-        const paginated = payments.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
-
-        return (
-          <div className="space-y-4">
-            <div className="space-y-3">
-              {paginated.map((pay) => (
-                <Card key={pay.reference} className="border border-border/80 bg-card">
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div>
-                      <span className="font-mono text-xs font-semibold text-foreground">
-                        {pay.reference}
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        Service Fee: <Money amountKobo={pay.serviceFeeKobo} /> • Channel: Card/NUBAN
-                      </p>
-                       <p className="text-xs text-muted-foreground">
-                        Status: <StatusBadge status={pay.status as StatusKind} />
-                       </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Total Settled
-                      </span>
-                      <p className="font-heading text-base font-bold text-primary">
-                        <Money amountKobo={pay.totalKobo} />
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            <PaginationBar
-              currentPage={curPage}
-              totalPages={totalPages}
-              totalItems={payments.length}
-              pageSize={PAGE_SIZE}
-              onPageChange={setPaymentsPage}
-              itemName="transactions"
-            />
-          </div>
-        );
-      })()}
+      {section === "payments" && <PaymentManagementView />}
 
       {/* Section: Payouts */}
-      {section === "payouts" && (() => {
-        const payouts = payoutsQuery.data ?? [];
-        const totalPages = Math.max(1, Math.ceil(payouts.length / PAGE_SIZE));
-        const curPage = Math.min(payoutsPage, totalPages);
-        const paginated = payouts.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
-
-        return (
-          <div className="space-y-4">
-            <div className="space-y-4">
-              {paginated.map((payout) => (
-                <Card key={payout.id} className="border border-border/80 bg-card">
-                  <CardContent className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={payout.status} />
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(payout.createdAt, "d MMM yyyy, h:mm a")}
-                        </span>
-                      </div>
-                      <p className="font-heading text-base font-semibold text-foreground">
-                        {payout.eventName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Beneficiary: {payout.ownerName} • {payout.bankName} (••••{" "}
-                        {payout.accountNumberLast4})
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <Money
-                        amountKobo={payout.amountKobo}
-                        className="font-heading text-lg font-bold text-primary"
-                      />
-                      {payout.status === "FAILED" && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleRetryPayout(payout.id)}
-                          disabled={retryPayoutMutation.isPending}
-                          className="gap-1.5"
-                        >
-                          <RotateCw className="h-3.5 w-3.5" />
-                          Retry Payout
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            <PaginationBar
-              currentPage={curPage}
-              totalPages={totalPages}
-              totalItems={payouts.length}
-              pageSize={PAGE_SIZE}
-              onPageChange={setPayoutsPage}
-              itemName="payouts"
-            />
-          </div>
-        );
-      })()}
+      {section === "payouts" && <PayoutManagementView />}
 
       {/* Section: Ledger */}
-      {section === "ledger" && (
-        <LedgerTable entries={ledgerQuery.data ?? []} />
-      )}
+      {section === "ledger" && <LedgerManagementView />}
 
       {/* Section: Vendors (Unified notice + Legacy Audit) */}
       {section === "vendors" && (

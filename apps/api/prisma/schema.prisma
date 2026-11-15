@@ -520,6 +520,9 @@ model Product {
   ratingCount   Int            @default(0)
   comboItems    Json?
   variants      Json?
+  boxRole       String         @default("ITEM")
+  boxMaxItems   Int?
+  boxSizeTier   String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   vendor        Vendor?        @relation(fields: [vendorId], references: [id])
@@ -553,12 +556,15 @@ model Order {
   giftNote        String?
   wrapStyle       String?
   status          OrderStatus          @default(PENDING_PAYMENT)
-  subtotalKobo    Int
-  deliveryFeeKobo Int                  @default(0)
-  packagingFeeKobo Int                 @default(0)
-  feeKobo         Int                  @default(0)
-  totalKobo       Int
-  customWishData  Json?
+  subtotalKobo     Int
+  deliveryFeeKobo  Int                  @default(0)
+  vatKobo          Int                  @default(0)
+  packagingFeeKobo Int                  @default(0)
+  feeKobo          Int                  @default(0)
+  totalKobo        Int
+  shippingZoneId   String?
+  shippingZoneName String?
+  customWishData   Json?
   paymentId       String?              @unique
   trackingToken   String               @unique
   deliveredAt     DateTime?
@@ -577,6 +583,22 @@ model Order {
   @@index([status, createdAt(sort: Desc)])
   @@index([vendorId, status])
   @@index([eventId])
+}
+
+model ShippingZone {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  areas        String
+  deliveryNote String?
+  etaLabel     String?
+  priceKobo    Int
+  enabled      Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([enabled, sortOrder])
 }
 
 model OrderItem {

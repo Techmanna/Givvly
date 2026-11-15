@@ -23,10 +23,17 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@givvly/contracts"],
   images: {
     remotePatterns: [
+      { protocol: "http", hostname: "localhost" },
+      { protocol: "http", hostname: "localhost", port: "4000" },
+      { protocol: "http", hostname: "localhost", port: "3000" },
+      { protocol: "http", hostname: "127.0.0.1" },
+      { protocol: "http", hostname: "127.0.0.1", port: "4000" },
+      { protocol: "http", hostname: "127.0.0.1", port: "3000" },
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "cdn.givvly.store" },
       { protocol: "https", hostname: "*.paystack.co" },
       { protocol: "https", hostname: "**" },
+      { protocol: "http", hostname: "**" },
     ],
   },
   turbopack: {

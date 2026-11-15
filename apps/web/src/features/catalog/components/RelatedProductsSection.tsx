@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Star, Gift, PackagePlus, SlidersHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star, Gift, ShoppingBag, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/shared/Money";
@@ -19,15 +19,15 @@ export function RelatedProductsSection({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const productsQuery = useCatalogProducts();
   const addItem = useCartStore((s) => s.addItem);
-  const openBox = useCartStore((s) => s.openBox);
+  const openBag = useCartStore((s) => s.openBag);
   const [selectedProductForOptions, setSelectedProductForOptions] = useState<CatalogProduct | null>(null);
 
-  const handleAddToBox = (product: CatalogProduct) => {
+  const handleAddToBag = (product: CatalogProduct) => {
     addItem(product, 1);
-    toast.success(`Added ${product.name} to your Gift Box!`, {
+    toast.success(`Added ${product.name} to your Shopping Bag!`, {
       action: {
-        label: "View Box",
-        onClick: () => openBox(),
+        label: "View Bag",
+        onClick: () => openBag(),
       },
     });
   };
@@ -37,7 +37,7 @@ export function RelatedProductsSection({
     if (activeVariants.length > 0) {
       setSelectedProductForOptions(item);
     } else {
-      handleAddToBox(item);
+      handleAddToBag(item);
     }
   };
 
@@ -261,8 +261,8 @@ export function RelatedProductsSection({
                     </>
                   ) : (
                     <>
-                      <PackagePlus className="h-3.5 w-3.5" />
-                      <span>Add to Box</span>
+                      <ShoppingBag className="h-3.5 w-3.5" />
+                      <span>Add to Bag</span>
                     </>
                   )}
                 </Button>

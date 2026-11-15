@@ -48,6 +48,46 @@ describe("ProductReviewsSection", () => {
     process.env.NEXT_PUBLIC_USE_MOCK_API = "true";
     resetMockDatabase();
     getMockDatabase().products.push(mockProduct as any);
+    getMockDatabase().reviewsByProduct[mockProduct.slug] = [
+      {
+        id: "rev_test_1",
+        productId: mockProduct.id,
+        productSlug: mockProduct.slug,
+        authorName: "Vanessa O.",
+        verified: true,
+        rating: 5,
+        title: "Sensational Keepsake Box",
+        comment:
+          "The cocoa gift box blew my guests away! Authentic Nigerian craft at its finest.",
+        date: "2 days ago",
+        timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000,
+      },
+      {
+        id: "rev_test_2",
+        productId: mockProduct.id,
+        productSlug: mockProduct.slug,
+        authorName: "Chidi N.",
+        verified: true,
+        rating: 5,
+        title: "Top Quality Nigerian Delivery",
+        comment:
+          "Ordered directly via WhatsApp and our concierge responded in under 2 minutes.",
+        date: "1 week ago",
+        timestamp: Date.now() - 7 * 24 * 60 * 60 * 1000,
+      },
+      {
+        id: "rev_test_3",
+        productId: mockProduct.id,
+        productSlug: mockProduct.slug,
+        authorName: "Amina Bello",
+        verified: true,
+        rating: 4,
+        title: "Recipient was deeply touched",
+        comment: "Sent this as a surprise birthday celebration blessing.",
+        date: "2 weeks ago",
+        timestamp: Date.now() - 14 * 24 * 60 * 60 * 1000,
+      },
+    ];
     useAuthStore.getState().clear();
   });
 
@@ -197,7 +237,7 @@ describe("ProductReviewsSection", () => {
     await user.type(titleInput, "Unmatched Elegance & Fast Dispatch");
     await user.type(
       commentInput,
-      "The cocoa gift box blew my guests away! Authentic Nigerian craft at its finest."
+      "Ordered for our anniversary celebration and it exceeded all expectations!"
     );
 
     const submitBtn = screen.getByRole("button", {
@@ -205,13 +245,20 @@ describe("ProductReviewsSection", () => {
     });
     await user.click(submitBtn);
 
-    await waitFor(() => {
-      expect(screen.getByText("Unmatched Elegance & Fast Dispatch")).toBeInTheDocument();
-      expect(screen.getByText("Folake Adebayo")).toBeInTheDocument();
-      expect(
-        screen.getByText(/The cocoa gift box blew my guests away!/i)
-      ).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(
+          screen.getByText("Unmatched Elegance & Fast Dispatch")
+        ).toBeInTheDocument();
+        expect(screen.getByText("Folake Adebayo")).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            /Ordered for our anniversary celebration and it exceeded all expectations!/i
+          )
+        ).toBeInTheDocument();
+      },
+      { timeout: 4000 }
+    );
   });
 });
 

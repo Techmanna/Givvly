@@ -1,20 +1,5 @@
-import type { Metadata } from "next";
-import { BoxCheckoutForm } from "@/features/orders/components/BoxCheckoutForm";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Gift Box Checkout | Givvly",
-  description:
-    "Review and complete payment for your curated Gift Box of celebration items on Givvly.",
-  robots: {
-    index: false,
-    follow: false,
-  },
-};
-
-export default function BoxCheckoutPage() {
-  return (
-    <main className="min-h-screen bg-background">
-      <BoxCheckoutForm />
-    </main>
-  );
+export default function BoxCheckoutRedirectPage() {
+  redirect("/checkout/bag");
 }

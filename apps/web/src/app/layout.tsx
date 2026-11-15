@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, DM_Sans } from "next/font/google";
 import { QueryProvider } from "@/lib/query-client";
 import { Toaster } from "@/components/ui/sonner";
-import { BoxDrawer } from "@/components/shared/BoxDrawer";
+import { BagDrawer } from "@/components/shared/BagDrawer";
 import "@/styles/globals.css";
 
 const fraunces = Fraunces({
@@ -234,7 +234,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
         <QueryProvider>
           {children}
-          <BoxDrawer />
+          <BagDrawer />
           <Toaster position="top-center" richColors />
         </QueryProvider>
       </body>

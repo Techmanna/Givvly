@@ -43,54 +43,6 @@ import {
 
 export type { ProductReview };
 
-export function getInitialReviews(product: CatalogProduct): ProductReview[] {
-  const isHamper =
-    product.isCombo || product.name.toLowerCase().includes("hamper");
-  const isLuxury = product.priceKobo > 5_000_000;
-
-  return [
-    {
-      id: "rev_1",
-      authorName: "Vanessa O.",
-      verified: true,
-      rating: 5,
-      title: (product?.name || "Curated Selection")
-        .split(" ")
-        .slice(0, 3)
-        .join(" "),
-      comment: `The ${(
-        product?.name || "gift"
-      ).toLowerCase()} was exquisitely packaged and arrived right on time for our celebration. Impeccable presentation and genuine attention to detail. Will definitely order again!`,
-      date: "2 days ago",
-      timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000,
-    },
-    {
-      id: "rev_2",
-      authorName: "Chidi N.",
-      verified: true,
-      rating: 5,
-      title: isHamper
-        ? "Sensational Keepsake Box"
-        : "Top Quality Nigerian Delivery",
-      comment:
-        "Ordered directly via WhatsApp and our concierge responded in under 2 minutes. The satin ribbon and personalized gold card brought tears of joy to the bride.",
-      date: "1 week ago",
-      timestamp: Date.now() - 7 * 24 * 60 * 60 * 1000,
-    },
-    {
-      id: "rev_3",
-      authorName: "Amina Bello",
-      verified: true,
-      rating: isLuxury ? 5 : 4,
-      title: "Recipient was deeply touched",
-      comment:
-        "Sent this as a surprise birthday celebration blessing. Everything from the wrapping to the authentic items exceeded our expectations.",
-      date: "2 weeks ago",
-      timestamp: Date.now() - 14 * 24 * 60 * 60 * 1000,
-    },
-  ];
-}
-
 const RATING_DESCRIPTIONS: Record<number, string> = {
   5: "5 / 5 Stars - Exceptional Presentation & Quality",
   4: "4 / 5 Stars - Highly Recommended Gift",
@@ -105,14 +57,10 @@ export function ProductReviewsSection({
   product: CatalogProduct;
 }) {
   const { user } = useAuthStore();
-  const initialReviews = useMemo(() => getInitialReviews(product), [product]);
 
-  // Integrated dynamic query for reviews
-  const { data: fetchedReviews, isLoading } = useProductReviews(
-    product.slug,
-    initialReviews
-  );
-  const reviews = fetchedReviews ?? initialReviews;
+  // 100% dynamic query for verified reviews from database
+  const { data: fetchedReviews, isLoading } = useProductReviews(product.slug);
+  const reviews = fetchedReviews ?? [];
 
   // Integrated review eligibility query (checks if user is logged in & has purchased)
   const { data: eligibility, isLoading: isCheckingEligibility } =
@@ -145,7 +93,7 @@ export function ProductReviewsSection({
 
   const totalReviews = reviews.length;
   const ratingSum = reviews.reduce((acc, r) => acc + r.rating, 0);
-  const averageRating = totalReviews > 0 ? ratingSum / totalReviews : 5.0;
+  const averageRating = totalReviews > 0 ? ratingSum / totalReviews : 0;
 
   const ratingCounts = {
     5: reviews.filter((r) => r.rating === 5).length,
@@ -261,7 +209,7 @@ export function ProductReviewsSection({
               <Star
                 key={s}
                 className={`h-5 w-5 ${
-                  s <= Math.round(averageRating)
+                  totalReviews > 0 && s <= Math.round(averageRating)
                     ? "fill-[#D4A959] text-[#D4A959]"
                     : "fill-muted text-muted-foreground/30"
                 }`}
@@ -269,11 +217,14 @@ export function ProductReviewsSection({
             ))}
           </div>
           <p className="mt-2 font-heading text-3xl font-bold text-foreground">
-            {averageRating.toFixed(2)}
+            {totalReviews > 0 ? averageRating.toFixed(2) : "—"}
           </p>
           <p className="text-xs font-medium text-muted-foreground">
-            Based on {totalReviews} verified review
-            {totalReviews === 1 ? "" : "s"}
+            {totalReviews > 0
+              ? `Based on ${totalReviews} verified review${
+                  totalReviews === 1 ? "" : "s"
+                }`
+              : "No reviews yet"}
           </p>
         </div>
 
@@ -589,7 +540,24 @@ export function ProductReviewsSection({
       </div>
 
       {/* Reviews List or Empty State */}
-      {filteredReviews.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-4">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="rounded-2xl border border-border/70 bg-card p-5 space-y-3 animate-pulse"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-full bg-muted/60" />
+                <div className="h-3 w-28 rounded bg-muted/60" />
+              </div>
+              <div className="h-3 w-20 rounded bg-muted/40" />
+              <div className="h-4 w-48 rounded bg-muted/50" />
+              <div className="h-3 w-full rounded bg-muted/30" />
+            </div>
+          ))}
+        </div>
+      ) : filteredReviews.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/20 p-8 text-center space-y-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Star className="h-6 w-6 fill-primary/20 text-primary" />
@@ -733,7 +701,7 @@ export function ProductReviewsSection({
               tracking.
             </p>
             <span className="inline-block text-[11px] font-medium text-muted-foreground pt-0.5">
-              Lagos & Abuja same-day/next-day priority dispatch.
+              Lagos same-day/next-day priority dispatch.
             </span>
           </div>
         </div>

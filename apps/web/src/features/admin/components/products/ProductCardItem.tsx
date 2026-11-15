@@ -31,7 +31,7 @@ export function ProductCardItem({
       key={product.id}
       className={`overflow-hidden border transition-all duration-200 hover:shadow-soft flex flex-col justify-between ${
         isSelected
-          ? "ring-2 ring-primary border-primary/60 bg-primary/[0.02]"
+          ? "ring-0.5 ring-primary border-primary/60 bg-primary/[0.02]"
           : product.inStock
             ? "border-border/80 bg-card hover:border-primary/40"
             : "border-border/40 bg-muted/20 opacity-80"

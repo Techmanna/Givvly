@@ -40,7 +40,7 @@ import { logoutUser } from "@/features/auth/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/cn";
 import { BrandLogo } from "./BrandLogo";
-import { BoxButton } from "./BoxButton";
+import { BagButton } from "./BagButton";
 
 export type UserAppHeaderProps = {
   user?: User | null;
@@ -80,6 +80,7 @@ export function UserAppHeader({ user: initialUser }: UserAppHeaderProps) {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/events/new", label: "Create Event", icon: CalendarPlus },
     { href: "/gifts", label: "Gift Atelier", icon: Gift },
+    { href: "/curate-box", label: "Curate Your Box", icon: Package },
     { href: "/orders", label: "My Orders", icon: Package },
     { href: "/account/payout", label: "Bank & Payouts", icon: CreditCard },
   ];
@@ -163,8 +164,8 @@ export function UserAppHeader({ user: initialUser }: UserAppHeaderProps) {
             </Button>
           ) : null}
 
-          {/* Gift Box button */}
-          <BoxButton />
+          {/* Shopping Bag button */}
+          <BagButton />
 
           {/* Notification bell */}
           <NotificationBell />

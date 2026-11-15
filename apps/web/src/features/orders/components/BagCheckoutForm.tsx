@@ -11,14 +11,14 @@ import {
   ArrowLeft,
   CreditCard,
   Gift,
+  GiftIcon,
   Mail,
   Minus,
   Package,
-  PackageOpen,
   Phone,
   Plus,
   ShieldCheck,
-  Sparkles,
+  ShoppingBag,
   Trash2,
   Truck,
   Users,
@@ -27,7 +27,6 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,18 +41,21 @@ import { PaymentGatewayModal } from "./PaymentGatewayModal";
 import { openPaystackCheckout } from "@/features/gifts/paystack";
 import { verifyOrderPayment } from "../api";
 import { useCreateDirectOrder, useOrdersList } from "../hooks/useOrders";
+import { useShippingZones } from "@/features/catalog/hooks/useCatalog";
 import {
   SavedAddressSelector,
   SaveAddressToggle,
 } from "./SavedAddressSelector";
 import { useSavedAddressStore } from "@/stores/saved-address-store";
 import type { Order } from "../types";
-import type { SavedAddress } from "@givvly/contracts";
-import { NIGERIAN_PHONE_REGEX } from "@givvly/contracts";
+import type { SavedAddress, ShippingZone } from "@givvly/contracts";
+import {
+  DELIVERY_CHARGES_NOTE,
+  NIGERIAN_PHONE_REGEX,
+  calculateOrderVatAndTotal,
+} from "@givvly/contracts";
 
-const WRAPPING_FEE_KOBO = 250_000; // ₦2,500 flat for luxury whole-box presentation
-
-const boxCheckoutFormSchema = z
+const bagCheckoutFormSchema = z
   .object({
     recipientName: z
       .string()
@@ -109,14 +111,19 @@ const boxCheckoutFormSchema = z
     }
   );
 
-type BoxCheckoutInput = z.infer<typeof boxCheckoutFormSchema>;
-type BoxCheckoutFormValues = Omit<BoxCheckoutInput, "wrapping"> & {
+type BagCheckoutInput = z.infer<typeof bagCheckoutFormSchema>;
+type BagCheckoutFormValues = Omit<BagCheckoutInput, "wrapping"> & {
   wrapping?: boolean;
 };
 
-export function BoxCheckoutForm() {
+export function BagCheckoutForm() {
   const router = useRouter();
-  const { items, updateItemQty, removeItem, clearBox, draft, updateDraft } =
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const { items, updateItemQty, removeItem, clearBag, draft, updateDraft } =
     useCartStore();
   const { user } = useAuthStore();
   const createOrderMutation = useCreateDirectOrder();
@@ -150,8 +157,8 @@ export function BoxCheckoutForm() {
   );
   const totalCount = items.reduce((acc, item) => acc + item.qty, 0);
 
-  const form = useForm<BoxCheckoutFormValues, unknown, BoxCheckoutInput>({
-    resolver: zodResolver(boxCheckoutFormSchema),
+  const form = useForm<BagCheckoutFormValues, unknown, BagCheckoutInput>({
+    resolver: zodResolver(bagCheckoutFormSchema),
     defaultValues: {
       recipientName: draft.recipientName || "",
       recipientPhone: draft.recipientPhone || "",
@@ -214,9 +221,32 @@ export function BoxCheckoutForm() {
     toast.success(`Saved "${saved.label || saved.recipientName}" to your address book!`);
   };
 
-  const isWrappingSelected = form.watch("wrapping");
-  const wrappingFeeKobo = isWrappingSelected ? WRAPPING_FEE_KOBO : 0;
-  const grandTotalKobo = subtotalKobo + wrappingFeeKobo;
+  const { data: shippingZones = [] } = useShippingZones();
+  const [selectedShippingZoneId, setSelectedShippingZoneId] = React.useState<string>("");
+
+  React.useEffect(() => {
+    if (!selectedShippingZoneId && shippingZones.length > 0) {
+      setSelectedShippingZoneId(shippingZones[0]!.id);
+    }
+  }, [shippingZones, selectedShippingZoneId]);
+
+  const selectedShippingZone: ShippingZone | undefined = React.useMemo(
+    () =>
+      shippingZones.find((z) => z.id === selectedShippingZoneId) ??
+      shippingZones[0],
+    [shippingZones, selectedShippingZoneId]
+  );
+
+  const shippingFeeKobo = selectedShippingZone?.priceKobo ?? 0;
+  const vatCalc = React.useMemo(
+    () =>
+      calculateOrderVatAndTotal({
+        subtotalKobo,
+        shippingFeeKobo,
+      }),
+    [subtotalKobo, shippingFeeKobo]
+  );
+  const grandTotalKobo = vatCalc.totalKobo;
 
   // Persist form changes into cart draft
   React.useEffect(() => {
@@ -237,9 +267,9 @@ export function BoxCheckoutForm() {
   }, [form, updateDraft]);
 
   const handlePaymentSuccess = (ref: string, orderId: string) => {
-    clearBox();
+    clearBag();
     setIsPaymentModalOpen(false);
-    toast.success("Order confirmed! Preparing your Gift Box for delivery.");
+    toast.success("Order confirmed! Preparing your items for delivery.");
     router.push(
       `/checkout/success?orderId=${encodeURIComponent(
         orderId
@@ -249,21 +279,60 @@ export function BoxCheckoutForm() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     if (items.length === 0) {
-      toast.error("Your gift box is empty. Add gifts before checking out.");
+      toast.error("Your shopping bag is empty. Add gifts before checking out.");
       return;
     }
 
-    const buyerEmail =
-      values.buyerEmail?.trim() || user?.email || "guest@givvly.store";
+    const buyerEmail = values.buyerEmail?.trim() || user?.email?.trim() || "";
+    if (!buyerEmail) {
+      form.setError("buyerEmail", {
+        message: "Enter your email address for your order receipt and payment",
+      });
+      toast.error("Please enter your email address before proceeding.");
+      return;
+    }
 
     try {
-      const orderItems = items.map((i) => ({
-        productId: i.id,
-        productSlug: i.slug,
-        name: i.name,
-        qty: i.qty,
-        unitPriceKobo: i.priceKobo,
-      }));
+      const orderItems = items.flatMap((i) => {
+        if (i.curatedBox) {
+          return [
+            {
+              productId: i.curatedBox.boxProductId,
+              productSlug: i.curatedBox.boxSlug,
+              name: i.curatedBox.boxName,
+              qty: i.qty,
+              unitPriceKobo: i.curatedBox.boxPriceKobo,
+            },
+            ...i.curatedBox.items.map((inner) => ({
+              productId: inner.productId,
+              productSlug: inner.slug,
+              name: inner.variantName
+                ? `${inner.name} (${inner.variantName})`
+                : inner.name,
+              qty: inner.qty * i.qty,
+              unitPriceKobo: inner.priceKobo,
+            })),
+          ];
+        }
+        return [
+          {
+            productId: i.id,
+            productSlug: i.slug,
+            name: i.name,
+            qty: i.qty,
+            unitPriceKobo: i.priceKobo,
+          },
+        ];
+      });
+
+      const curatedBoxNotes = items
+        .map((i) => i.curatedBox?.giftNote?.trim())
+        .filter((note): note is string => Boolean(note));
+      const combinedGiftNote = [values.giftNote?.trim(), ...curatedBoxNotes]
+        .filter(Boolean)
+        .join(" | ");
+
+      const firstItemSlug = items[0]?.curatedBox?.boxSlug || items[0]?.slug;
 
       const idempotencyKey =
         draft.idempotencyKey ||
@@ -271,7 +340,7 @@ export function BoxCheckoutForm() {
 
       const result = await createOrderMutation.mutateAsync({
         items: orderItems,
-        productSlug: items[0]?.slug,
+        productSlug: firstItemSlug,
         recipientName: values.recipientName,
         recipientPhone: values.recipientPhone,
         address: {
@@ -280,8 +349,9 @@ export function BoxCheckoutForm() {
           city: values.city,
           state: values.state,
         },
-        giftNote: values.giftNote || undefined,
-        wrapping: values.wrapping,
+        giftNote: combinedGiftNote || undefined,
+        wrapping: false,
+        shippingZoneId: selectedShippingZone?.id,
         buyerEmail,
       });
 
@@ -384,24 +454,36 @@ export function BoxCheckoutForm() {
     }
   });
 
+  if (!mounted) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-muted/60 mb-6" />
+        <div className="grid gap-8 lg:grid-cols-12">
+          <div className="lg:col-span-7 h-96 animate-pulse rounded-3xl bg-muted/40" />
+          <div className="lg:col-span-5 h-72 animate-pulse rounded-3xl bg-muted/40" />
+        </div>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
         <div className="flex h-24 w-24 mx-auto items-center justify-center rounded-3xl bg-primary/10 text-primary">
-          <PackageOpen className="h-12 w-12 stroke-[1.5]" />
+          <ShoppingBag className="h-12 w-12 stroke-[1.5]" />
         </div>
         <h1 className="mt-6 font-heading text-2xl sm:text-3xl font-bold text-foreground">
-          Your Gift Box is Empty
+          Your Shopping Bag is Empty
         </h1>
         <p className="mt-3 text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-          You don&apos;t have any gifts in your Box yet. Browse our curated
-          Gift Atelier to assemble a customized gift package for your loved
+          You don&apos;t have any gifts in your Shopping Bag yet. Browse our curated
+          Gift Atelier to assemble a celebratory gift order for your loved
           ones.
         </p>
         <div className="mt-8">
           <Button asChild size="lg" className="rounded-full px-8 gap-2 font-semibold">
             <Link href="/gifts">
-              <Sparkles className="h-4 w-4" />
+              <GiftIcon className="h-4 w-4" />
               <span>Explore Gift Atelier</span>
             </Link>
           </Button>
@@ -421,7 +503,7 @@ export function BoxCheckoutForm() {
           <span>Continue browsing Gift Atelier</span>
         </Link>
         <h1 className="mt-2 font-heading text-2xl sm:text-3xl font-bold text-foreground">
-          Checkout Your Gift Box
+          Checkout Your Shopping Bag
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Bundle {totalCount} {totalCount === 1 ? "gift" : "gifts"} into one
@@ -432,7 +514,7 @@ export function BoxCheckoutForm() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         {/* Form Fields: Recipient, Delivery, Note */}
         <div className="lg:col-span-7 space-y-6">
-          <form id="box-checkout-form" onSubmit={onSubmit} className="space-y-6">
+          <form id="bag-checkout-form" onSubmit={onSubmit} className="space-y-6">
             {/* Presaved Addresses Selector */}
             <SavedAddressSelector
               selectedAddressId={selectedAddressId}
@@ -636,6 +718,76 @@ export function BoxCheckoutForm() {
               </CardContent>
             </Card>
 
+            {/* Delivery Zone & Shipping Method */}
+            <Card className="rounded-2xl border-border/80 shadow-xs">
+              <CardHeader className="pb-4 border-b border-border/60">
+                <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                  <Truck className="h-4 w-4 text-primary" />
+                  <span>Delivery Zone &amp; Shipping</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-5 space-y-3">
+                {shippingZones.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Loading available delivery zones...
+                  </p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {shippingZones.map((zone) => {
+                      const isSelected = selectedShippingZone?.id === zone.id;
+                      return (
+                        <button
+                          key={zone.id}
+                          type="button"
+                          onClick={() => setSelectedShippingZoneId(zone.id)}
+                          className={`w-full rounded-xl border p-3.5 text-left transition-all ${
+                            isSelected
+                              ? "border-primary bg-primary/5 ring-1 ring-primary"
+                              : "border-border hover:border-primary/40"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold text-foreground">
+                                {zone.name}
+                                {zone.etaLabel ? ` (${zone.etaLabel})` : ""}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {zone.areas}
+                              </p>
+                              {zone.deliveryNote && (
+                                <p className="text-[10px] font-medium text-amber-700 dark:text-amber-600">
+                                  {zone.deliveryNote}
+                                </p>
+                              )}
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <Money
+                                amountKobo={zone.priceKobo}
+                                className="text-xs font-bold text-foreground"
+                              />
+                              <p className="text-[10px] text-muted-foreground">
+                                incl. VAT
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-border/70 bg-muted/40 p-3.5 space-y-1">
+                  <p className="text-[11px] font-bold text-foreground">
+                    A note about delivery charges
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    {DELIVERY_CHARGES_NOTE}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Payment Method Selector */}
             <Card className="rounded-2xl border-border/80 shadow-xs">
               <CardHeader className="pb-4 border-b border-border/60">
@@ -726,15 +878,15 @@ export function BoxCheckoutForm() {
             <CardHeader className="pb-4 border-b border-border/60">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
-                  <Package className="h-4 w-4 text-primary" />
-                  <span>Items in Your Box ({totalCount})</span>
+                  <ShoppingBag className="h-4 w-4 text-primary" />
+                  <span>Items in Your Bag ({totalCount})</span>
                 </CardTitle>
                 <button
                   type="button"
-                  onClick={clearBox}
+                  onClick={clearBag}
                   className="text-xs font-medium text-muted-foreground hover:text-destructive transition-colors"
                 >
-                  Clear box
+                  Clear bag
                 </button>
               </div>
             </CardHeader>
@@ -742,105 +894,81 @@ export function BoxCheckoutForm() {
             <CardContent className="pt-5 space-y-5">
               {/* Items List */}
               <div className="space-y-3 max-h-72 overflow-y-auto pr-1 divide-y divide-border/60">
-                {items.map((item) => (
-                  <div
-                    key={item.slug}
-                    className="flex items-center gap-3 pt-3 first:pt-0"
-                  >
-                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border/80 bg-muted/40">
-                      {item.imageUrl ? (
-                        <Image
-                          src={item.imageUrl}
-                          alt={item.name}
-                          fill
-                          className="object-cover"
-                          sizes="56px"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                          <Package className="h-5 w-5" />
-                        </div>
-                      )}
-                    </div>
+                {items.map((item) => {
+                  const itemKey = item.variantId
+                    ? `${item.slug}__${item.variantId}`
+                    : item.id || item.slug;
+                  return (
+                    <div
+                      key={itemKey}
+                      className="flex items-center gap-3 pt-3 first:pt-0"
+                    >
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border/80 bg-muted/40">
+                        {item.imageUrl ? (
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.name}
+                            fill
+                            className="object-cover"
+                            sizes="56px"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                            <ShoppingBag className="h-5 w-5" />
+                          </div>
+                        )}
+                      </div>
 
-                    <div className="flex flex-1 flex-col min-w-0">
-                      <p className="text-xs font-semibold text-foreground truncate">
-                        {item.name}
-                      </p>
-                      <div className="mt-1 flex items-center justify-between">
-                        <Money
-                          amountKobo={item.priceKobo}
-                          className="text-xs font-medium text-primary"
-                        />
+                      <div className="flex flex-1 flex-col min-w-0">
+                        <p className="text-xs font-semibold text-foreground truncate">
+                          {item.name}
+                        </p>
+                        <div className="mt-1 flex items-center justify-between">
+                          <Money
+                            amountKobo={item.priceKobo}
+                            className="text-xs font-medium text-primary"
+                          />
 
-                        {/* Qty controls */}
-                        <div className="flex items-center gap-1.5 border border-border/80 rounded-full px-1.5 py-0.5 bg-background">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateItemQty(item.slug, item.qty - 1)
-                            }
-                            aria-label={`Decrease ${item.name} quantity`}
-                            className="text-muted-foreground hover:text-foreground p-0.5"
-                          >
-                            <Minus className="h-2.5 w-2.5" />
-                          </button>
-                          <span className="text-[11px] font-bold px-1 min-w-[12px] text-center">
-                            {item.qty}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateItemQty(item.slug, item.qty + 1)
-                            }
-                            aria-label={`Increase ${item.name} quantity`}
-                            className="text-muted-foreground hover:text-foreground p-0.5"
-                          >
-                            <Plus className="h-2.5 w-2.5" />
-                          </button>
+                          {/* Qty controls */}
+                          <div className="flex items-center gap-1.5 border border-border/80 rounded-full px-1.5 py-0.5 bg-background">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateItemQty(itemKey, item.qty - 1)
+                              }
+                              aria-label={`Decrease ${item.name} quantity`}
+                              className="text-muted-foreground hover:text-foreground p-0.5"
+                            >
+                              <Minus className="h-2.5 w-2.5" />
+                            </button>
+                            <span className="text-[11px] font-bold px-1 min-w-[12px] text-center">
+                              {item.qty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateItemQty(itemKey, item.qty + 1)
+                              }
+                              aria-label={`Increase ${item.name} quantity`}
+                              className="text-muted-foreground hover:text-foreground p-0.5"
+                            >
+                              <Plus className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeItem(itemKey)}
+                        aria-label={`Remove ${item.name}`}
+                        className="text-muted-foreground/60 hover:text-destructive p-1"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => removeItem(item.slug)}
-                      aria-label={`Remove ${item.name}`}
-                      className="text-muted-foreground/60 hover:text-destructive p-1"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Whole-Box Luxury Gift Wrapping Toggle */}
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="box-wrapping"
-                    checked={isWrappingSelected}
-                    onCheckedChange={(checked) =>
-                      form.setValue("wrapping", Boolean(checked))
-                    }
-                    className="mt-0.5"
-                  />
-                  <div className="space-y-0.5">
-                    <label
-                      htmlFor="box-wrapping"
-                      className="text-xs font-bold text-foreground cursor-pointer flex items-center gap-1.5"
-                    >
-                      <span>Luxury Whole-Box Gift Presentation</span>
-                      <span className="text-primary font-semibold">
-                        (+₦2,500 flat)
-                      </span>
-                    </label>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      All gifts enclosed together in our signature gold-embossed
-                      celebration box with satin ribbon ties.
-                    </p>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
 
               {/* Price Breakdown */}
@@ -850,39 +978,44 @@ export function BoxCheckoutForm() {
                   <Money amountKobo={subtotalKobo} className="font-medium text-foreground" />
                 </div>
 
-                {isWrappingSelected && (
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Signature Box Presentation</span>
-                    <Money amountKobo={WRAPPING_FEE_KOBO} className="font-medium text-foreground" />
-                  </div>
-                )}
-
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Delivery Logistics</span>
-                  <span className="text-success font-medium">Standard Dispatch</span>
+                  <span>VAT (7.5% on gifts)</span>
+                  <Money amountKobo={vatCalc.giftVatKobo} className="font-medium text-foreground" />
                 </div>
 
-                <div className="border-t border-border/80 pt-2 flex items-center justify-between text-sm font-bold text-foreground">
-                  <span>Total Amount</span>
-                  <Money
-                    amountKobo={grandTotalKobo}
-                    className="text-lg font-bold text-primary"
-                  />
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>
+                    Shipping ({selectedShippingZone?.name ?? "Standard"} — incl. VAT)
+                  </span>
+                  <Money amountKobo={shippingFeeKobo} className="font-medium text-foreground" />
+                </div>
+
+                <div className="border-t border-border/80 pt-2 space-y-0.5">
+                  <div className="flex items-center justify-between text-sm font-bold text-foreground">
+                    <span>Total Amount</span>
+                    <Money
+                      amountKobo={grandTotalKobo}
+                      className="text-lg font-bold text-primary"
+                    />
+                  </div>
+                  <p className="text-right text-[11px] text-muted-foreground">
+                    includes <Money amountKobo={vatCalc.totalVatKobo} className="font-medium" /> VAT
+                  </p>
                 </div>
               </div>
 
               {/* Submit CTA */}
               <Button
                 type="submit"
-                form="box-checkout-form"
+                form="bag-checkout-form"
                 size="lg"
                 disabled={createOrderMutation.isPending || payWithWalletMutation.isPending}
                 className="w-full rounded-full font-bold shadow-md hover:shadow-lg transition-all"
               >
                 {createOrderMutation.isPending || payWithWalletMutation.isPending ? (
-                  <span>Processing Your Box...</span>
+                  <span>Processing Order...</span>
                 ) : (
-                  <span>Pay & Send Gift Box (₦{Math.round(grandTotalKobo / 100).toLocaleString()})</span>
+                  <span>Pay & Place Order (₦{Math.round(grandTotalKobo / 100).toLocaleString()})</span>
                 )}
               </Button>
 

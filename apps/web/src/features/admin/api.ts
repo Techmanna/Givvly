@@ -1,10 +1,13 @@
 import { api } from "@/lib/api-client";
 import type {
+  AdminLedgerReport,
   AdminModerationItem,
   AdminOrderDetail,
   AdminPaymentRecord,
-  AdminPayoutRecord,
+  AdminPayoutDetail,
   AdminProduct,
+  AdminUserDetail,
+  AdminUserListItem,
   AdminVendorSummary,
   CreateProductInput,
   DisputeRecord,
@@ -32,7 +35,7 @@ export function resolveAdminModerationItem(
   );
 }
 
-export async function fetchAdminPayouts(): Promise<AdminPayoutRecord[]> {
+export async function fetchAdminPayouts(): Promise<AdminPayoutDetail[]> {
   const res = await api<any>("/admin/payouts");
   return Array.isArray(res) ? res : (res?.payouts ?? []);
 }
@@ -46,17 +49,49 @@ export function retryAdminPayout(payoutId: string) {
   );
 }
 
-export async function fetchAdminLedger(): Promise<LedgerEntry[]> {
-  const res = await api<any>("/admin/ledger");
-  const rawEntries = Array.isArray(res) ? res : (res?.recentEntries ?? []);
+function mapLedgerEntries(rawEntries: any[]) {
   return rawEntries.map((e: any) => ({
     id: e.id,
     type: e.type ?? (e.direction === "CREDIT" ? "CREDIT" : "DEBIT"),
+    accountCode: e.accountCode ?? "PLATFORM",
     description: e.description ?? e.accountCode ?? "Platform Transaction",
     amountKobo: e.amountKobo ?? 0,
     reference: e.reference ?? e.id,
-    createdAt: typeof e.createdAt === "string" ? e.createdAt : (e.createdAt?.toISOString?.() ?? new Date().toISOString()),
+    createdAt:
+      typeof e.createdAt === "string"
+        ? e.createdAt
+        : (e.createdAt?.toISOString?.() ?? new Date().toISOString()),
   }));
+}
+
+export async function fetchAdminLedger(): Promise<LedgerEntry[]> {
+  const res = await api<any>("/admin/ledger");
+  const rawEntries = Array.isArray(res) ? res : (res?.recentEntries ?? []);
+  return mapLedgerEntries(rawEntries);
+}
+
+export async function fetchAdminLedgerReport(): Promise<AdminLedgerReport> {
+  const res = await api<any>("/admin/ledger");
+  const rawEntries = Array.isArray(res) ? res : (res?.recentEntries ?? []);
+  const entries = mapLedgerEntries(rawEntries);
+  const totalDebit =
+    res?.trialBalance?.totalDebit ??
+    entries
+      .filter((e) => e.type === "DEBIT")
+      .reduce((s, e) => s + e.amountKobo, 0);
+  const totalCredit =
+    res?.trialBalance?.totalCredit ??
+    entries
+      .filter((e) => e.type === "CREDIT")
+      .reduce((s, e) => s + e.amountKobo, 0);
+  return {
+    trialBalance: {
+      totalDebit,
+      totalCredit,
+      isBalanced: res?.trialBalance?.isBalanced ?? totalDebit === totalCredit,
+    },
+    entries,
+  };
 }
 
 export async function fetchAdminDisputes(): Promise<DisputeRecord[]> {
@@ -77,9 +112,105 @@ export function resolveAdminDispute(
   );
 }
 
-export async function fetchAdminEvents(): Promise<EventSummary[]> {
+export type AdminEventListItem = EventSummary & {
+  host?: { id: string; name: string; email: string } | null;
+  registryCount?: number;
+  poolCount?: number;
+  orderCount?: number;
+  postCount?: number;
+  createdAt?: string;
+};
+
+export type AdminEventDetail = {
+  id: string;
+  slug: string;
+  name: string;
+  type: string;
+  date: string;
+  story: string | null;
+  visibility: string;
+  status: string;
+  currency: string;
+  keepsakePublic: boolean;
+  moneyGiftsEnabled: boolean;
+  publishedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  host: { id: string; name: string; email: string; phone: string | null } | null;
+  stats: {
+    totalReceivedKobo: number;
+    successfulGiftCount: number;
+    totalOrdersKobo: number;
+    paidOrderCount: number;
+    totalPayoutsKobo: number;
+    giftCount: number;
+    orderCount: number;
+    registryCount: number;
+    poolCount: number;
+    postCount: number;
+    payoutCount: number;
+    rsvpCounts: {
+      yes: number;
+      no: number;
+      maybe: number;
+      total: number;
+    };
+  };
+  recentTransactions: Array<{
+    id: string;
+    kind: "GIFT" | "ORDER";
+    actorName: string;
+    actorEmail: string | null;
+    amountKobo: number;
+    status: string;
+    reference: string;
+    label: string;
+    createdAt: string;
+  }>;
+  recentActivity: {
+    rsvps: Array<{
+      id: string;
+      name: string;
+      email: string | null;
+      response: string;
+      plusOneName: string | null;
+      createdAt: string;
+    }>;
+    posts: Array<{
+      id: string;
+      authorName: string;
+      text: string | null;
+      status: string;
+      createdAt: string;
+    }>;
+  };
+};
+
+export async function fetchAdminEvents(): Promise<AdminEventListItem[]> {
   const res = await api<any>("/admin/events");
   return Array.isArray(res) ? res : (res?.events ?? []);
+}
+
+export function fetchAdminEventDetail(id: string): Promise<AdminEventDetail> {
+  return api<AdminEventDetail>(`/admin/events/${encodeURIComponent(id)}`);
+}
+
+export function updateAdminEventStatus(
+  id: string,
+  status: "DRAFT" | "PUBLISHED" | "CLOSED" | "ARCHIVED",
+  reason?: string
+) {
+  return api(`/admin/events/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    body: { status, ...(reason ? { reason } : {}) },
+  });
+}
+
+export function deleteAdminEvent(id: string): Promise<{ deleted: boolean; id: string }> {
+  return api<{ deleted: boolean; id: string }>(
+    `/admin/events/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
 }
 
 export async function fetchAdminPayments(): Promise<AdminPaymentRecord[]> {
@@ -186,9 +317,25 @@ export async function fetchAdminVendors(): Promise<AdminVendorSummary[]> {
   return Array.isArray(res) ? res : (res?.vendors ?? []);
 }
 
-export async function fetchAdminUsers(): Promise<User[]> {
+export async function fetchAdminUsers(): Promise<AdminUserListItem[]> {
   const res = await api<any>("/admin/users");
   return Array.isArray(res) ? res : (res?.users ?? []);
+}
+
+export function fetchAdminUserDetail(id: string): Promise<AdminUserDetail> {
+  return api<AdminUserDetail>(`/admin/users/${encodeURIComponent(id)}`);
+}
+
+export function suspendAdminUser(id: string) {
+  return api(`/admin/users/${encodeURIComponent(id)}/suspend`, {
+    method: "PATCH",
+  });
+}
+
+export function restoreAdminUser(id: string) {
+  return api(`/admin/users/${encodeURIComponent(id)}/restore`, {
+    method: "PATCH",
+  });
 }
 
 export async function fetchAdminProducts(): Promise<AdminProduct[]> {
@@ -296,6 +443,39 @@ export function provideAdminBespokeQuote(
       method: "POST",
       body: payload,
     }
+  );
+}
+
+export function fetchAdminShippingZones(): Promise<import("@givvly/contracts").ShippingZone[]> {
+  return api<import("@givvly/contracts").ShippingZone[]>("/admin/shipping-zones");
+}
+
+export function createAdminShippingZone(
+  payload: Omit<import("@givvly/contracts").ShippingZone, "id">
+): Promise<import("@givvly/contracts").ShippingZone> {
+  return api<import("@givvly/contracts").ShippingZone>("/admin/shipping-zones", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function updateAdminShippingZone(
+  id: string,
+  payload: Partial<Omit<import("@givvly/contracts").ShippingZone, "id">>
+): Promise<import("@givvly/contracts").ShippingZone> {
+  return api<import("@givvly/contracts").ShippingZone>(
+    `/admin/shipping-zones/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: payload,
+    }
+  );
+}
+
+export function deleteAdminShippingZone(id: string): Promise<{ deleted: boolean; id: string }> {
+  return api<{ deleted: boolean; id: string }>(
+    `/admin/shipping-zones/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
   );
 }
 

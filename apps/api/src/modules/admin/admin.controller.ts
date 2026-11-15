@@ -33,9 +33,19 @@ import {
   createCollectionSchema,
 } from "./dto/admin-product.dto";
 import {
+  CreateShippingZoneDto,
+  createShippingZoneSchema,
+  UpdateShippingZoneDto,
+  updateShippingZoneSchema,
+} from "./dto/admin-shipping.dto";
+import {
   UpdateOrderStatusDto,
   updateOrderStatusSchema,
 } from "./dto/admin-orders.dto";
+import {
+  UpdateAdminEventStatusDto,
+  updateAdminEventStatusSchema,
+} from "./dto/admin-events.dto";
 import {
   ResolveDisputeDto,
   resolveDisputeSchema,
@@ -260,6 +270,13 @@ export class AdminController {
     });
   }
 
+  @Get("users/:id")
+  @ApiOperation({ summary: "Get full user profile, KYC tier, stats, events, orders, and transactions" })
+  @ApiParam({ name: "id", description: "User UUID" })
+  async getUserDetail(@Param("id") id: string) {
+    return this.adminService.getUserDetail(id);
+  }
+
   @Patch("users/:id/suspend")
   @ApiOperation({ summary: "Suspend a user account" })
   @ApiParam({ name: "id", description: "User UUID" })
@@ -360,6 +377,32 @@ export class AdminController {
     });
   }
 
+  @Get("events/:id")
+  @ApiOperation({ summary: "Get full celebration insights, transactions, and activity" })
+  async getEventDetail(@Param("id") id: string) {
+    return this.adminService.getEventDetail(id);
+  }
+
+  @Patch("events/:id/status")
+  @ApiOperation({ summary: "Update a celebration status (publish, close/block, or archive)" })
+  @UsePipes(new ZodValidationPipe(updateAdminEventStatusSchema))
+  async updateEventStatus(
+    @Param("id") id: string,
+    @Body() dto: UpdateAdminEventStatusDto,
+    @CurrentUser() admin: { id: string }
+  ) {
+    return this.adminService.updateEventStatus(id, dto, admin.id);
+  }
+
+  @Delete("events/:id")
+  @ApiOperation({ summary: "Delete a celebration that has no financial records" })
+  async deleteEvent(
+    @Param("id") id: string,
+    @CurrentUser() admin: { id: string }
+  ) {
+    return this.adminService.deleteEvent(id, admin.id);
+  }
+
   // ==================== PAYMENTS ====================
 
   @Get("payments")
@@ -388,5 +431,36 @@ export class AdminController {
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     });
+  }
+
+  // ==================== SHIPPING ZONES ====================
+
+  @Get("shipping-zones")
+  @ApiOperation({ summary: "List all shipping zones (enabled and disabled)" })
+  async listShippingZones() {
+    return this.adminService.listShippingZones();
+  }
+
+  @Post("shipping-zones")
+  @ApiOperation({ summary: "Create a new shipping zone" })
+  @UsePipes(new ZodValidationPipe(createShippingZoneSchema))
+  async createShippingZone(@Body() dto: CreateShippingZoneDto) {
+    return this.adminService.createShippingZone(dto);
+  }
+
+  @Patch("shipping-zones/:id")
+  @ApiOperation({ summary: "Update a shipping zone price, areas, or enabled status" })
+  @UsePipes(new ZodValidationPipe(updateShippingZoneSchema))
+  async updateShippingZone(
+    @Param("id") id: string,
+    @Body() dto: UpdateShippingZoneDto
+  ) {
+    return this.adminService.updateShippingZone(id, dto);
+  }
+
+  @Delete("shipping-zones/:id")
+  @ApiOperation({ summary: "Delete a shipping zone" })
+  async deleteShippingZone(@Param("id") id: string) {
+    return this.adminService.deleteShippingZone(id);
   }
 }

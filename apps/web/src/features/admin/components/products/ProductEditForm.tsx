@@ -68,6 +68,9 @@ export function ProductEditForm({
     }>,
     occasions: [] as string[],
     relationships: [] as string[],
+    boxRole: "ITEM" as "ITEM" | "GIFT_BOX",
+    boxMaxItems: "",
+    boxSizeTier: "" as "" | "SMALL" | "MEDIUM" | "LARGE",
   });
 
   const [editComboItemInput, setEditComboItemInput] = useState({ name: "", qty: 1 });
@@ -137,6 +140,10 @@ export function ProductEditForm({
         variants: initialVariants,
         occasions: product.occasions ? [...product.occasions] : [],
         relationships: product.relationships ? [...product.relationships] : [],
+        boxRole: product.boxRole === "GIFT_BOX" ? "GIFT_BOX" : "ITEM",
+        boxMaxItems:
+          typeof product.boxMaxItems === "number" ? String(product.boxMaxItems) : "",
+        boxSizeTier: product.boxSizeTier ?? "",
       });
 
       setEditMediaPreviewUrl(product.imageUrl || "");
@@ -385,6 +392,11 @@ export function ProductEditForm({
           variants: variantsPayload,
           occasions: editFormData.occasions,
           relationships: editFormData.relationships,
+          boxRole: editFormData.boxRole,
+          boxMaxItems: editFormData.boxMaxItems.trim()
+            ? Number(editFormData.boxMaxItems)
+            : null,
+          boxSizeTier: editFormData.boxSizeTier || null,
         },
       });
 
@@ -897,6 +909,72 @@ export function ProductEditForm({
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Curate Your Box Role */}
+      <div className="rounded-xl border border-border/80 bg-card p-4 space-y-4">
+        <div className="space-y-0.5">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Curate Your Box Role
+          </h4>
+          <p className="text-[11px] text-muted-foreground">
+            Mark as a Gift Box if customers choose it as packaging in Step 1 of Curate Your Box.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">Role</label>
+            <select
+              value={editFormData.boxRole}
+              onChange={(e) =>
+                setEditFormData((prev) => ({
+                  ...prev,
+                  boxRole: e.target.value === "GIFT_BOX" ? "GIFT_BOX" : "ITEM",
+                }))
+              }
+              className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-xs text-foreground"
+            >
+              <option value="ITEM">Gift Item</option>
+              <option value="GIFT_BOX">Gift Box (Packaging)</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">Size Tier</label>
+            <select
+              value={editFormData.boxSizeTier}
+              onChange={(e) =>
+                setEditFormData((prev) => ({
+                  ...prev,
+                  boxSizeTier: e.target.value as "" | "SMALL" | "MEDIUM" | "LARGE",
+                }))
+              }
+              className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-xs text-foreground"
+            >
+              <option value="">None / Standard</option>
+              <option value="SMALL">Small</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LARGE">Large</option>
+            </select>
+          </div>
+          {editFormData.boxRole === "GIFT_BOX" && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">
+                Max Items Capacity
+              </label>
+              <Input
+                type="number"
+                min={3}
+                max={30}
+                placeholder="e.g. 6"
+                value={editFormData.boxMaxItems}
+                onChange={(e) =>
+                  setEditFormData((prev) => ({ ...prev, boxMaxItems: e.target.value }))
+                }
+                className="h-9 text-xs"
+              />
+            </div>
+          )}
         </div>
       </div>
 

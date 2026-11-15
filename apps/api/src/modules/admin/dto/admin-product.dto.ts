@@ -38,6 +38,9 @@ export const createProductSchema = z
     isCombo: z.boolean().optional(),
     comboItems: z.any().optional(),
     variants: z.any().optional(),
+    boxRole: z.enum(["GIFT_BOX", "ITEM", "EXCLUDED"]).optional(),
+    boxMaxItems: z.coerce.number().int().min(1).max(50).nullable().optional(),
+    boxSizeTier: z.enum(["SMALL", "MEDIUM", "LARGE"]).nullable().optional(),
     isDigital: z.boolean().default(false),
     digitalKind: z.string().optional(),
     slug: z.string().trim().min(2).max(120).optional(),
@@ -123,6 +126,20 @@ export class CreateProductDto {
   @IsOptional()
   variants?: any;
 
+  @ApiPropertyOptional({ enum: ["GIFT_BOX", "ITEM", "EXCLUDED"], default: "ITEM" })
+  @IsOptional()
+  @IsString()
+  boxRole?: "GIFT_BOX" | "ITEM" | "EXCLUDED";
+
+  @ApiPropertyOptional({ example: 6, nullable: true })
+  @IsOptional()
+  boxMaxItems?: number | null;
+
+  @ApiPropertyOptional({ enum: ["SMALL", "MEDIUM", "LARGE"], nullable: true })
+  @IsOptional()
+  @IsString()
+  boxSizeTier?: "SMALL" | "MEDIUM" | "LARGE" | null;
+
   @ApiPropertyOptional({ example: false, default: false })
   @IsOptional()
   @IsBoolean()
@@ -155,6 +172,9 @@ export const updateProductSchema = z
     isCombo: z.boolean().optional(),
     comboItems: z.any().optional(),
     variants: z.any().optional(),
+    boxRole: z.enum(["GIFT_BOX", "ITEM", "EXCLUDED"]).optional(),
+    boxMaxItems: z.coerce.number().int().min(1).max(50).nullable().optional(),
+    boxSizeTier: z.enum(["SMALL", "MEDIUM", "LARGE"]).nullable().optional(),
     isDigital: z.boolean().optional(),
     digitalKind: z.string().optional(),
     slug: z.string().trim().min(2).max(120).optional(),
@@ -251,6 +271,20 @@ export class UpdateProductDto {
   @ApiPropertyOptional({ example: [{ id: "var_1", name: "50ml", priceKobo: 150000 }] })
   @IsOptional()
   variants?: any;
+
+  @ApiPropertyOptional({ enum: ["GIFT_BOX", "ITEM", "EXCLUDED"] })
+  @IsOptional()
+  @IsString()
+  boxRole?: "GIFT_BOX" | "ITEM" | "EXCLUDED";
+
+  @ApiPropertyOptional({ example: 6, nullable: true })
+  @IsOptional()
+  boxMaxItems?: number | null;
+
+  @ApiPropertyOptional({ enum: ["SMALL", "MEDIUM", "LARGE"], nullable: true })
+  @IsOptional()
+  @IsString()
+  boxSizeTier?: "SMALL" | "MEDIUM" | "LARGE" | null;
 
   @ApiPropertyOptional({ example: false })
   @IsOptional()

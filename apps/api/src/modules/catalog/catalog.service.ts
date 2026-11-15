@@ -8,6 +8,7 @@ import {
 import { OrderStatus } from "@prisma/client";
 import { RequestUser } from "../../common/decorators/auth.decorator";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+import { ensureShippingZonesSeeded } from "./shipping-zones.seed";
 
 export type ReviewEligibilityReason =
   | "UNAUTHENTICATED"
@@ -167,6 +168,9 @@ export class CatalogService {
       maxPriceKobo,
       isDigital: Boolean(product.isDigital),
       digitalKind: product.digitalKind ?? undefined,
+      boxRole: ((product as any).boxRole as "GIFT_BOX" | "ITEM" | "EXCLUDED") || (product.isDigital ? "EXCLUDED" : "ITEM"),
+      boxMaxItems: (product as any).boxMaxItems ?? null,
+      boxSizeTier: ((product as any).boxSizeTier as "SMALL" | "MEDIUM" | "LARGE") ?? null,
     };
   }
 
@@ -691,6 +695,17 @@ export class CatalogService {
       date: "Just now",
       timestamp: review.createdAt.getTime(),
     };
+  }
+
+  /**
+   * List enabled shipping zones for storefront checkout.
+   */
+  async getShippingZones() {
+    await ensureShippingZonesSeeded(this.prisma);
+    return this.prisma.shippingZone.findMany({
+      where: { enabled: true },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    });
   }
 }
 

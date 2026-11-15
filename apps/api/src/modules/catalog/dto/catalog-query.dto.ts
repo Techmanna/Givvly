@@ -159,6 +159,15 @@ export class CatalogProductResponseDto {
 
   @ApiPropertyOptional({ example: "AIRTIME" })
   digitalKind?: string;
+
+  @ApiPropertyOptional({ enum: ["GIFT_BOX", "ITEM", "EXCLUDED"], example: "ITEM" })
+  boxRole?: "GIFT_BOX" | "ITEM" | "EXCLUDED";
+
+  @ApiPropertyOptional({ example: 6, nullable: true })
+  boxMaxItems?: number | null;
+
+  @ApiPropertyOptional({ enum: ["SMALL", "MEDIUM", "LARGE"], nullable: true })
+  boxSizeTier?: "SMALL" | "MEDIUM" | "LARGE" | null;
 }
 
 export class CatalogCollectionResponseDto {

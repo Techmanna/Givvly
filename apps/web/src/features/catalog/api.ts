@@ -1,4 +1,5 @@
 import { api } from "@/lib/api-client";
+import type { ShippingZone } from "@givvly/contracts";
 import type {
   BillSpotPlansResponse,
   BillSpotProvidersResponse,
@@ -89,6 +90,10 @@ export function submitProductReview(
 
 export function fetchCatalogCollections(): Promise<CatalogCollection[]> {
   return api<CatalogCollection[]>("/catalog/collections");
+}
+
+export function fetchShippingZones(): Promise<ShippingZone[]> {
+  return api<ShippingZone[]>("/catalog/shipping-zones");
 }
 
 export function fetchVtuProviders(

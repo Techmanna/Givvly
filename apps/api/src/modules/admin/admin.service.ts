@@ -15,6 +15,7 @@ import {
   DisputeStatus,
   UserStatus,
   PostStatus,
+  EventStatus,
   Direction,
   Channel,
 } from "@prisma/client";
@@ -28,6 +29,13 @@ import { ResolveDisputeDto, IssueRefundDto } from "./dto/admin-disputes.dto";
 import { canOrderTransition } from "../orders/order-state-machine";
 import { ProvideBespokeQuoteInput } from "../orders/dto/bespoke-wish.dto";
 import { NotificationsService } from "../notifications/notifications.service";
+
+import { ensureShippingZonesSeeded } from "../catalog/shipping-zones.seed";
+import type {
+  CreateShippingZoneDto,
+  UpdateShippingZoneDto,
+} from "./dto/admin-shipping.dto";
+import type { UpdateAdminEventStatusDto } from "./dto/admin-events.dto";
 
 @Injectable()
 export class AdminService {
@@ -147,6 +155,9 @@ export class AdminService {
         active: p.active,
         isDigital: p.isDigital,
         digitalKind: p.digitalKind,
+        boxRole: ((p as any).boxRole as "GIFT_BOX" | "ITEM" | "EXCLUDED") || (p.isDigital ? "EXCLUDED" : "ITEM"),
+        boxMaxItems: (p as any).boxMaxItems ?? null,
+        boxSizeTier: ((p as any).boxSizeTier as "SMALL" | "MEDIUM" | "LARGE") ?? null,
         createdAt: p.createdAt.toISOString(),
       };
     });
@@ -188,6 +199,9 @@ export class AdminService {
         digitalKind: dto.digitalKind,
         comboItems: dto.comboItems || undefined,
         variants: dto.variants || undefined,
+        boxRole: dto.boxRole || (dto.isDigital ? "EXCLUDED" : "ITEM"),
+        boxMaxItems: dto.boxMaxItems ?? null,
+        boxSizeTier: dto.boxSizeTier ?? null,
         active: true,
       },
     });
@@ -253,6 +267,9 @@ export class AdminService {
         ...(dto.digitalKind !== undefined && { digitalKind: dto.digitalKind }),
         ...(comboItems !== undefined && { comboItems: comboItems }),
         ...(dto.variants !== undefined && { variants: dto.variants }),
+        ...(dto.boxRole !== undefined && { boxRole: dto.boxRole }),
+        ...(dto.boxMaxItems !== undefined && { boxMaxItems: dto.boxMaxItems }),
+        ...(dto.boxSizeTier !== undefined && { boxSizeTier: dto.boxSizeTier }),
         ...(dto.active !== undefined && { active: dto.active }),
       },
     });
@@ -303,6 +320,9 @@ export class AdminService {
       })(),
       packagingIncluded: "Luxury Gift Box & Ribbon",
       imageUrl: primaryImage,
+      boxRole: ((updated as any).boxRole as "GIFT_BOX" | "ITEM" | "EXCLUDED") || (updated.isDigital ? "EXCLUDED" : "ITEM"),
+      boxMaxItems: (updated as any).boxMaxItems ?? null,
+      boxSizeTier: ((updated as any).boxSizeTier as "SMALL" | "MEDIUM" | "LARGE") ?? null,
     };
   }
 
@@ -843,13 +863,236 @@ export class AdminService {
           role: true,
           status: true,
           emailVerifiedAt: true,
+          kycTier: true,
+          bvnLast4: true,
+          kycUpgradedAt: true,
+          lastLoginAt: true,
           createdAt: true,
+          _count: {
+            select: {
+              events: true,
+              payoutAccounts: true,
+            },
+          },
         },
       }),
       this.prisma.user.count({ where }),
     ]);
 
     return { users, total, limit: take, offset: skip };
+  }
+
+  async getUserDetail(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        status: true,
+        emailVerifiedAt: true,
+        lastLoginAt: true,
+        failedLogins: true,
+        lockedUntil: true,
+        walletPinSetAt: true,
+        kycTier: true,
+        bvnLast4: true,
+        kycUpgradedAt: true,
+        createdAt: true,
+        payoutAccounts: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            bankName: true,
+            accountName: true,
+            accountLast4: true,
+            status: true,
+            isDefault: true,
+          },
+        },
+        events: {
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            type: true,
+            status: true,
+            date: true,
+            createdAt: true,
+            _count: {
+              select: { gifts: true, rsvps: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User '${id}' not found`);
+    }
+
+    const [orders, giftsGiven, payouts, orderAgg, giftAgg, payoutAgg] =
+      await Promise.all([
+        this.prisma.order.findMany({
+          where: { buyerUserId: id },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            number: true,
+            recipientName: true,
+            totalKobo: true,
+            status: true,
+            createdAt: true,
+          },
+        }),
+        this.prisma.gift.findMany({
+          where: { giverUserId: id },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            type: true,
+            amountKobo: true,
+            status: true,
+            createdAt: true,
+            event: { select: { name: true, slug: true } },
+            payment: { select: { reference: true, status: true } },
+          },
+        }),
+        this.prisma.payout.findMany({
+          where: { userId: id },
+          orderBy: { queuedAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            amountKobo: true,
+            status: true,
+            reference: true,
+            queuedAt: true,
+            event: { select: { name: true } },
+          },
+        }),
+        this.prisma.order.aggregate({
+          where: { buyerUserId: id, status: { not: OrderStatus.PENDING_PAYMENT } },
+          _sum: { totalKobo: true },
+          _count: { id: true },
+        }),
+        this.prisma.gift.aggregate({
+          where: { giverUserId: id, payment: { status: PaymentStatus.SUCCESS } },
+          _sum: { amountKobo: true },
+          _count: { id: true },
+        }),
+        this.prisma.payout.aggregate({
+          where: { userId: id, status: "SUCCESS" },
+          _sum: { amountKobo: true },
+          _count: { id: true },
+        }),
+      ]);
+
+    const transactions = [
+      ...orders.map((o) => ({
+        id: o.id,
+        kind: "ORDER" as const,
+        title: `Order ${o.number} (${o.recipientName})`,
+        reference: o.number,
+        amountKobo: o.totalKobo,
+        status: o.status,
+        createdAt: o.createdAt.toISOString(),
+      })),
+      ...giftsGiven.map((g) => ({
+        id: g.id,
+        kind: "GIFT" as const,
+        title: `${g.type} Gift${g.event ? ` · ${g.event.name}` : ""}`,
+        reference: g.payment?.reference ?? g.id,
+        amountKobo: g.amountKobo,
+        status: g.payment?.status ?? g.status,
+        createdAt: g.createdAt.toISOString(),
+      })),
+      ...payouts.map((p) => ({
+        id: p.id,
+        kind: "PAYOUT" as const,
+        title: `Payout${p.event ? ` · ${p.event.name}` : ""}`,
+        reference: p.reference ?? p.id,
+        amountKobo: p.amountKobo,
+        status: p.status,
+        createdAt: p.queuedAt.toISOString(),
+      })),
+    ]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      .slice(0, 25);
+
+    return {
+      ...user,
+      emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+      lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+      lockedUntil: user.lockedUntil?.toISOString() ?? null,
+      walletPinSetAt: user.walletPinSetAt?.toISOString() ?? null,
+      kycUpgradedAt: user.kycUpgradedAt?.toISOString() ?? null,
+      createdAt: user.createdAt.toISOString(),
+      payoutAccounts: user.payoutAccounts,
+      events: user.events.map((ev) => ({
+        ...ev,
+        date: ev.date.toISOString(),
+        createdAt: ev.createdAt.toISOString(),
+        giftCount: ev._count.gifts,
+        rsvpCount: ev._count.rsvps,
+      })),
+      orders: orders.map((o) => ({
+        ...o,
+        createdAt: o.createdAt.toISOString(),
+      })),
+      stats: {
+        eventsCount: user.events.length,
+        ordersCount: orders.length,
+        paidOrdersCount: orderAgg._count.id ?? 0,
+        totalOrdersSpentKobo: orderAgg._sum.totalKobo ?? 0,
+        giftsGivenCount: giftAgg._count.id ?? 0,
+        totalGiftsGivenKobo: giftAgg._sum.amountKobo ?? 0,
+        payoutsCount: payouts.length,
+        totalPayoutsReceivedKobo: payoutAgg._sum.amountKobo ?? 0,
+      },
+      transactions,
+    };
+  }
+
+  private dispatchUserAccountNotification(params: {
+    userId: string;
+    email?: string | null;
+    type: string;
+    title: string;
+    body: string;
+  }) {
+    if (!this.notifications) return;
+
+    const payload = {
+      userId: params.userId,
+      type: params.type,
+      category: "SECURITY",
+      title: params.title,
+      body: params.body,
+    };
+
+    void this.notifications
+      .notify({ ...payload, channel: Channel.IN_APP })
+      .catch((err: unknown) =>
+        this.logger.warn(`Failed to queue in-app user notification: ${err}`)
+      );
+
+    if (params.email) {
+      void this.notifications
+        .notify({ ...payload, channel: Channel.EMAIL, toAddress: params.email })
+        .catch((err: unknown) =>
+          this.logger.warn(`Failed to queue email user notification: ${err}`)
+        );
+    }
   }
 
   async suspendUser(id: string, adminId?: string) {
@@ -864,6 +1107,13 @@ export class AdminService {
     });
 
     await this.logAudit(adminId, "USER_SUSPEND", "User", id);
+    this.dispatchUserAccountNotification({
+      userId: user.id,
+      email: user.email,
+      type: "ACCOUNT_SUSPENDED",
+      title: "Your Givvly account has been suspended",
+      body: "An administrator has suspended your account. Please contact support if you believe this is an error.",
+    });
     return updated;
   }
 
@@ -879,6 +1129,13 @@ export class AdminService {
     });
 
     await this.logAudit(adminId, "USER_RESTORE", "User", id);
+    this.dispatchUserAccountNotification({
+      userId: user.id,
+      email: user.email,
+      type: "ACCOUNT_RESTORED",
+      title: "Your Givvly account has been restored",
+      body: "Your Givvly account is active again. You can sign in and access your celebrations and wallet.",
+    });
     return updated;
   }
 
@@ -1091,7 +1348,7 @@ export class AdminService {
       this.ledger.getTrialBalance(),
       this.prisma.ledgerEntry.findMany({
         orderBy: { createdAt: "desc" },
-        take: 50,
+        take: 200,
         include: {
           account: { select: { code: true } },
           transaction: { select: { description: true, reference: true } },
@@ -1112,7 +1369,7 @@ export class AdminService {
         amountKobo: Number(e.amountKobo),
         description: e.transaction.description,
         reference: e.transaction.reference,
-        createdAt: e.createdAt,
+        createdAt: e.createdAt.toISOString(),
       })),
     };
   }
@@ -1206,9 +1463,20 @@ export class AdminService {
       take,
       skip,
       include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
         _count: {
           select: {
             rsvps: { where: { response: "YES" } },
+            registry: true,
+            pools: true,
+            orders: true,
+            posts: true,
           },
         },
         gifts: {
@@ -1237,14 +1505,358 @@ export class AdminService {
         totalReceivedKobo,
         giftCount: (ev.gifts ?? []).length,
         rsvpYesCount: ev._count?.rsvps ?? ev.rsvps?.length ?? 0,
+        host: ev.owner
+          ? { id: ev.owner.id, name: ev.owner.name, email: ev.owner.email }
+          : null,
+        registryCount: ev._count?.registry ?? 0,
+        poolCount: ev._count?.pools ?? 0,
+        orderCount: ev._count?.orders ?? 0,
+        postCount: ev._count?.posts ?? 0,
+        createdAt: ev.createdAt.toISOString(),
       };
     });
+  }
+
+  async getEventDetail(id: string) {
+    const ev = await this.prisma.event.findUnique({
+      where: { id },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, phone: true },
+        },
+        _count: {
+          select: {
+            registry: true,
+            pools: true,
+            orders: true,
+            posts: true,
+            gifts: true,
+            payouts: true,
+          },
+        },
+        gifts: {
+          orderBy: { createdAt: "desc" },
+          take: 25,
+          include: {
+            payment: {
+              select: { reference: true, status: true },
+            },
+          },
+        },
+        orders: {
+          orderBy: { createdAt: "desc" },
+          take: 25,
+          include: {
+            payment: {
+              select: { reference: true, status: true },
+            },
+          },
+        },
+        rsvps: {
+          orderBy: { createdAt: "desc" },
+          take: 25,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            response: true,
+            plusOneName: true,
+            createdAt: true,
+          },
+        },
+        posts: {
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            authorName: true,
+            text: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+        payouts: {
+          select: { amountKobo: true, status: true },
+        },
+      },
+    });
+
+    if (!ev) {
+      throw new NotFoundException(`Event '${id}' not found`);
+    }
+
+    const [rsvpYes, rsvpNo, rsvpMaybe, successfulGiftAgg, paidOrderAgg] =
+      await Promise.all([
+        this.prisma.rsvp.count({ where: { eventId: id, response: "YES" } }),
+        this.prisma.rsvp.count({ where: { eventId: id, response: "NO" } }),
+        this.prisma.rsvp.count({ where: { eventId: id, response: "MAYBE" } }),
+        this.prisma.gift.aggregate({
+          where: { eventId: id, payment: { status: PaymentStatus.SUCCESS } },
+          _sum: { amountKobo: true },
+          _count: { id: true },
+        }),
+        this.prisma.order.aggregate({
+          where: { eventId: id, status: { not: OrderStatus.PENDING_PAYMENT } },
+          _sum: { totalKobo: true },
+          _count: { id: true },
+        }),
+      ]);
+
+    const totalPayoutsKobo = (ev.payouts ?? []).reduce(
+      (sum, p) => sum + p.amountKobo,
+      0
+    );
+
+    const giftTx = (ev.gifts ?? []).map((g) => ({
+      id: g.id,
+      kind: "GIFT" as const,
+      actorName: g.anonymous ? "Anonymous" : g.giverName || "Guest",
+      actorEmail: g.anonymous ? null : g.giverEmail,
+      amountKobo: g.amountKobo,
+      status: g.payment?.status ?? g.status,
+      reference: g.payment?.reference ?? g.id,
+      label: g.type,
+      createdAt: g.createdAt.toISOString(),
+    }));
+
+    const orderTx = (ev.orders ?? []).map((o) => ({
+      id: o.id,
+      kind: "ORDER" as const,
+      actorName: o.recipientName,
+      actorEmail: o.buyerEmail,
+      amountKobo: o.totalKobo,
+      status: o.status,
+      reference: o.number,
+      label: o.payment?.reference ?? o.number,
+      createdAt: o.createdAt.toISOString(),
+    }));
+
+    const recentTransactions = [...giftTx, ...orderTx]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      .slice(0, 20);
+
+    return {
+      id: ev.id,
+      slug: ev.slug,
+      name: ev.name,
+      type: ev.type,
+      date: ev.date.toISOString(),
+      story: ev.story,
+      visibility: ev.visibility,
+      status: ev.status,
+      currency: ev.currency || "NGN",
+      keepsakePublic: ev.keepsakePublic,
+      moneyGiftsEnabled: Boolean(ev.payoutAccountId),
+      publishedAt: ev.publishedAt?.toISOString() ?? null,
+      closedAt: ev.closedAt?.toISOString() ?? null,
+      createdAt: ev.createdAt.toISOString(),
+      host: ev.owner,
+      stats: {
+        totalReceivedKobo: successfulGiftAgg._sum.amountKobo ?? 0,
+        successfulGiftCount: successfulGiftAgg._count.id ?? 0,
+        totalOrdersKobo: paidOrderAgg._sum.totalKobo ?? 0,
+        paidOrderCount: paidOrderAgg._count.id ?? 0,
+        totalPayoutsKobo,
+        giftCount: ev._count.gifts,
+        orderCount: ev._count.orders,
+        registryCount: ev._count.registry,
+        poolCount: ev._count.pools,
+        postCount: ev._count.posts,
+        payoutCount: ev._count.payouts,
+        rsvpCounts: {
+          yes: rsvpYes,
+          no: rsvpNo,
+          maybe: rsvpMaybe,
+          total: rsvpYes + rsvpNo + rsvpMaybe,
+        },
+      },
+      recentTransactions,
+      recentActivity: {
+        rsvps: ev.rsvps.map((r) => ({
+          ...r,
+          createdAt: r.createdAt.toISOString(),
+        })),
+        posts: ev.posts.map((p) => ({
+          ...p,
+          createdAt: p.createdAt.toISOString(),
+        })),
+      },
+    };
+  }
+
+  private dispatchEventCreatorNotification(params: {
+    ownerId?: string;
+    ownerEmail?: string | null;
+    eventId: string;
+    eventSlug: string;
+    eventName: string;
+    type: string;
+    title: string;
+    body: string;
+  }) {
+    if (!this.notifications || !params.ownerId) return;
+
+    const payload = {
+      userId: params.ownerId,
+      type: params.type,
+      category: "EVENTS",
+      title: params.title,
+      body: params.body,
+      data: {
+        eventId: params.eventId,
+        slug: params.eventSlug,
+        eventName: params.eventName,
+      },
+    };
+
+    void this.notifications
+      .notify({ ...payload, channel: Channel.IN_APP })
+      .catch((err: unknown) =>
+        this.logger.warn(`Failed to queue in-app event notification: ${err}`)
+      );
+
+    if (params.ownerEmail) {
+      void this.notifications
+        .notify({
+          ...payload,
+          channel: Channel.EMAIL,
+          toAddress: params.ownerEmail,
+        })
+        .catch((err: unknown) =>
+          this.logger.warn(`Failed to queue email event notification: ${err}`)
+        );
+    }
+  }
+
+  async updateEventStatus(
+    id: string,
+    dto: UpdateAdminEventStatusDto,
+    adminId?: string
+  ) {
+    const existing = await this.prisma.event.findUnique({
+      where: { id },
+      include: {
+        owner: { select: { id: true, email: true, name: true } },
+      },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Event '${id}' not found`);
+    }
+
+    const updated = await this.prisma.event.update({
+      where: { id },
+      data: {
+        status: dto.status,
+        ...(dto.status === EventStatus.CLOSED || dto.status === EventStatus.ARCHIVED
+          ? { closedAt: existing.closedAt ?? new Date() }
+          : {}),
+        ...(dto.status === EventStatus.PUBLISHED
+          ? { publishedAt: existing.publishedAt ?? new Date(), closedAt: null }
+          : {}),
+      },
+    });
+
+    if (adminId) {
+      await this.logAudit(adminId, "ADMIN_EVENT_STATUS_UPDATE", "Event", id, {
+        previousStatus: existing.status,
+        newStatus: dto.status,
+        reason: dto.reason ?? null,
+      });
+    }
+
+    const reasonSuffix = dto.reason?.trim() ? ` Reason: ${dto.reason.trim()}` : "";
+    if (dto.status === EventStatus.CLOSED) {
+      this.dispatchEventCreatorNotification({
+        ownerId: existing.owner?.id ?? existing.ownerId,
+        ownerEmail: existing.owner?.email,
+        eventId: existing.id,
+        eventSlug: existing.slug,
+        eventName: existing.name,
+        type: "EVENT_BLOCKED_OR_CLOSED",
+        title: `Your celebration "${existing.name}" has been closed`,
+        body: `An administrator has closed and taken your celebration (/e/${existing.slug}) offline.${reasonSuffix}`,
+      });
+    } else if (dto.status === EventStatus.ARCHIVED) {
+      this.dispatchEventCreatorNotification({
+        ownerId: existing.owner?.id ?? existing.ownerId,
+        ownerEmail: existing.owner?.email,
+        eventId: existing.id,
+        eventSlug: existing.slug,
+        eventName: existing.name,
+        type: "EVENT_ARCHIVED",
+        title: `Your celebration "${existing.name}" has been archived`,
+        body: `An administrator has archived your celebration (/e/${existing.slug}).${reasonSuffix}`,
+      });
+    } else if (dto.status === EventStatus.PUBLISHED && existing.status !== EventStatus.PUBLISHED) {
+      this.dispatchEventCreatorNotification({
+        ownerId: existing.owner?.id ?? existing.ownerId,
+        ownerEmail: existing.owner?.email,
+        eventId: existing.id,
+        eventSlug: existing.slug,
+        eventName: existing.name,
+        type: "EVENT_RESTORED",
+        title: `Your celebration "${existing.name}" is live again`,
+        body: `An administrator has restored your celebration (/e/${existing.slug}) to Published status.${reasonSuffix}`,
+      });
+    }
+
+    return updated;
+  }
+
+  async deleteEvent(id: string, adminId?: string) {
+    const existing = await this.prisma.event.findUnique({
+      where: { id },
+      include: {
+        owner: { select: { id: true, email: true } },
+        _count: {
+          select: { gifts: true, orders: true, payouts: true },
+        },
+      },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Event '${id}' not found`);
+    }
+
+    if (
+      existing._count.gifts > 0 ||
+      existing._count.orders > 0 ||
+      existing._count.payouts > 0
+    ) {
+      throw new BadRequestException(
+        "Cannot permanently delete an event with gifts, orders, or payouts. Close or archive it instead to take it offline while preserving financial records."
+      );
+    }
+
+    await this.prisma.event.delete({ where: { id } });
+
+    if (adminId) {
+      await this.logAudit(adminId, "ADMIN_EVENT_DELETE", "Event", id, {
+        slug: existing.slug,
+        name: existing.name,
+      });
+    }
+
+    this.dispatchEventCreatorNotification({
+      ownerId: existing.owner?.id ?? existing.ownerId,
+      ownerEmail: existing.owner?.email,
+      eventId: existing.id,
+      eventSlug: existing.slug,
+      eventName: existing.name,
+      type: "EVENT_DELETED",
+      title: `Your celebration "${existing.name}" was removed`,
+      body: `An administrator permanently removed your celebration (/e/${existing.slug}).`,
+    });
+
+    return { deleted: true, id };
   }
 
   // ==================== PAYMENTS ====================
 
   async getPayments(query?: { limit?: number; offset?: number }) {
-    const take = query?.limit ? Math.min(Number(query.limit), 100) : 100;
+    const take = query?.limit ? Math.min(Number(query.limit), 200) : 200;
     const skip = query?.offset ? Number(query.offset) : 0;
 
     const payments = await this.prisma.payment.findMany({
@@ -1252,21 +1864,60 @@ export class AdminService {
       take,
       skip,
       select: {
+        id: true,
         reference: true,
+        scope: true,
+        provider: true,
+        channel: true,
+        payerEmail: true,
         amountKobo: true,
         feeKobo: true,
+        providerFeeKobo: true,
+        currency: true,
         status: true,
+        failureReason: true,
+        paidAt: true,
         createdAt: true,
+        gift: {
+          select: {
+            id: true,
+            type: true,
+            giverName: true,
+            event: { select: { id: true, slug: true, name: true } },
+          },
+        },
+        order: {
+          select: {
+            id: true,
+            number: true,
+            recipientName: true,
+            status: true,
+            shippingZoneName: true,
+            deliveryFeeKobo: true,
+            vatKobo: true,
+          },
+        },
       },
     });
 
     return payments.map((p) => ({
+      id: p.id,
       reference: p.reference,
+      scope: p.scope,
+      provider: p.provider,
+      channel: p.channel,
+      payerEmail: p.payerEmail,
       amountKobo: p.amountKobo,
       serviceFeeKobo: p.feeKobo,
+      providerFeeKobo: p.providerFeeKobo,
       totalKobo: p.amountKobo + p.feeKobo,
+      currency: p.currency,
       status: p.status,
+      failureReason: p.failureReason,
+      paidAt: p.paidAt?.toISOString() ?? null,
       createdAt: p.createdAt.toISOString(),
+      gift: p.gift,
+      order: p.order,
     }));
   }
 
@@ -1275,9 +1926,9 @@ export class AdminService {
   async getPayouts() {
     const payouts = await this.prisma.payout.findMany({
       orderBy: { queuedAt: "desc" },
-      take: 100,
+      take: 150,
       include: {
-        event: { select: { name: true } },
+        event: { select: { id: true, slug: true, name: true } },
       },
     });
 
@@ -1289,31 +1940,41 @@ export class AdminService {
     const [users, payoutAccounts] = await Promise.all([
       this.prisma.user.findMany({
         where: { id: { in: userIds } },
-        select: { id: true, name: true },
+        select: { id: true, name: true, email: true },
       }),
       this.prisma.payoutAccount.findMany({
         where: { id: { in: payoutAccountIds } },
-        select: { id: true, bankName: true, accountLast4: true },
+        select: { id: true, bankName: true, accountLast4: true, accountName: true },
       }),
     ]);
 
-    const userMap = new Map(users.map((u) => [u.id, u.name]));
+    const userMap = new Map(users.map((u) => [u.id, u]));
     const accountMap = new Map(payoutAccounts.map((a) => [a.id, a]));
 
     return payouts.map((p) => {
       const account = accountMap.get(p.payoutAccountId);
+      const owner = userMap.get(p.userId);
       let mappedStatus: "SENT" | "FAILED" | "PENDING" = "PENDING";
       if (p.status === "SUCCESS") mappedStatus = "SENT";
       else if (p.status === "FAILED") mappedStatus = "FAILED";
 
       return {
         id: p.id,
+        eventId: p.event?.id ?? null,
+        eventSlug: p.event?.slug ?? null,
         eventName: p.event?.name || "Celebration Cash Gift Withdrawal",
-        ownerName: userMap.get(p.userId) || "Host Beneficiary",
+        ownerName: owner?.name || "Host Beneficiary",
+        ownerEmail: owner?.email ?? null,
         bankName: account?.bankName || "Commercial Bank",
+        accountName: account?.accountName ?? null,
         accountNumberLast4: account?.accountLast4 || "••••",
         amountKobo: p.amountKobo,
         status: mappedStatus,
+        rawStatus: p.status,
+        reference: p.reference ?? null,
+        failureReason: p.failureReason ?? null,
+        attempts: p.attempts,
+        completedAt: p.completedAt?.toISOString() ?? null,
         createdAt: p.queuedAt.toISOString(),
       };
     });
@@ -1371,5 +2032,62 @@ export class AdminService {
         ? ("VERIFIED" as const)
         : ("PENDING_REVIEW" as const),
     }));
+  }
+
+  // ==================== SHIPPING ZONES ====================
+
+  async listShippingZones() {
+    await ensureShippingZonesSeeded(this.prisma);
+    return this.prisma.shippingZone.findMany({
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    });
+  }
+
+  async createShippingZone(dto: CreateShippingZoneDto) {
+    return this.prisma.shippingZone.create({
+      data: {
+        code: dto.code.trim().toUpperCase(),
+        name: dto.name.trim(),
+        areas: dto.areas.trim(),
+        deliveryNote: dto.deliveryNote?.trim() || null,
+        etaLabel: dto.etaLabel?.trim() || null,
+        priceKobo: dto.priceKobo,
+        enabled: dto.enabled ?? true,
+        sortOrder: dto.sortOrder ?? 0,
+      },
+    });
+  }
+
+  async updateShippingZone(id: string, dto: UpdateShippingZoneDto) {
+    const existing = await this.prisma.shippingZone.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Shipping zone '${id}' not found`);
+    }
+    return this.prisma.shippingZone.update({
+      where: { id },
+      data: {
+        ...(dto.code !== undefined ? { code: dto.code.trim().toUpperCase() } : {}),
+        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+        ...(dto.areas !== undefined ? { areas: dto.areas.trim() } : {}),
+        ...(dto.deliveryNote !== undefined
+          ? { deliveryNote: dto.deliveryNote?.trim() || null }
+          : {}),
+        ...(dto.etaLabel !== undefined
+          ? { etaLabel: dto.etaLabel?.trim() || null }
+          : {}),
+        ...(dto.priceKobo !== undefined ? { priceKobo: dto.priceKobo } : {}),
+        ...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
+        ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
+      },
+    });
+  }
+
+  async deleteShippingZone(id: string) {
+    const existing = await this.prisma.shippingZone.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Shipping zone '${id}' not found`);
+    }
+    await this.prisma.shippingZone.delete({ where: { id } });
+    return { deleted: true, id };
   }
 }

@@ -12,7 +12,7 @@ import { StatusStepper } from "@/features/vendor";
 import { LedgerTable } from "@/features/admin";
 import { OrderTimeline } from "./components/OrderTimeline";
 import { CheckoutForm } from "./components/CheckoutForm";
-import { BoxCheckoutForm } from "./components/BoxCheckoutForm";
+import { BagCheckoutForm } from "./components/BagCheckoutForm";
 import {
   SavedAddressSelector,
   SaveAddressToggle,
@@ -292,9 +292,9 @@ describe("Phase 3 Commerce, Registry, Vendor & Admin", () => {
     expect(useCartStore.getState().items).toHaveLength(0);
   });
 
-  it("renders BoxCheckoutForm with item count, luxury wrapping option, and recipient fields", () => {
+  it("renders BagCheckoutForm with item count and recipient fields", () => {
     const store = useCartStore.getState();
-    store.clearBox();
+    store.clearBag();
     store.addItem(
       {
         id: "item_test_01",
@@ -305,13 +305,12 @@ describe("Phase 3 Commerce, Registry, Vendor & Admin", () => {
       2
     );
 
-    render(<BoxCheckoutForm />, {
+    render(<BagCheckoutForm />, {
       wrapper: createTestWrapper(),
     });
 
-    expect(screen.getByText("Checkout Your Gift Box")).toBeInTheDocument();
+    expect(screen.getByText("Checkout Your Shopping Bag")).toBeInTheDocument();
     expect(screen.getByText("Personalized Leather Passport Holder")).toBeInTheDocument();
-    expect(screen.getByText(/Luxury Whole-Box Gift Presentation/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Recipient Full Name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Recipient Phone/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Street Address/i)).toBeInTheDocument();

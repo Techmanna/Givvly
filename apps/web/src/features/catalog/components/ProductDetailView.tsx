@@ -7,8 +7,7 @@ import {
   Gift,
   Star,
   Check,
-  PackagePlus,
-  PackageCheck,
+  ShoppingBag,
   Minus,
   Plus,
   SlidersHorizontal,
@@ -33,7 +32,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
   const [quantity, setQuantity] = React.useState(1);
   const items = useCartStore((s) => s.items);
   const addItem = useCartStore((s) => s.addItem);
-  const openBox = useCartStore((s) => s.openBox);
+  const openBag = useCartStore((s) => s.openBag);
 
   const activeVariants: ProductVariant[] = (product.variants || []).filter(
     (v) => v.active !== false
@@ -56,7 +55,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
     ? selectedVariant.priceKobo
     : product.priceKobo;
 
-  const inBoxItem = items.find((i) => {
+  const inBagItem = items.find((i) => {
     if (selectedVariant) {
       return (
         i.slug === product.slug &&
@@ -67,7 +66,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
     return i.slug === product.slug;
   });
 
-  const handleAddToBox = () => {
+  const handleAddToBag = () => {
     if (hasVariants && !selectedVariant) {
       toast.error("Please select an option first");
       return;
@@ -97,10 +96,10 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
       ? `${product.name} (${selectedVariant.name})`
       : product.name;
 
-    toast.success(`Added ${quantity} × ${displayName} to your Gift Box!`, {
+    toast.success(`Added ${quantity} × ${displayName} to your Shopping Bag!`, {
       action: {
-        label: "View Box",
-        onClick: () => openBox(),
+        label: "View Bag",
+        onClick: () => openBag(),
       },
     });
   };
@@ -140,13 +139,24 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
               >
                 {product.isCombo ? "Luxury Gift Hamper" : product.category}
               </Badge>
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
-                <Star
-                  className="h-3.5 w-3.5 fill-accent text-accent"
-                  aria-hidden="true"
-                />
-                {product.rating.toFixed(1)} ({product.reviewCount} reviews)
-              </span>
+              {product.reviewCount > 0 ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
+                  <Star
+                    className="h-3.5 w-3.5 fill-accent text-accent"
+                    aria-hidden="true"
+                  />
+                  {product.rating.toFixed(1)} ({product.reviewCount}{" "}
+                  {product.reviewCount === 1 ? "review" : "reviews"})
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Star
+                    className="h-3.5 w-3.5 text-muted-foreground/40"
+                    aria-hidden="true"
+                  />
+                  No reviews yet
+                </span>
+              )}
             </div>
 
             <h1 className="font-heading text-3xl font-bold text-foreground">
@@ -281,23 +291,23 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                 </button>
               </div>
 
-              {/* Add to Box Button */}
+              {/* Add to Bag Button */}
               <Button
                 type="button"
                 size="lg"
-                onClick={handleAddToBox}
+                onClick={handleAddToBag}
                 className="flex-1 rounded-full gap-2 font-semibold shadow-md hover:shadow-lg transition-all"
                 disabled={!product.inStock}
               >
-                {inBoxItem ? (
+                {inBagItem ? (
                   <>
-                    <PackageCheck className="h-4 w-4" />
-                    <span>In Box ({inBoxItem.qty}) • Add {quantity} More</span>
+                    <Check className="h-4 w-4" />
+                    <span>In Bag ({inBagItem.qty}) • Add {quantity} More</span>
                   </>
                 ) : (
                   <>
-                    <PackagePlus className="h-4 w-4" />
-                    <span>Add to Box</span>
+                    <ShoppingBag className="h-4 w-4" />
+                    <span>Add to Bag</span>
                   </>
                 )}
               </Button>

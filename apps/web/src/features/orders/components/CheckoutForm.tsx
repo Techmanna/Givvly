@@ -52,6 +52,12 @@ import {
 } from "./SavedAddressSelector";
 import { useSavedAddressStore } from "@/stores/saved-address-store";
 import type { DirectCheckoutInput, Order, SavedAddress } from "../types";
+import { useShippingZones } from "@/features/catalog/hooks/useCatalog";
+import {
+  DELIVERY_CHARGES_NOTE,
+  calculateOrderVatAndTotal,
+  type ShippingZone,
+} from "@givvly/contracts";
 
 type DirectCheckoutFormValues = Omit<DirectCheckoutInput, "wrapping"> & {
   wrapping?: boolean;
@@ -73,6 +79,21 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
   const createOrderMutation = useCreateDirectOrder();
   const { data: pastOrders = [] } = useOrdersList();
   const { data: walletSummary } = useWalletSummary(1, 5, true);
+  const { data: shippingZones = [] } = useShippingZones();
+  const [selectedShippingZoneId, setSelectedShippingZoneId] = React.useState("");
+
+  React.useEffect(() => {
+    if (!selectedShippingZoneId && shippingZones.length > 0) {
+      setSelectedShippingZoneId(shippingZones[0]!.id);
+    }
+  }, [shippingZones, selectedShippingZoneId]);
+
+  const selectedShippingZone: ShippingZone | undefined = React.useMemo(
+    () =>
+      shippingZones.find((z) => z.id === selectedShippingZoneId) ??
+      shippingZones[0],
+    [shippingZones, selectedShippingZoneId]
+  );
   const payWithWalletMutation = usePayOrderWithWalletMutation();
   const [walletPin, setWalletPin] = React.useState("");
   const [paymentMethod, setPaymentMethod] = React.useState<"paystack" | "wallet">("paystack");
@@ -382,7 +403,19 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
   }, [isVtuProduct, effectiveProduct?.priceKobo, vtuType, selectedPlan, airtimeAmountNaira]);
 
   const wrappingKobo = !isVtuProduct && wrapping ? WRAPPING_FEE_KOBO : 0;
-  const totalKobo = unitPriceKobo * (isVtuProduct ? recipientsCount : 1) + wrappingKobo;
+  const giftSubtotalKobo = unitPriceKobo * (isVtuProduct ? recipientsCount : 1);
+  const shippingFeeKobo = !isVtuProduct ? (selectedShippingZone?.priceKobo ?? 0) : 0;
+  const vatCalc = React.useMemo(
+    () =>
+      isVtuProduct
+        ? { giftVatKobo: 0, shippingVatKobo: 0, totalVatKobo: 0, totalKobo: giftSubtotalKobo }
+        : calculateOrderVatAndTotal({
+            subtotalKobo: giftSubtotalKobo,
+            shippingFeeKobo,
+          }),
+    [isVtuProduct, giftSubtotalKobo, shippingFeeKobo]
+  );
+  const totalKobo = vatCalc.totalKobo + wrappingKobo;
 
   const deliveryAddress = [watchedStreet, watchedCity, watchedState]
     .filter(Boolean)
@@ -448,6 +481,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
         },
         giftNote: values.giftNote || undefined,
         wrapping: isVtuProduct ? false : values.wrapping,
+        shippingZoneId: !isVtuProduct ? selectedShippingZone?.id : undefined,
         ...(isVtuProduct
           ? {
             vtuType,
@@ -1132,6 +1166,57 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                 </div>
               </div>
             )}
+              {!isVtuProduct && shippingZones.length > 0 && (
+                <div className="space-y-2.5 pt-2">
+                  <Label className="text-xs font-semibold text-ink">
+                    Delivery Zone &amp; Shipping
+                  </Label>
+                  <div className="space-y-2">
+                    {shippingZones.map((zone) => {
+                      const isSelected = selectedShippingZone?.id === zone.id;
+                      return (
+                        <button
+                          key={zone.id}
+                          type="button"
+                          onClick={() => setSelectedShippingZoneId(zone.id)}
+                          className={`w-full rounded-xl border p-3 text-left transition-all ${
+                            isSelected
+                              ? "border-primary bg-primary/5 ring-1 ring-primary"
+                              : "border-border hover:border-primary/40"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="space-y-0.5">
+                              <p className="text-xs font-semibold text-ink">
+                                {zone.name}
+                                {zone.etaLabel ? ` (${zone.etaLabel})` : ""}
+                              </p>
+                              <p className="text-[11px] text-ink-muted">{zone.areas}</p>
+                              {zone.deliveryNote && (
+                                <p className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                  {zone.deliveryNote}
+                                </p>
+                              )}
+                            </div>
+                            <Money
+                              amountKobo={zone.priceKobo}
+                              className="shrink-0 text-xs font-bold text-ink"
+                            />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="rounded-xl border border-border/70 bg-muted/40 p-3 space-y-1">
+                    <p className="text-[11px] font-bold text-ink">
+                      A note about delivery charges
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-ink-muted">
+                      {DELIVERY_CHARGES_NOTE}
+                    </p>
+                  </div>
+                </div>
+              )}
           </CardContent>
         </Card>
       </div>
@@ -1172,11 +1257,23 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                   </span>
                 </div>
               )}
+              {!isVtuProduct && (
+                <div className="flex items-center justify-between text-ink-muted">
+                  <span>VAT (7.5% on gift)</span>
+                  <Money amountKobo={vatCalc.giftVatKobo} />
+                </div>
+              )}
               <div className="flex items-center justify-between text-ink-muted">
-                <span>Delivery</span>
-                <span className="text-success">
-                  {isVtuProduct ? "Instant VTU (Free)" : "Included"}
+                <span>
+                  {isVtuProduct
+                    ? "Delivery"
+                    : `Shipping (${selectedShippingZone?.name ?? "Standard"} — incl. VAT)`}
                 </span>
+                {isVtuProduct ? (
+                  <span className="text-success">Instant VTU (Free)</span>
+                ) : (
+                  <Money amountKobo={shippingFeeKobo} />
+                )}
               </div>
               {!isVtuProduct && wrapping && (
                 <div className="flex items-center justify-between text-ink-muted">
@@ -1184,9 +1281,16 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                   <Money amountKobo={WRAPPING_FEE_KOBO} />
                 </div>
               )}
-              <div className="flex items-center justify-between border-t border-border pt-3 text-base font-semibold text-ink">
-                <span>Total</span>
-                <Money amountKobo={totalKobo} />
+              <div className="border-t border-border pt-3 space-y-0.5">
+                <div className="flex items-center justify-between text-base font-semibold text-ink">
+                  <span>Total</span>
+                  <Money amountKobo={totalKobo} />
+                </div>
+                {!isVtuProduct && vatCalc.totalVatKobo > 0 && (
+                  <p className="text-right text-[11px] text-ink-muted">
+                    includes <Money amountKobo={vatCalc.totalVatKobo} className="font-medium" /> VAT
+                  </p>
+                )}
               </div>
             </div>
 

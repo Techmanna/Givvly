@@ -59,7 +59,7 @@ export function BespokeQuoteView({ token }: BespokeQuoteViewProps) {
         </p>
         <div className="mt-6">
           <Button asChild variant="outline">
-            <Link href="/custom-gift">Create a New Wish Package</Link>
+            <Link href="/curate-box">Curate a New Gift Box</Link>
           </Button>
         </div>
       </div>

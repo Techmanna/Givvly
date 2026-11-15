@@ -12,6 +12,7 @@ import {
   fetchCatalogProducts,
   fetchProductReviews,
   fetchReviewEligibility,
+  fetchShippingZones,
   fetchVtuPlans,
   fetchVtuProviders,
   submitProductReview,
@@ -73,7 +74,13 @@ export function useSubmitProductReview(slug: string) {
   return useMutation({
     mutationFn: (payload: CreateProductReviewInput) =>
       submitProductReview(slug, payload),
-    onSuccess: () => {
+    onSuccess: (newReview) => {
+      if (newReview) {
+        queryClient.setQueryData<ProductReview[]>(
+          catalogKeys.reviews(slug),
+          (old = []) => [newReview, ...old.filter((r) => r.id !== newReview.id)]
+        );
+      }
       queryClient.invalidateQueries({ queryKey: catalogKeys.reviews(slug) });
       queryClient.invalidateQueries({ queryKey: catalogKeys.reviewEligibility(slug) });
       queryClient.invalidateQueries({ queryKey: catalogKeys.product(slug) });
@@ -86,6 +93,14 @@ export function useCatalogCollections() {
   return useQuery({
     queryKey: catalogKeys.collections(),
     queryFn: fetchCatalogCollections,
+  });
+}
+
+export function useShippingZones() {
+  return useQuery({
+    queryKey: catalogKeys.shippingZones(),
+    queryFn: fetchShippingZones,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

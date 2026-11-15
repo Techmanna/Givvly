@@ -4,6 +4,7 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
+  Logger,
 } from "@nestjs/common";
 import { Request, Response } from "express";
 
@@ -87,6 +88,8 @@ function humanizeValidationMessage(raw: string): string {
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger(AllExceptionsFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -140,7 +143,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         details = res.details;
       }
     } else if (exception instanceof Error) {
-      message = humanizeValidationMessage(exception.message);
+      // Log the full technical error server-side, but never expose raw DB/Prisma internals to users.
+      this.logger.error(
+        `Unhandled error on ${request.method} ${request.url}: ${exception.message}`,
+        exception.stack,
+      );
+      message = "Something went wrong on our end. Please try again in a moment.";
     }
 
     const requestId =

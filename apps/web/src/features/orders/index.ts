@@ -7,7 +7,7 @@ export { OrderTimeline, type OrderTimelineProps } from "./components/OrderTimeli
 export { RatingStars, type RatingStarsProps } from "./components/RatingStars";
 export { DisputeForm, type DisputeFormProps } from "./components/DisputeForm";
 export { CheckoutForm, type CheckoutFormProps } from "./components/CheckoutForm";
-export { BoxCheckoutForm } from "./components/BoxCheckoutForm";
+export { BagCheckoutForm } from "./components/BagCheckoutForm";
 export { OrdersListView } from "./components/OrdersListView";
 export { OrderDetailView, type OrderDetailViewProps } from "./components/OrderDetailView";
 export { PaymentGatewayModal, type PaymentGatewayModalProps } from "./components/PaymentGatewayModal";
@@ -17,7 +17,6 @@ export {
   type SavedAddressSelectorProps,
   type SaveAddressToggleProps,
 } from "./components/SavedAddressSelector";
-export { BespokeWishBuilder } from "./components/BespokeWishBuilder";
 export { BespokeQuoteView, type BespokeQuoteViewProps } from "./components/BespokeQuoteView";
 
 

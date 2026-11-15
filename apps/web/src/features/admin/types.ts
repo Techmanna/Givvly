@@ -12,12 +12,140 @@ export type {
 import type { OrderStatus } from "@givvly/contracts";
 
 export type AdminPaymentRecord = {
+  id?: string;
   reference: string;
+  scope?: string | null;
+  provider?: string;
+  channel?: string | null;
+  payerEmail?: string;
   amountKobo: number;
   serviceFeeKobo: number;
+  providerFeeKobo?: number | null;
   totalKobo: number;
+  currency?: string;
   status: string;
+  failureReason?: string | null;
+  paidAt?: string | null;
   createdAt: string;
+  gift?: {
+    id: string;
+    type: string;
+    giverName: string | null;
+    event: { id: string; slug: string; name: string } | null;
+  } | null;
+  order?: {
+    id: string;
+    number: string;
+    recipientName: string;
+    status: string;
+    shippingZoneName: string | null;
+    deliveryFeeKobo: number;
+    vatKobo: number;
+  } | null;
+};
+
+export type AdminPayoutDetail = import("@givvly/contracts").AdminPayoutRecord & {
+  eventId?: string | null;
+  eventSlug?: string | null;
+  ownerEmail?: string | null;
+  accountName?: string | null;
+  rawStatus?: string;
+  reference?: string | null;
+  failureReason?: string | null;
+  attempts?: number;
+  completedAt?: string | null;
+};
+
+export type AdminLedgerEntry = import("@givvly/contracts").LedgerEntry & {
+  accountCode?: string;
+};
+
+export type AdminUserListItem = import("@givvly/contracts").User & {
+  phone?: string | null;
+  status?: "ACTIVE" | "SUSPENDED" | "DELETED";
+  emailVerifiedAt?: string | null;
+  kycTier?: number;
+  bvnLast4?: string | null;
+  kycUpgradedAt?: string | null;
+  lastLoginAt?: string | null;
+  createdAt?: string;
+  _count?: {
+    events: number;
+    payoutAccounts: number;
+  };
+};
+
+export type AdminUserDetail = {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  role: "USER" | "ADMIN";
+  status: "ACTIVE" | "SUSPENDED" | "DELETED";
+  emailVerifiedAt: string | null;
+  lastLoginAt: string | null;
+  failedLogins: number;
+  lockedUntil: string | null;
+  walletPinSetAt: string | null;
+  kycTier: number;
+  bvnLast4: string | null;
+  kycUpgradedAt: string | null;
+  createdAt: string;
+  payoutAccounts: Array<{
+    id: string;
+    bankName: string;
+    accountName: string;
+    accountLast4: string;
+    status: string;
+    isDefault: boolean;
+  }>;
+  events: Array<{
+    id: string;
+    slug: string;
+    name: string;
+    type: string;
+    status: string;
+    date: string;
+    createdAt: string;
+    giftCount: number;
+    rsvpCount: number;
+  }>;
+  orders: Array<{
+    id: string;
+    number: string;
+    recipientName: string;
+    totalKobo: number;
+    status: string;
+    createdAt: string;
+  }>;
+  stats: {
+    eventsCount: number;
+    ordersCount: number;
+    paidOrdersCount: number;
+    totalOrdersSpentKobo: number;
+    giftsGivenCount: number;
+    totalGiftsGivenKobo: number;
+    payoutsCount: number;
+    totalPayoutsReceivedKobo: number;
+  };
+  transactions: Array<{
+    id: string;
+    kind: "ORDER" | "GIFT" | "PAYOUT";
+    title: string;
+    reference: string;
+    amountKobo: number;
+    status: string;
+    createdAt: string;
+  }>;
+};
+
+export type AdminLedgerReport = {
+  trialBalance: {
+    totalDebit: number;
+    totalCredit: number;
+    isBalanced: boolean;
+  };
+  entries: AdminLedgerEntry[];
 };
 
 export type AdminVendorSummary = {
@@ -63,6 +191,9 @@ export type AdminProduct = {
   imageUrl?: string;
   images?: string[];
   active?: boolean;
+  boxRole?: "GIFT_BOX" | "ITEM" | "EXCLUDED";
+  boxMaxItems?: number | null;
+  boxSizeTier?: "SMALL" | "MEDIUM" | "LARGE" | null;
 };
 
 export type UpdateProductInput = {
@@ -86,6 +217,9 @@ export type UpdateProductInput = {
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
   variants?: ProductVariant[];
   active?: boolean;
+  boxRole?: "GIFT_BOX" | "ITEM" | "EXCLUDED";
+  boxMaxItems?: number | null;
+  boxSizeTier?: "SMALL" | "MEDIUM" | "LARGE" | null;
 };
 
 export type CreateProductInput = {
@@ -104,6 +238,9 @@ export type CreateProductInput = {
   variants?: ProductVariant[];
   packagingIncluded?: string;
   imageUrl?: string;
+  boxRole?: "GIFT_BOX" | "ITEM" | "EXCLUDED";
+  boxMaxItems?: number | null;
+  boxSizeTier?: "SMALL" | "MEDIUM" | "LARGE" | null;
 };
 
 export type AdminOrderItem = {

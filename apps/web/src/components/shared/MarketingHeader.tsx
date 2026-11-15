@@ -40,11 +40,11 @@ import { logoutUser } from "@/features/auth/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/cn";
 import { BrandLogo } from "./BrandLogo";
-import { BoxButton } from "./BoxButton";
+import { BagButton } from "./BagButton";
 
 const navigationLinks = [
   { label: "Gift Atelier", href: "/gifts", icon: Gift },
-  { label: "Bespoke Gift", href: "/custom-gift", icon: Sparkles },
+  { label: "Curate Your Box", href: "/curate-box", icon: Package },
   { label: "Live Celebrations", href: "/celebrations", icon: Sparkles },
   { label: "Concierge & FAQ", href: "/help", icon: HelpCircle },
 ];
@@ -141,7 +141,7 @@ export function MarketingHeader({ initialUser }: MarketingHeaderProps) {
 
         {/* Actions Section */}
         <div className="flex items-center gap-2 sm:gap-3">
-          <BoxButton />
+          <BagButton />
           {isAuthed ? (
             <>
               {/* Dashboard Shortcut */}

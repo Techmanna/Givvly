@@ -6,7 +6,11 @@ import {
   deleteAdminProduct,
   fetchAdminDisputes,
   fetchAdminEvents,
+  fetchAdminEventDetail,
+  updateAdminEventStatus,
+  deleteAdminEvent,
   fetchAdminLedger,
+  fetchAdminLedgerReport,
   fetchAdminModerationQueue,
   fetchAdminOrderDetail,
   fetchAdminOrders,
@@ -14,6 +18,9 @@ import {
   fetchAdminPayouts,
   fetchAdminProducts,
   fetchAdminUsers,
+  fetchAdminUserDetail,
+  suspendAdminUser,
+  restoreAdminUser,
   fetchAdminVendors,
   resolveAdminDispute,
   resolveAdminModerationItem,
@@ -22,6 +29,10 @@ import {
   updateAdminProduct,
   fetchAdminBespokeQuotes,
   provideAdminBespokeQuote,
+  fetchAdminShippingZones,
+  createAdminShippingZone,
+  updateAdminShippingZone,
+  deleteAdminShippingZone,
 } from "../api";
 import { adminKeys } from "../keys";
 
@@ -74,6 +85,13 @@ export function useAdminLedger() {
   });
 }
 
+export function useAdminLedgerReport() {
+  return useQuery({
+    queryKey: [...adminKeys.ledger(), "report"] as const,
+    queryFn: () => fetchAdminLedgerReport(),
+  });
+}
+
 export function useAdminDisputes() {
   return useQuery({
     queryKey: adminKeys.disputes(),
@@ -102,6 +120,43 @@ export function useAdminEvents() {
   return useQuery({
     queryKey: adminKeys.events(),
     queryFn: () => fetchAdminEvents(),
+  });
+}
+
+export function useAdminEventDetail(id: string | null) {
+  return useQuery({
+    queryKey: id ? adminKeys.eventDetail(id) : ["admin", "events", "none"],
+    queryFn: () => fetchAdminEventDetail(id!),
+    enabled: Boolean(id),
+  });
+}
+
+export function useUpdateAdminEventStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      status,
+      reason,
+    }: {
+      id: string;
+      status: "DRAFT" | "PUBLISHED" | "CLOSED" | "ARCHIVED";
+      reason?: string;
+    }) => updateAdminEventStatus(id, status, reason),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.events() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.eventDetail(variables.id) });
+    },
+  });
+}
+
+export function useDeleteAdminEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteAdminEvent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.events() });
+    },
   });
 }
 
@@ -138,6 +193,36 @@ export function useAdminUsers() {
   return useQuery({
     queryKey: adminKeys.users(),
     queryFn: () => fetchAdminUsers(),
+  });
+}
+
+export function useAdminUserDetail(id: string | null) {
+  return useQuery({
+    queryKey: id ? adminKeys.userDetail(id) : ["admin", "users", "none"],
+    queryFn: () => fetchAdminUserDetail(id!),
+    enabled: Boolean(id),
+  });
+}
+
+export function useSuspendAdminUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => suspendAdminUser(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.users() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.userDetail(id) });
+    },
+  });
+}
+
+export function useRestoreAdminUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => restoreAdminUser(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.users() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.userDetail(id) });
+    },
   });
 }
 
@@ -254,6 +339,53 @@ export function useProvideAdminBespokeQuote() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.quotes() });
       queryClient.invalidateQueries({ queryKey: adminKeys.orders() });
+    },
+  });
+}
+
+export function useAdminShippingZones() {
+  return useQuery({
+    queryKey: adminKeys.shippingZones(),
+    queryFn: () => fetchAdminShippingZones(),
+  });
+}
+
+export function useCreateAdminShippingZone() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Omit<import("@givvly/contracts").ShippingZone, "id">) =>
+      createAdminShippingZone(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.shippingZones() });
+      queryClient.invalidateQueries({ queryKey: ["catalog", "shipping-zones"] });
+    },
+  });
+}
+
+export function useUpdateAdminShippingZone() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: Partial<Omit<import("@givvly/contracts").ShippingZone, "id">>;
+    }) => updateAdminShippingZone(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.shippingZones() });
+      queryClient.invalidateQueries({ queryKey: ["catalog", "shipping-zones"] });
+    },
+  });
+}
+
+export function useDeleteAdminShippingZone() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteAdminShippingZone(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.shippingZones() });
+      queryClient.invalidateQueries({ queryKey: ["catalog", "shipping-zones"] });
     },
   });
 }

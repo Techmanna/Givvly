@@ -107,4 +107,11 @@ export class CatalogController {
   async getCollections(): Promise<CatalogCollectionResponseDto[]> {
     return this.catalogService.getCollections() as any;
   }
+
+  @Public()
+  @Get("shipping-zones")
+  @ApiOperation({ summary: "Get enabled delivery shipping zones and VAT-inclusive fees" })
+  async getShippingZones() {
+    return this.catalogService.getShippingZones();
+  }
 }

@@ -4,8 +4,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  Package,
-  PackagePlus,
+  ShoppingBag,
   Check,
   Minus,
   Plus,
@@ -39,7 +38,7 @@ export function ChooseOptionsDialog({
   product,
 }: ChooseOptionsDialogProps) {
   const addItem = useCartStore((s) => s.addItem);
-  const openBox = useCartStore((s) => s.openBox);
+  const openBag = useCartStore((s) => s.openBag);
 
   const activeVariants: ProductVariant[] = (product.variants || []).filter(
     (v) => v.active !== false
@@ -68,7 +67,7 @@ export function ChooseOptionsDialog({
     setSelectedVariant(variant);
   };
 
-  const handleAddToBox = () => {
+  const handleAddToBag = () => {
     if (!selectedVariant) {
       toast.error("Please select an option to continue");
       return;
@@ -93,12 +92,12 @@ export function ChooseOptionsDialog({
       quantity
     );
 
-    toast.success(`Added ${product.name} (${selectedVariant.name}) to your box`, {
+    toast.success(`Added ${product.name} (${selectedVariant.name}) to your Shopping Bag!`, {
       description: `${quantity}x ${selectedVariant.name}`,
     });
 
     onOpenChange(false);
-    openBox();
+    openBag();
   };
 
   const currentPriceKobo = selectedVariant
@@ -138,7 +137,7 @@ export function ChooseOptionsDialog({
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                <Package className="h-6 w-6" />
+                <ShoppingBag className="h-6 w-6" />
               </div>
             )}
           </div>
@@ -171,7 +170,7 @@ export function ChooseOptionsDialog({
             )}
           </div>
 
-          <div className="grid gap-2 max-h-56 overflow-y-auto pr-1">
+          <div className="grid gap-2 max-h-56 overflow-y-auto pr-1 p-1">
             {activeVariants.map((variant) => {
               const isSelected = selectedVariant?.id === variant.id;
               const isOutOfStock = variant.stock === 0;
@@ -260,12 +259,12 @@ export function ChooseOptionsDialog({
           <Button
             type="button"
             className="w-full rounded-full gap-2 font-semibold shadow-md"
-            onClick={handleAddToBox}
+            onClick={handleAddToBag}
             disabled={!selectedVariant || selectedVariant.stock === 0}
           >
-            <PackagePlus className="h-4 w-4" />
+            <ShoppingBag className="h-4 w-4" />
             <span>
-              Add to Box • <Money amountKobo={currentPriceKobo * quantity} />
+              Add to Bag • <Money amountKobo={currentPriceKobo * quantity} />
             </span>
           </Button>
 

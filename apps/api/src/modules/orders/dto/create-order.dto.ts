@@ -57,6 +57,7 @@ export const createOrderSchema = z
     wrapStyle: z.string().trim().max(50).optional(),
     packagingId: z.string().trim().max(50).optional(),
     wrapping: z.boolean().optional(),
+    shippingZoneId: z.string().trim().max(80).optional(),
     buyerEmail: z.string().email().optional().or(z.literal("")),
     eventId: z.string().uuid().optional(),
     currency: z.string().trim().length(3).default("NGN"),
@@ -216,6 +217,11 @@ export class CreateOrderDto {
   @IsOptional()
   @IsBoolean()
   wrapping?: boolean;
+
+  @ApiPropertyOptional({ example: "zone_a", description: "Selected delivery shipping zone ID" })
+  @IsOptional()
+  @IsString()
+  shippingZoneId?: string;
 
   @ApiPropertyOptional({ example: "buyer@example.com", description: "Buyer email address (required if guest)" })
   @IsOptional()

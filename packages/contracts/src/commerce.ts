@@ -3,6 +3,164 @@ import { NIGERIAN_PHONE_REGEX } from "./auth";
 import { SAFE_MEDIA_URL_REGEX } from "./events";
 import type { OrderStatus, PoolItem, RegistryItem } from "./index";
 
+export type BoxRole = "GIFT_BOX" | "ITEM" | "EXCLUDED";
+
+export type BoxSizeTier = "SMALL" | "MEDIUM" | "LARGE";
+
+/** Flat fee in kobo for optional luxury whole-box gift wrapping. */
+export const GIFT_WRAPPING_FEE_KOBO = 250_000;
+
+/** Standard Nigerian VAT rate (7.5%). */
+export const NIGERIA_VAT_RATE = 0.075;
+
+export const DELIVERY_CHARGES_NOTE =
+  "Shipping fees shown at checkout are estimates based on your delivery address and a standard parcel. Bulky, heavy or multiple-box packages may attract an additional delivery charge. If your packed order costs more to ship, we reserve the right to request payment of the shipping difference before dispatch. We will contact you with the revised charge and obtain your agreement first; no additional payment is taken automatically. This applies to shipping only, not the price of your gifts.";
+
+export type ShippingZone = {
+  id: string;
+  code: string;
+  name: string;
+  areas: string;
+  deliveryNote?: string | null;
+  etaLabel?: string | null;
+  priceKobo: number;
+  enabled: boolean;
+  sortOrder: number;
+};
+
+export const DEFAULT_SHIPPING_ZONES: ShippingZone[] = [
+  {
+    id: "zone_a",
+    code: "ZONE_A",
+    name: "ZONE A",
+    areas: "Gbagada, Yaba, Iwaya, Shomolu, Bariga, Sabo, Onipanu, Palmgroove, Ilupeju",
+    deliveryNote: "YOU’D BE REQUIRED TO RECEIVE AT ESTATE GATE IF BIKES AREN’T ALLOWED",
+    etaLabel: "Within 48hrs",
+    priceKobo: 376_300,
+    enabled: true,
+    sortOrder: 1,
+  },
+  {
+    id: "zone_b",
+    code: "ZONE_B",
+    name: "ZONE B",
+    areas: "Ketu, Ojota, Maryland, Ikosi, Oworoshoki, Alapere",
+    deliveryNote: "YOU'LL BE REQUIRED TO COME OUT IF BIKE IS NOT ALLOWED",
+    etaLabel: null,
+    priceKobo: 483_800,
+    enabled: true,
+    sortOrder: 2,
+  },
+  {
+    id: "zone_c",
+    code: "ZONE_C",
+    name: "ZONE C",
+    areas: "Ikoyi, VI, Lekki 1, Admiralty, Lagos island, Okota, Ikeja, Ilasamaja",
+    deliveryNote: "YOU’LL RECEIVE AT GATE IF BIKES AREN’T ALLOWED",
+    etaLabel: "Within 48hrs",
+    priceKobo: 462_300,
+    enabled: true,
+    sortOrder: 3,
+  },
+  {
+    id: "zone_d",
+    code: "ZONE_D",
+    name: "ZONE D",
+    areas: "Marwa, Chevron, Agungi, Ikate, Agege, Dopemu, Ogba, Festac",
+    deliveryNote: "YOU’D BE REQUIRED TO RECEIVE AT ESTATE GATE IF BIKES AREN’T ALLOWED",
+    etaLabel: "Within 48hrs",
+    priceKobo: 537_500,
+    enabled: true,
+    sortOrder: 4,
+  },
+  {
+    id: "zone_e",
+    code: "ZONE_E",
+    name: "ZONE E",
+    areas: "Ipaja, Agric-Ikorodu, Ayobo, Apapa, Wharf, Meiran",
+    deliveryNote: "YOU’D BE REQUIRED TO RECEIVE AT ESTATE GATE IF BIKES AREN’T ALLOWED",
+    etaLabel: "Within 48 Hours",
+    priceKobo: 913_800,
+    enabled: true,
+    sortOrder: 5,
+  },
+  {
+    id: "zone_f",
+    code: "ZONE_F",
+    name: "ZONE F",
+    areas: "Ajah, Toll Gate, Sango, Ikorodu Inside",
+    deliveryNote: "YOU’D BE REQUIRED TO RECEIVE AT ESTATE GATE IF BIKES AREN’T ALLOWED",
+    etaLabel: "Within 48 Hours",
+    priceKobo: 1_075_000,
+    enabled: true,
+    sortOrder: 6,
+  },
+  {
+    id: "outside_lagos_park_regular",
+    code: "OUTSIDE_LAGOS_PARK_REGULAR",
+    name: "OUTSIDE LAGOS — Park Pickup (Regular)",
+    areas: "Interstate park pickup (regular, not bulky package)",
+    deliveryNote: "Pick up at designated interstate transport park",
+    etaLabel: "1-3 days",
+    priceKobo: 913_800,
+    enabled: true,
+    sortOrder: 7,
+  },
+  {
+    id: "outside_lagos_park_bulky",
+    code: "OUTSIDE_LAGOS_PARK_BULKY",
+    name: "OUTSIDE LAGOS — Park Pickup (Bulky)",
+    areas: "Interstate park pickup (bulky package)",
+    deliveryNote: "Pick up at designated interstate transport park",
+    etaLabel: "1-3 Days",
+    priceKobo: 1_075_000,
+    enabled: true,
+    sortOrder: 8,
+  },
+  {
+    id: "outside_lagos_aaj",
+    code: "OUTSIDE_LAGOS_AAJ",
+    name: "OUTSIDE LAGOS — Doorstep via AAJ Logistics (0-2kg)",
+    areas: "Doorstep delivery outside Lagos (0-2kg parcel)",
+    deliveryNote: "Fulfilled via AAJ Logistics",
+    etaLabel: "5-7 Days",
+    priceKobo: 913_800,
+    enabled: true,
+    sortOrder: 9,
+  },
+];
+
+/**
+ * Computes 7.5% VAT on gifts + the VAT portion already included in VAT-inclusive shipping,
+ * returning total VAT and final grand total in kobo.
+ */
+export function calculateOrderVatAndTotal({
+  subtotalKobo,
+  shippingFeeKobo,
+  vatRate = NIGERIA_VAT_RATE,
+  applyVat = true,
+}: {
+  subtotalKobo: number;
+  shippingFeeKobo: number;
+  vatRate?: number;
+  applyVat?: boolean;
+}) {
+  const giftVatKobo = applyVat ? Math.round(subtotalKobo * vatRate) : 0;
+  const shippingVatKobo =
+    applyVat && shippingFeeKobo > 0
+      ? shippingFeeKobo - Math.round(shippingFeeKobo / (1 + vatRate))
+      : 0;
+  const totalVatKobo = giftVatKobo + shippingVatKobo;
+  const totalKobo = subtotalKobo + giftVatKobo + shippingFeeKobo;
+
+  return {
+    giftVatKobo,
+    shippingVatKobo,
+    totalVatKobo,
+    totalKobo,
+  };
+}
+
 export type ProductVariant = {
   id: string;
   name: string;
@@ -38,6 +196,9 @@ export type CatalogProduct = {
   packagingIncluded?: string;
   isDigital?: boolean;
   digitalKind?: "AIRTIME" | "DATA" | "VOUCHER" | "GIFT_CARD";
+  boxRole?: BoxRole;
+  boxMaxItems?: number | null;
+  boxSizeTier?: BoxSizeTier | null;
 };
 
 export type BillSpotVtuType = "airtime" | "data";
@@ -237,6 +398,7 @@ export type CreateDirectOrderRequest = {
   };
   giftNote?: string;
   wrapping?: boolean;
+  shippingZoneId?: string;
   buyerEmail?: string;
   vtuType?: BillSpotVtuType;
   vtuProvider?: string;
