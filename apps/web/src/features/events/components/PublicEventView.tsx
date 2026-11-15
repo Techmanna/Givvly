@@ -47,11 +47,21 @@ export function PublicEventView({ event }: PublicEventViewProps) {
   );
 
   const inviteFields = event.template?.fields;
+  const scheduleItems = event.template?.scheduleItems ?? [];
+  const directionsHref =
+    inviteFields?.mapUrl?.trim() ||
+    (inviteFields?.venue?.trim()
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          inviteFields.venue.trim()
+        )}`
+      : "");
   const hasInviteDetails = Boolean(
     inviteFields?.venue ||
+      inviteFields?.mapUrl ||
       inviteFields?.time ||
       inviteFields?.dressCode ||
-      inviteFields?.hostLine
+      inviteFields?.hostLine ||
+      scheduleItems.length > 0
   );
 
   return (
@@ -124,13 +134,26 @@ export function PublicEventView({ event }: PublicEventViewProps) {
                     <span>{inviteFields.time}</span>
                   </div>
                 ) : null}
-                {inviteFields?.venue ? (
-                  <div className="flex items-start gap-3">
-                    <MapPin
-                      className="mt-0.5 h-4 w-4 shrink-0 text-primary"
-                      aria-hidden="true"
-                    />
-                    <span>{inviteFields.venue}</span>
+                {inviteFields?.venue || directionsHref ? (
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="flex items-start gap-3">
+                      <MapPin
+                        className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                        aria-hidden="true"
+                      />
+                      <span>{inviteFields?.venue || "Event location"}</span>
+                    </div>
+                    {directionsHref ? (
+                      <a
+                        href={directionsHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
+                      >
+                        <span>Get directions</span>
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      </a>
+                    ) : null}
                   </div>
                 ) : null}
                 {inviteFields?.dressCode ? (
@@ -139,6 +162,61 @@ export function PublicEventView({ event }: PublicEventViewProps) {
                   </div>
                 ) : null}
               </div>
+
+              {scheduleItems.length > 0 ? (
+                <div className="mt-6 border-t border-border/70 pt-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Celebration Schedule
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    {scheduleItems.map((item, idx) => {
+                      const itemMapHref =
+                        item.mapUrl?.trim() ||
+                        (item.venue?.trim()
+                          ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                              item.venue.trim()
+                            )}`
+                          : "");
+                      return (
+                        <div
+                          key={`${item.title}-${idx}`}
+                          className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-border/60 bg-background/60 px-4 py-3 text-sm"
+                        >
+                          <div className="space-y-0.5">
+                            <p className="font-medium text-foreground">
+                              {item.title}
+                            </p>
+                            {item.venue ? (
+                              <p className="text-xs text-muted-foreground">
+                                {item.venue}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-medium text-primary">
+                              {item.time}
+                            </span>
+                            {itemMapHref ? (
+                              <a
+                                href={itemMapHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                              >
+                                <span>Map</span>
+                                <ExternalLink
+                                  className="h-3 w-3"
+                                  aria-hidden="true"
+                                />
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </section>
           ) : null}
 

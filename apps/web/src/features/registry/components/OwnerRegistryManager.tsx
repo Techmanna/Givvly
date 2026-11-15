@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Search, ShoppingBag, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { useCatalogProducts } from "@/features/catalog";
+import type { CatalogProduct } from "@/features/catalog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,11 +39,117 @@ export type OwnerRegistryManagerProps = {
   eventId: string;
 };
 
+function CatalogProductPicker({
+  selectedProductId,
+  onSelect,
+  onClose,
+}: {
+  selectedProductId?: string;
+  onSelect: (product: CatalogProduct) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const productsQuery = useCatalogProducts({
+    q: search.trim() || undefined,
+  });
+
+  const products = (productsQuery.data ?? []).slice(0, 24);
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Givvly catalog products
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={onClose}
+        >
+          <X className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          Close
+        </Button>
+      </div>
+
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search Givvly products..."
+          className="h-8 pl-8 text-xs"
+        />
+      </div>
+
+      {productsQuery.isLoading ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      ) : products.length === 0 ? (
+        <p className="py-3 text-center text-xs text-muted-foreground">
+          No matching Givvly products found.
+        </p>
+      ) : (
+        <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+          {products.map((product) => {
+            const isSelected = product.id === selectedProductId;
+            return (
+              <button
+                key={product.id}
+                type="button"
+                onClick={() => onSelect(product)}
+                className={`flex items-center gap-3 rounded-md border p-2 text-left transition-colors ${
+                  isSelected
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-background hover:border-primary/40"
+                }`}
+              >
+                {product.imageUrl ? (
+                  <img
+                    src={product.imageUrl}
+                    alt={product.name}
+                    className="h-11 w-11 shrink-0 rounded object-cover"
+                  />
+                ) : (
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-muted">
+                    <ShoppingBag
+                      className="h-4 w-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-foreground">
+                    {product.name}
+                  </p>
+                  <p className="text-xs font-semibold text-primary">
+                    <Money amountKobo={product.priceKobo} />
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
   const registryQuery = useOwnerRegistry(eventId);
   const createMutation = useCreateRegistryEntryMutation(eventId);
   const deleteMutation = useDeleteRegistryEntryMutation(eventId);
   const updateMutation = useUpdateRegistryEntryMutation(eventId);
+  const [showCatalogPicker, setShowCatalogPicker] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<CatalogProduct | null>(
+    null
+  );
 
   const form = useForm<
     {
@@ -71,8 +180,9 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
       await createMutation.mutateAsync({
         title: values.title.trim(),
         priceKobo: nairaToKobo(values.priceNaira),
+        productId: selectedProduct?.id,
         isPool: values.isPool,
-        poolMode: values.poolMode,
+        poolMode: selectedProduct ? "PRODUCT" : values.poolMode,
         deadline: values.deadline || undefined,
       });
       toast.success(
@@ -80,6 +190,7 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
           ? "Group gift pool added to your event."
           : "Registry item added to your event."
       );
+      setSelectedProduct(null);
       form.reset({
         title: "",
         priceNaira: 50_000,
@@ -126,14 +237,64 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            Add registry item or group gift pool
-          </CardTitle>
-          <CardDescription>
-            Target price between ₦500 and ₦5,000,000.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">
+                Add registry item or group gift pool
+              </CardTitle>
+              <CardDescription>
+                Add a custom item/fund or optionally pick a Givvly catalog
+                product (₦500 – ₦5,000,000).
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setShowCatalogPicker((prev) => !prev)}
+            >
+              <ShoppingBag className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {showCatalogPicker
+                ? "Hide Givvly catalog"
+                : "Pick from Givvly catalog"}
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {showCatalogPicker ? (
+            <CatalogProductPicker
+              selectedProductId={selectedProduct?.id}
+              onSelect={(product) => {
+                setSelectedProduct(product);
+                form.setValue("title", product.name.slice(0, 80), {
+                  shouldValidate: true,
+                });
+                form.setValue(
+                  "priceNaira",
+                  Math.max(500, Math.round(product.priceKobo / 100)),
+                  { shouldValidate: true }
+                );
+                setShowCatalogPicker(false);
+              }}
+              onClose={() => setShowCatalogPicker(false)}
+            />
+          ) : null}
+
+          {selectedProduct ? (
+            <div className="flex items-center justify-between gap-2 rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-xs">
+              <span className="truncate font-medium text-foreground">
+                Linked Givvly product: <strong>{selectedProduct.name}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedProduct(null)}
+                className="shrink-0 font-medium text-primary hover:underline"
+              >
+                Clear
+              </button>
+            </div>
+          ) : null}
+
           <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-1.5 sm:col-span-2">

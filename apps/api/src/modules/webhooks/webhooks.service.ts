@@ -249,6 +249,14 @@ export class WebhooksService {
             failureReason: `AMOUNT_MISMATCH: expected ${payment.amountKobo}, received ${amountSubunits}`,
           },
         });
+        void this.notifications?.notifyAdmins({
+          type: "ADMIN_PAYMENT_TAMPER_ALERT",
+          category: "SECURITY",
+          title: "Security Alert: Payment Amount Mismatch",
+          body: `Webhook payment '${reference}' failed amount verification. Expected ${payment.amountKobo} subunits, received ${amountSubunits}.`,
+          actionPath: "/admin/payments",
+          data: { reference, expected: payment.amountKobo, received: amountSubunits },
+        });
         throw new Error(
           `Security invariant violation: amount mismatch on '${reference}'. Expected ${payment.amountKobo}, got ${amountSubunits}`
         );
@@ -798,6 +806,20 @@ export class WebhooksService {
       } catch (err: any) {
         this.logger.warn(`Could not dispatch gift notifications: ${err.message}`);
       }
+
+      void this.notifications.notifyAdmins({
+        type: "ADMIN_PAYMENT_RECEIVED",
+        category: "PAYMENTS",
+        title: `New Gift Payment: ${notifTask.currency} ${(notifTask.amountKobo / 100).toLocaleString()}`,
+        body: `${notifTask.giverDisplayName} sent ${notifTask.currency} ${(notifTask.amountKobo / 100).toLocaleString()} for "${notifTask.eventName}" (ref: ${reference}).`,
+        actionPath: "/admin/payments",
+        data: {
+          reference,
+          amountKobo: notifTask.amountKobo,
+          currency: notifTask.currency,
+          eventName: notifTask.eventName,
+        },
+      });
     }
 
     const orderNotifTask = pendingOrderNotification as {
@@ -827,6 +849,20 @@ export class WebhooksService {
           `Could not dispatch direct order confirmation email for ${orderNotifTask.orderNumber}: ${err.message}`
         );
       }
+
+      void this.notifications.notifyAdmins({
+        type: "ADMIN_ORDER_PAID",
+        category: "ORDERS",
+        title: `New Paid Order: ${orderNotifTask.orderNumber}`,
+        body: `Order ${orderNotifTask.orderNumber} (${orderNotifTask.currency} ${(orderNotifTask.totalKobo / 100).toLocaleString()}) from ${orderNotifTask.recipientName} is paid and ready for fulfillment.`,
+        actionPath: "/admin/orders",
+        data: {
+          orderNumber: orderNotifTask.orderNumber,
+          totalKobo: orderNotifTask.totalKobo,
+          currency: orderNotifTask.currency,
+          reference,
+        },
+      });
     }
 
     if (this.digitalGifts && pendingDigitalOrderId) {
@@ -987,5 +1023,14 @@ export class WebhooksService {
     });
 
     this.logger.warn(`Payout '${reference}' failed: ${failureReason}`);
+
+    void this.notifications?.notifyAdmins({
+      type: "ADMIN_PAYOUT_FAILED",
+      category: "PAYOUTS",
+      title: `Payout ${event.eventType === "TRANSFER_REVERSED" ? "Reversed" : "Failed"}: ${reference}`,
+      body: `Payout transfer '${reference}' failed/reversed: ${failureReason}.`,
+      actionPath: "/admin/payouts",
+      data: { reference, failureReason, eventType: event.eventType },
+    });
   }
 }

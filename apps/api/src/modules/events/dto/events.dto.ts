@@ -171,6 +171,15 @@ export class UpdateInviteTemplateRequestDto {
   @ApiPropertyOptional({ description: "Arbitrary template field key-values" })
   @IsOptional()
   fields?: Record<string, string>;
+
+  @ApiPropertyOptional({ description: "Optional multi-part ceremony schedule items" })
+  @IsOptional()
+  scheduleItems?: Array<{
+    title: string;
+    time: string;
+    venue?: string;
+    mapUrl?: string;
+  }>;
 }
 
 export class UpdateKeepsakeSummaryRequestDto {

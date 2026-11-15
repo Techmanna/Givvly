@@ -16,6 +16,12 @@ async function bootstrap() {
     rawBody: true,
   });
 
+  // Trust first reverse-proxy hop so req.ip / req.ips reflect the real client IP for rate limiting
+  app.getHttpAdapter().getInstance().set("trust proxy", 1);
+
+  // Hide powered by header
+  app.getHttpAdapter().getInstance().disable("x-powered-by");
+
   const configService = app.get(ConfigService);
   const port = configService.get<number>("PORT", 4000);
   const rawCors = configService.get<string | string[]>("CORS_ORIGINS", [
@@ -93,7 +99,13 @@ async function bootstrap() {
       "Idempotency-Key",
       "Accept",
     ],
-    exposedHeaders: ["X-Request-Id"],
+    exposedHeaders: [
+      "X-Request-Id",
+      "Retry-After",
+      "X-RateLimit-Limit",
+      "X-RateLimit-Remaining",
+      "X-RateLimit-Reset",
+    ],
   });
 
   // Global Envelope & Error Handling

@@ -293,6 +293,20 @@ export class PayoutsService {
         ? await this.prisma.$transaction((tx) => createQueuedPayout(tx))
         : await createQueuedPayout(this.prisma);
 
+    void this.notifications?.notifyAdmins({
+      type: "ADMIN_PAYOUT_REQUESTED",
+      category: "PAYOUTS",
+      title: `Payout Requested: NGN ${(payout.amountKobo / 100).toLocaleString()}`,
+      body: `A host requested a payout of NGN ${(payout.amountKobo / 100).toLocaleString()} (ref: ${payout.reference}).`,
+      actionPath: "/admin/payouts",
+      data: {
+        payoutId: payout.id,
+        reference: payout.reference,
+        amountKobo: payout.amountKobo,
+        eventId: payout.eventId,
+      },
+    });
+
     try {
       return await this.processPayout(payout.id);
     } catch {

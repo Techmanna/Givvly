@@ -13,6 +13,7 @@ import {
   Building2,
   BookOpen,
   Shield,
+  ShieldCheck,
   AlertCircle,
   Users,
   Store,
@@ -22,14 +23,13 @@ import {
   ExternalLink,
   ChevronRight,
   LogOut,
-  Sliders,
   Share,
-  Sparkles,
   Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 
 type NavGroup = {
   title: string;
@@ -64,6 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "GOVERNANCE",
     items: [
       { href: "/admin/users", label: "User Accounts", icon: Users },
+      { href: "/admin/audit-logs", label: "Audit Logs", icon: ShieldCheck },
       { href: "/admin/moderation", label: "Moderation Queue", icon: Shield },
       { href: "/admin/disputes", label: "Disputes & Claims", icon: AlertCircle },
       { href: "/admin/vendors", label: "Legacy Vendors", icon: Store },
@@ -74,7 +75,7 @@ const NAV_GROUPS: NavGroup[] = [
 export function AdminShell({
   children,
   userName = "Administrator",
-  userEmail = "admin@givvly.com",
+  userEmail = "",
 }: {
   children: React.ReactNode;
   userName?: string;
@@ -116,9 +117,7 @@ export function AdminShell({
           {/* Logo & Brand Header */}
           <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/80 px-6">
             <Link href="/admin" className="flex items-center gap-2.5">
-              <span className="font-heading text-xl font-bold tracking-tight text-primary">
-                Givvly
-              </span>
+              <BrandLogo />
               <Badge
                 variant="outline"
                 className="border-primary/30 bg-primary/10 text-[10px] font-semibold text-primary uppercase"

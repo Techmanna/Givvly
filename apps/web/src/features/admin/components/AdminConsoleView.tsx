@@ -40,6 +40,7 @@ import { EventManagementView } from "./EventManagementView";
 import { PaymentManagementView } from "./PaymentManagementView";
 import { PayoutManagementView } from "./PayoutManagementView";
 import { LedgerManagementView } from "./LedgerManagementView";
+import { AuditLogsView } from "./AuditLogsView";
 
 export type AdminSection =
   | "overview"
@@ -53,7 +54,8 @@ export type AdminSection =
   | "disputes"
   | "users"
   | "vendors"
-  | "shipping";
+  | "shipping"
+  | "audit";
 
 export type AdminConsoleViewProps = {
   section?: AdminSection;
@@ -71,6 +73,7 @@ const NAV_ITEMS: Array<{ key: AdminSection; label: string; href: string }> = [
   { key: "moderation", label: "Moderation", href: "/admin/moderation" },
   { key: "disputes", label: "Disputes", href: "/admin/disputes" },
   { key: "users", label: "Users", href: "/admin/users" },
+  { key: "audit", label: "Audit Logs", href: "/admin/audit-logs" },
   { key: "vendors", label: "Vendors (Legacy)", href: "/admin/vendors" },
 ];
 
@@ -316,6 +319,9 @@ export function AdminConsoleView({
 
       {/* Section: Users */}
       {section === "users" && <UserManagementView />}
+
+      {/* Section: Audit Logs */}
+      {section === "audit" && <AuditLogsView />}
 
       {/* Section: Moderation */}
       {section === "moderation" && (() => {

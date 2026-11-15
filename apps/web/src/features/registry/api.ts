@@ -18,6 +18,7 @@ export function createOwnerRegistryEntry(
   payload: {
     title: string;
     priceKobo: number;
+    productId?: string;
     isPool?: boolean;
     poolMode?: "PRODUCT" | "CASH";
     deadline?: string;

@@ -23,6 +23,7 @@ import {
   ApiBearerAuth,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
+import { Throttle } from "@nestjs/throttler";
 import { ConfigService } from "@nestjs/config";
 import { AuthService } from "./auth.service";
 import {
@@ -48,6 +49,7 @@ export class AuthController {
   ) {}
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 2 }, default: { ttl: 60_000, limit: 5 } })
   @Post("register")
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Register a new user account" })
@@ -71,6 +73,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 3 }, default: { ttl: 60_000, limit: 8 } })
   @Post("login")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Sign in with email and password" })
@@ -94,6 +97,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 60_000, limit: 3 }, default: { ttl: 300_000, limit: 5 } })
   @Post("resend-verification")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Resend email verification token" })
@@ -109,6 +113,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 3 }, default: { ttl: 60_000, limit: 8 } })
   @Post("verify-email")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Verify user email address using token" })
@@ -123,6 +128,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 60_000, limit: 3 }, default: { ttl: 300_000, limit: 5 } })
   @Post("forgot-password")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Request password reset email" })
@@ -138,6 +144,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 3 }, default: { ttl: 60_000, limit: 8 } })
   @Post("reset-password")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Confirm password reset using token" })
@@ -157,6 +164,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 10 }, default: { ttl: 60_000, limit: 30 } })
   @Post("refresh")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Rotate refresh token and issue new session access token" })

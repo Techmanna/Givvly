@@ -16,6 +16,7 @@ import {
   ApiBearerAuth,
   ApiCookieAuth,
 } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
 import { PoolsService } from "./pools.service";
 import {
   ContributePoolDto,
@@ -35,6 +36,7 @@ export class PoolsController {
   constructor(private readonly poolsService: PoolsService) {}
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 4 }, default: { ttl: 60_000, limit: 12 } })
   @Post("public/events/:slug/gifts/pool")
   @ApiOperation({ summary: "Contribute funds to a group gifting pool" })
   @ApiParam({ name: "slug", description: "Event slug" })

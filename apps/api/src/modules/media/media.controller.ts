@@ -17,6 +17,7 @@ import {
   UsePipes,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { Throttle } from "@nestjs/throttler";
 import {
   ApiBody,
   ApiConsumes,
@@ -96,6 +97,7 @@ export class MediaController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 5 }, default: { ttl: 60_000, limit: 20 } })
   @Post("presign")
   @ApiOperation({
     summary: "Request presigned URL for direct secure image or video upload",
@@ -113,6 +115,7 @@ export class MediaController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 5 }, default: { ttl: 60_000, limit: 20 } })
   @Post(["file", ""])
   @UseInterceptors(
     FileInterceptor("file", {
@@ -269,6 +272,7 @@ export class MediaController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 5 }, default: { ttl: 60_000, limit: 20 } })
   @Post(":mediaId/complete")
   @ApiOperation({
     summary: "Notify upload completion and transition asset to READY",

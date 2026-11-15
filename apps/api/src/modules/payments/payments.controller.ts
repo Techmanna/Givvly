@@ -13,6 +13,7 @@ import {
   ApiOkResponse,
   ApiParam,
 } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
 import { PaymentsService } from "./payments.service";
 import {
   CreateMoneyGiftDto,
@@ -29,6 +30,7 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 4 }, default: { ttl: 60_000, limit: 12 } })
   @Post("public/events/:slug/gifts/money")
   @ApiOperation({ summary: "Initialize a money gift contribution for an event" })
   @ApiParam({ name: "slug", description: "Public unique event slug" })

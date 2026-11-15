@@ -26,6 +26,7 @@ export function useCreateRegistryEntryMutation(eventId: string) {
     mutationFn: (payload: {
       title: string;
       priceKobo: number;
+      productId?: string;
       isPool?: boolean;
       poolMode?: "PRODUCT" | "CASH";
       deadline?: string;

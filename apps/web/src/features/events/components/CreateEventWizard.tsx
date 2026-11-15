@@ -2061,7 +2061,7 @@ export function CreateEventWizard() {
           ) : null}
         </CardContent>
 
-        <CardFooter className="flex items-center justify-between border-t border-border pt-4">
+        <CardFooter className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
           {step > 1 ? (
             <Button type="button" variant="outline" onClick={handleBack}>
               Back
@@ -2071,13 +2071,32 @@ export function CreateEventWizard() {
           )}
 
           {step < 5 ? (
-            <Button
-              type="button"
-              onClick={handleNext}
-              disabled={isUploading}
-            >
-              Continue
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {isAuthed ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePublish}
+                  disabled={publishMutation.isPending || isUploading}
+                  title="Publish now with default privacy and add registry or invite details later"
+                >
+                  {publishMutation.isPending ? (
+                    <Loader2
+                      className="mr-1.5 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                  <span>Publish now</span>
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                onClick={handleNext}
+                disabled={isUploading || publishMutation.isPending}
+              >
+                Continue
+              </Button>
+            </div>
           ) : (
             <Button
               type="button"

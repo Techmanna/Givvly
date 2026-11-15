@@ -1,10 +1,15 @@
 import * as path from "node:path";
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
+import { ThrottlerModule } from "@nestjs/throttler";
 import { validateEnv } from "./config/env";
 import { PrismaModule } from "./infra/prisma/prisma.module";
 import { RedisModule } from "./infra/redis/redis.module";
+import { RedisService } from "./infra/redis/redis.service";
+import { RedisThrottlerStorage } from "./common/throttler/redis-throttler.storage";
+import { AppThrottlerGuard } from "./common/throttler/app-throttler.guard";
 import { SlugModule } from "./common/slug/slug.module";
 import { PaystackModule } from "./infra/paystack/paystack.module";
 import { PaymentsInfraModule } from "./infra/payments/payments-infra.module";
@@ -26,6 +31,7 @@ import { MediaModule } from "./modules/media/media.module";
 import { DigitalGiftsModule } from "./modules/digital-gifts/digital-gifts.module";
 import { UsersModule } from "./modules/users/users.module";
 import { WalletModule } from "./modules/wallet/wallet.module";
+import { AuditModule } from "./modules/audit/audit.module";
 
 @Module({
   imports: [
@@ -44,6 +50,25 @@ import { WalletModule } from "./modules/wallet/wallet.module";
     PrismaModule,
     SlugModule,
     RedisModule,
+    ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
+      inject: [RedisService],
+      useFactory: (redisService: RedisService) => ({
+        throttlers: [
+          {
+            name: "short",
+            ttl: 10_000,
+            limit: 25,
+          },
+          {
+            name: "default",
+            ttl: 60_000,
+            limit: 120,
+          },
+        ],
+        storage: new RedisThrottlerStorage(redisService),
+      }),
+    }),
     PaystackModule,
     PaymentsInfraModule,
     StorageInfraModule,
@@ -64,6 +89,13 @@ import { WalletModule } from "./modules/wallet/wallet.module";
     DigitalGiftsModule,
     UsersModule,
     WalletModule,
+    AuditModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AppThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

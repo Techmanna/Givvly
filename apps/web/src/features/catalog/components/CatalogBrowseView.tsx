@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Smartphone, Wifi, Sparkles, ArrowRight } from "lucide-react";
+import { Smartphone, Wifi, ArrowRight, GiftIcon } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -212,7 +212,7 @@ export function CatalogBrowseView() {
       <div className="flex flex-col justify-between gap-4 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-card to-amber-500/10 p-5 sm:flex-row sm:items-center">
         <div className="space-y-1">
           <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
-            <Sparkles className="h-3 w-3" />
+            <GiftIcon className="h-3 w-3" />
             Custom Gift Box
           </div>
           <h2 className="font-heading text-lg font-semibold text-foreground">

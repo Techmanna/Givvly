@@ -19,6 +19,7 @@ import {
   ApiBearerAuth,
   ApiCookieAuth,
 } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
 import { EventsService } from "./events.service";
 import {
   CreateEventRequestDto,
@@ -76,6 +77,7 @@ export class EventsController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 3 }, default: { ttl: 60_000, limit: 10 } })
   @Post("public/events/:slug/unlock")
   @ApiOperation({ summary: "Unlock private celebration with access code" })
   @ApiOkResponse({ description: "Unlock verification result." })
@@ -105,6 +107,7 @@ export class EventsController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 3 }, default: { ttl: 60_000, limit: 10 } })
   @Post("public/events/:slug/wall")
   @ApiOperation({ summary: "Post a message or wish to the event Wall of Love" })
   @ApiCreatedResponse({
@@ -120,6 +123,7 @@ export class EventsController {
   }
 
   @Public()
+  @Throttle({ short: { ttl: 10_000, limit: 3 }, default: { ttl: 60_000, limit: 10 } })
   @Post("public/events/:slug/rsvps")
   @ApiOperation({ summary: "Submit guest RSVP attendance response" })
   @ApiCreatedResponse({
@@ -229,6 +233,67 @@ export class EventsController {
     @Body() dto: UpdateInviteTemplateRequestDto
   ): Promise<EventDetailResponseDto> {
     return this.eventsService.updateInviteTemplate(userId, eventId, dto) as any;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiCookieAuth("givvly_at")
+  @Get("events/:id/gifts")
+  @ApiOperation({ summary: "Get gifts received for an event" })
+  async getEventGifts(
+    @CurrentUser("id") userId: string,
+    @Param("id") eventId: string,
+    @Query("type") type?: string,
+    @Query("thanked") thanked?: string
+  ) {
+    return this.eventsService.getEventGifts(userId, eventId, { type, thanked });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiCookieAuth("givvly_at")
+  @Get("events/:id/thank-you")
+  @ApiOperation({ summary: "Get thank-you tracker list for an event" })
+  async getThankYouList(
+    @CurrentUser("id") userId: string,
+    @Param("id") eventId: string
+  ) {
+    return this.eventsService.getThankYouList(userId, eventId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiCookieAuth("givvly_at")
+  @Patch("gifts/:giftId/thanked")
+  @ApiOperation({ summary: "Mark or unmark a gift as thanked" })
+  async toggleGiftThanked(
+    @CurrentUser("id") userId: string,
+    @Param("giftId") giftId: string,
+    @Body() body: { thanked: boolean }
+  ) {
+    return this.eventsService.toggleGiftThanked(
+      userId,
+      giftId,
+      Boolean(body?.thanked)
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiCookieAuth("givvly_at")
+  @Post("events/:id/thank-you/bulk")
+  @ApiOperation({ summary: "Send bulk thank-you note and mark selected gifts thanked" })
+  async sendBulkThankYou(
+    @CurrentUser("id") userId: string,
+    @Param("id") eventId: string,
+    @Body() body: { giftIds: string[]; message: string }
+  ) {
+    return this.eventsService.sendBulkThankYou(
+      userId,
+      eventId,
+      Array.isArray(body?.giftIds) ? body.giftIds : [],
+      typeof body?.message === "string" ? body.message : ""
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -381,6 +446,7 @@ export class EventsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiCookieAuth("givvly_at")
+  @Throttle({ short: { ttl: 10_000, limit: 3 }, default: { ttl: 60_000, limit: 10 } })
   @Post(["payout-account/resolve", "payout-accounts/resolve"])
   @ApiOperation({ summary: "Resolve NUBAN account name via Paystack" })
   @ApiOkResponse({

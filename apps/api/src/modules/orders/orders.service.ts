@@ -708,6 +708,19 @@ export class OrdersService {
         }
       }
 
+      void this.notifications?.notifyAdmins({
+        type: "ADMIN_ORDER_PAID",
+        category: "ORDERS",
+        title: `New Paid Order: ${order.number}`,
+        body: `Order ${order.number} (${order.payment?.currency || "NGN"} ${(order.totalKobo / 100).toLocaleString()}) from ${order.recipientName || "Customer"} is confirmed and ready for fulfillment.`,
+        actionPath: "/admin/orders",
+        data: {
+          orderId: order.id,
+          orderNumber: order.number,
+          totalKobo: order.totalKobo,
+        },
+      });
+
       return {
         order: updatedOrder,
         verified: true,
@@ -905,8 +918,8 @@ export class OrdersService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const dispute = await tx.dispute.create({
+    const dispute = await this.prisma.$transaction(async (tx) => {
+      const createdDispute = await tx.dispute.create({
         data: {
           orderId: order.id,
           openedById: userId,
@@ -932,8 +945,24 @@ export class OrdersService {
         },
       });
 
-      return dispute;
+      return createdDispute;
     });
+
+    void this.notifications?.notifyAdmins({
+      type: "ADMIN_ORDER_DISPUTE",
+      category: "ORDERS",
+      title: `Order Dispute Opened: ${order.number}`,
+      body: `A ${dto.type} dispute was opened on order ${order.number}: "${dto.description.slice(0, 140)}".`,
+      actionPath: "/admin/orders",
+      data: {
+        orderId: order.id,
+        orderNumber: order.number,
+        disputeId: dispute.id,
+        disputeType: dto.type,
+      },
+    });
+
+    return dispute;
   }
 
   /**

@@ -584,6 +584,118 @@ export class NotificationsService {
     });
   }
 
+  /**
+   * Fire-and-forget alert to all active ADMIN users (in-app + email)
+   * for high-priority operational/financial events (payments, payouts, orders, disputes).
+   */
+  async notifyAdmins(params: {
+    type: string;
+    category?: string;
+    title: string;
+    body: string;
+    actionPath?: string;
+    data?: Record<string, any>;
+  }): Promise<void> {
+    try {
+      const admins =
+        typeof this.prisma?.user?.findMany === "function"
+          ? await this.prisma.user.findMany({
+              where: { role: "ADMIN", status: "ACTIVE" },
+              select: { id: true, email: true, name: true },
+            })
+          : [];
+
+      const appUrl = (
+        process.env.APP_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        "http://localhost:3000"
+      ).replace(/\/$/, "");
+      const targetUrl = params.actionPath
+        ? `${appUrl}${params.actionPath.startsWith("/") ? "" : "/"}${params.actionPath}`
+        : `${appUrl}/admin`;
+
+      const category = params.category ?? "ADMIN_ALERTS";
+      const html = this.emailService.renderTemplate(
+        params.title,
+        `
+        <h2>${params.title}</h2>
+        <p>${params.body}</p>
+        <p style="text-align: center; margin-top: 20px;">
+          <a href="${targetUrl}" class="btn">Open Admin Console</a>
+        </p>
+        `
+      );
+
+      const tasks: Promise<unknown>[] = [];
+      const emailedAddresses = new Set<string>();
+
+      for (const admin of admins) {
+        tasks.push(
+          this.notify({
+            userId: admin.id,
+            channel: Channel.IN_APP,
+            type: params.type,
+            category,
+            title: params.title,
+            body: params.body,
+            data: {
+              ...params.data,
+              actionPath: params.actionPath,
+            },
+          })
+        );
+
+        if (admin.email) {
+          emailedAddresses.add(admin.email.toLowerCase());
+          tasks.push(
+            this.notify({
+              userId: admin.id,
+              toAddress: admin.email,
+              channel: Channel.EMAIL,
+              type: params.type,
+              category,
+              title: params.title,
+              body: params.body,
+              html,
+              data: {
+                ...params.data,
+                actionPath: params.actionPath,
+              },
+            })
+          );
+        }
+      }
+
+      const fallbackAlertEmail = process.env.ADMIN_ALERT_EMAIL?.trim();
+      if (
+        fallbackAlertEmail &&
+        !emailedAddresses.has(fallbackAlertEmail.toLowerCase())
+      ) {
+        tasks.push(
+          this.notify({
+            toAddress: fallbackAlertEmail,
+            channel: Channel.EMAIL,
+            type: params.type,
+            category,
+            title: params.title,
+            body: params.body,
+            html,
+            data: {
+              ...params.data,
+              actionPath: params.actionPath,
+            },
+          })
+        );
+      }
+
+      if (tasks.length > 0) {
+        await Promise.allSettled(tasks);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Failed to dispatch admin notifications: ${err?.message ?? err}`);
+    }
+  }
+
   // ==================== IN-APP NOTIFICATIONS ====================
 
   async getNotifications(

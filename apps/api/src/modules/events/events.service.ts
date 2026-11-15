@@ -347,10 +347,37 @@ export class EventsService {
       ...event,
       hostName: (event.templateData as any)?.hostName || undefined,
       coverUrl: this.formatCoverUrl(event.coverMediaId),
+      template: this.mapTemplateData(event),
       totalReceivedKobo,
       giftCount: event.gifts.length,
       rsvpYesCount,
       moneyGiftsEnabled,
+    };
+  }
+
+  private mapTemplateData(event: {
+    templateKey?: string | null;
+    templateData?: any;
+  }) {
+    const raw =
+      event.templateData && typeof event.templateData === "object"
+        ? (event.templateData as Record<string, any>)
+        : null;
+    const templateId =
+      event.templateKey ||
+      (typeof raw?.templateId === "string" ? raw.templateId : null);
+    if (!templateId && !raw?.fields && !Array.isArray(raw?.scheduleItems)) {
+      return undefined;
+    }
+    return {
+      templateId: templateId || "blush-minimal",
+      fields:
+        raw?.fields && typeof raw.fields === "object"
+          ? (raw.fields as Record<string, string>)
+          : {},
+      scheduleItems: Array.isArray(raw?.scheduleItems)
+        ? raw.scheduleItems
+        : undefined,
     };
   }
 
@@ -453,6 +480,12 @@ export class EventsService {
       schedule?: string;
       registryNote?: string;
       fields?: Record<string, string>;
+      scheduleItems?: Array<{
+        title: string;
+        time: string;
+        venue?: string;
+        mapUrl?: string;
+      }>;
     }
   ) {
     const event = await this.prisma.event.findFirst({
@@ -463,11 +496,19 @@ export class EventsService {
       throw new NotFoundException("Event not found");
     }
 
+    const existingData =
+      event.templateData && typeof event.templateData === "object"
+        ? (event.templateData as Record<string, unknown>)
+        : {};
+
     await this.prisma.event.update({
       where: { id: event.id },
       data: {
         templateKey: dto.templateId,
-        templateData: dto as any,
+        templateData: {
+          ...existingData,
+          ...dto,
+        } as any,
       },
     });
 
@@ -729,6 +770,7 @@ export class EventsService {
       story: event.story,
       ownerFirstName: firstName,
       allowPlusOne: event.allowPlusOne,
+      template: this.mapTemplateData(event),
       registry: event.registry.map((item) => {
         const prodImages = Array.isArray(item.product?.images)
           ? item.product?.images
@@ -1281,6 +1323,160 @@ export class EventsService {
       rsvpMaybeCount,
       rsvpNoCount,
       payoutStatus: event.payoutAccountId ? "VERIFIED" : "NOT_SET",
+    };
+  }
+
+  private mapGiftItem(gift: {
+    id: string;
+    type: string;
+    amountKobo: number;
+    currency: string;
+    giverName: string | null;
+    anonymous: boolean;
+    message: string | null;
+    status: string;
+    thankedAt: Date | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: gift.id,
+      type: gift.type,
+      amountKobo: gift.amountKobo,
+      currency: gift.currency,
+      giverName: gift.anonymous ? null : gift.giverName,
+      anonymous: gift.anonymous,
+      message: gift.message ?? undefined,
+      status: gift.status,
+      thanked: Boolean(gift.thankedAt),
+      createdAt: gift.createdAt.toISOString(),
+    };
+  }
+
+  async getEventGifts(
+    userId: string,
+    eventId: string,
+    filters: { type?: string; thanked?: string } = {}
+  ) {
+    const event = await this.prisma.event.findFirst({
+      where: { OR: [{ id: eventId }, { slug: eventId }], ownerId: userId },
+      select: { id: true },
+    });
+
+    if (!event) {
+      throw new NotFoundException("Event not found");
+    }
+
+    const where: any = {
+      eventId: event.id,
+      status: "PAID",
+    };
+
+    if (filters.type && filters.type !== "ALL") {
+      where.type = filters.type === "ITEM" ? "PRODUCT" : filters.type;
+    }
+
+    if (filters.thanked === "THANKED") {
+      where.thankedAt = { not: null };
+    } else if (filters.thanked === "UNTHANKED") {
+      where.thankedAt = null;
+    }
+
+    const gifts = await this.prisma.gift.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+    });
+
+    return gifts.map((gift) => this.mapGiftItem(gift));
+  }
+
+  async getThankYouList(userId: string, eventId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { OR: [{ id: eventId }, { slug: eventId }], ownerId: userId },
+      select: { id: true },
+    });
+
+    if (!event) {
+      throw new NotFoundException("Event not found");
+    }
+
+    const gifts = await this.prisma.gift.findMany({
+      where: {
+        eventId: event.id,
+        status: "PAID",
+      },
+      orderBy: [{ thankedAt: "asc" }, { createdAt: "desc" }],
+    });
+
+    return gifts.map((gift) => this.mapGiftItem(gift));
+  }
+
+  async toggleGiftThanked(userId: string, giftId: string, thanked: boolean) {
+    const gift = await this.prisma.gift.findUnique({
+      where: { id: giftId },
+      include: {
+        event: {
+          select: { ownerId: true },
+        },
+      },
+    });
+
+    if (!gift || !gift.event) {
+      throw new NotFoundException("Gift not found");
+    }
+
+    if (gift.event.ownerId !== userId) {
+      throw new ForbiddenException("You do not have permission to update this gift");
+    }
+
+    const updated = await this.prisma.gift.update({
+      where: { id: gift.id },
+      data: {
+        thankedAt: thanked ? new Date() : null,
+      },
+    });
+
+    return this.mapGiftItem(updated);
+  }
+
+  async sendBulkThankYou(
+    userId: string,
+    eventId: string,
+    giftIds: string[],
+    message: string
+  ) {
+    const event = await this.prisma.event.findFirst({
+      where: { OR: [{ id: eventId }, { slug: eventId }], ownerId: userId },
+      select: { id: true, name: true },
+    });
+
+    if (!event) {
+      throw new NotFoundException("Event not found");
+    }
+
+    const uniqueIds = Array.from(new Set(giftIds.filter(Boolean)));
+    if (uniqueIds.length === 0) {
+      throw new BadRequestException("Select at least one gift to thank");
+    }
+
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) {
+      throw new BadRequestException("Thank-you message cannot be empty");
+    }
+
+    const result = await this.prisma.gift.updateMany({
+      where: {
+        id: { in: uniqueIds },
+        eventId: event.id,
+        status: "PAID",
+      },
+      data: {
+        thankedAt: new Date(),
+      },
+    });
+
+    return {
+      updatedCount: result.count,
+      message: trimmedMessage,
     };
   }
 }

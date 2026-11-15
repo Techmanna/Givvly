@@ -95,9 +95,17 @@ export type PoolItem = RegistryItem & {
   mode: "PRODUCT" | "CASH";
 };
 
+export type InviteScheduleItem = {
+  title: string;
+  time: string;
+  venue?: string;
+  mapUrl?: string;
+};
+
 export type InviteTemplateData = {
   templateId: string;
   fields: Record<string, string>;
+  scheduleItems?: InviteScheduleItem[];
 };
 
 export type PublicEvent = EventSummary & {

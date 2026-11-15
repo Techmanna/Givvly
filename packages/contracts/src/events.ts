@@ -341,12 +341,30 @@ export const INVITE_TEMPLATE_IDS = [
 
 export type InviteTemplateId = (typeof INVITE_TEMPLATE_IDS)[number];
 
+export const inviteScheduleItemSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(80),
+  time: z.string().trim().min(1, "Time is required").max(60),
+  venue: z.string().trim().max(120).optional().or(z.literal("")),
+  mapUrl: z
+    .string()
+    .trim()
+    .url("Enter a valid Google Maps URL (https://...)")
+    .optional()
+    .or(z.literal("")),
+});
+
 export const inviteEditorSchema = z.object({
   templateId: z.enum(INVITE_TEMPLATE_IDS),
   venue: z
     .string()
     .trim()
     .max(120, "Venue must be 120 characters or fewer")
+    .optional()
+    .or(z.literal("")),
+  mapUrl: z
+    .string()
+    .trim()
+    .url("Enter a valid Google Maps URL (https://...)")
     .optional()
     .or(z.literal("")),
   time: z
@@ -367,6 +385,7 @@ export const inviteEditorSchema = z.object({
     .max(120, "Host line must be 120 characters or fewer")
     .optional()
     .or(z.literal("")),
+  scheduleItems: z.array(inviteScheduleItemSchema).max(6).optional(),
 });
 
 export type InviteEditorInput = z.infer<typeof inviteEditorSchema>;

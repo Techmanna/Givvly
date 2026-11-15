@@ -15,6 +15,7 @@ import {
   ApiHeader,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { SkipThrottle } from "@nestjs/throttler";
 import { WebhooksService } from "./webhooks.service";
 import { Public } from "@/common/decorators/auth.decorator";
 
@@ -23,6 +24,7 @@ interface RawBodyRequest extends Request {
 }
 
 @ApiTags("Webhooks (Payment Gateways & Providers)")
+@SkipThrottle()
 @Controller("webhooks")
 export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
