@@ -251,7 +251,7 @@ export default function MarketingHomePage() {
       </section>
 
       {/* EMOTIONAL QUOTE & CLOSING BANNER */}
-      <section className="mx-auto max-w-6xl px-4 sm:px-6">
+      {/* <section className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="paper-surface stationery-frame scroll-reveal overflow-hidden rounded-[28px] border border-border p-8 sm:p-14">
           <div className="grid items-center gap-8 lg:grid-cols-12">
             <div className="space-y-4 lg:col-span-8">
@@ -288,7 +288,7 @@ export default function MarketingHomePage() {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
     </div>
   );
 }
