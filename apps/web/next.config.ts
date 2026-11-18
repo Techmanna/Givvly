@@ -20,6 +20,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  experimental: {
+    agentUpgrade: "security",
+  },
   transpilePackages: ["@givvly/contracts"],
   images: {
     remotePatterns: [
