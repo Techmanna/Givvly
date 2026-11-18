@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   Matches,
   Max,
   Min,
@@ -73,6 +74,14 @@ export class WalletTopUpDto {
   @Min(10000) // Min ₦100
   @Max(500000000) // Max ₦5,000,000
   amountKobo: number;
+
+  @ApiPropertyOptional({
+    example: "http://localhost:3000/wallet",
+    description: "Optional redirect/callback URL after hosted gateway checkout",
+  })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  callbackUrl?: string;
 }
 
 export class WalletVerifyTopUpDto {

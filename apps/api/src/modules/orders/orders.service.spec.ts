@@ -29,6 +29,7 @@ describe("OrdersService", () => {
 
   beforeEach(async () => {
     mockGateway = {
+      providerName: "MONNIFY",
       initializePayment: jest.fn().mockResolvedValue({
         reference: "ord_ref_123",
         accessCode: "acc_123",
@@ -38,6 +39,7 @@ describe("OrdersService", () => {
 
     gatewayRegistry = {
       getGateway: jest.fn().mockReturnValue(mockGateway),
+      getGatewayForCurrency: jest.fn().mockReturnValue(mockGateway),
     };
 
     prisma = {

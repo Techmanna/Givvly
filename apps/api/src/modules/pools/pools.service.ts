@@ -177,7 +177,7 @@ export class PoolsService {
       const paymentRecord = await tx.payment.create({
         data: {
           reference,
-          provider: "PAYSTACK",
+          provider: gateway.providerName,
           amountKobo: feeResult.totalKobo,
           feeKobo: feeResult.feeKobo,
           currency,

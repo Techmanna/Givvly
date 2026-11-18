@@ -25,7 +25,7 @@ import { formatNaira, nairaToKobo } from "@/lib/format";
 import { useGiveDraftStore } from "@/stores/give-draft-store";
 import type { EventType } from "@givvly/contracts";
 import { useInitiateMoneyGiftMutation } from "../hooks/useGifts";
-import { loadPaystackScript, openPaystackCheckout } from "../paystack";
+import { loadMonnifyScript, openGatewayCheckout } from "../monnify";
 import { giveMoneySchema, hasProfanityWarning } from "../schemas";
 import type { GiveMoneyInput, PaymentInitResponse } from "../types";
 
@@ -363,7 +363,7 @@ export function GiveMoneyForm({
 
   useEffect(() => {
     hydrateForSlug(slug);
-    void loadPaystackScript();
+    void loadMonnifyScript();
   }, [hydrateForSlug, slug]);
 
   const watchedAmountNaira = useWatch({
@@ -459,11 +459,14 @@ export function GiveMoneyForm({
 
       setPendingPayment(payment);
 
-      const popupResult = await openPaystackCheckout({
+      const popupResult = await openGatewayCheckout({
         email: values.email.trim().toLowerCase(),
+        customerName: values.name?.trim() || undefined,
         amountKobo: payment.totalKobo,
         reference: payment.reference,
         accessCode: payment.accessCode,
+        authorizationUrl: payment.authorizationUrl,
+        description: `Gift for ${eventName}`,
         onComplete: (ref) => {
           trackEvent("give_completed", {
             slug,
@@ -480,7 +483,11 @@ export function GiveMoneyForm({
       });
 
       if (!popupResult.opened) {
-        setScriptFailed(true);
+        if (payment.authorizationUrl) {
+          window.location.href = payment.authorizationUrl;
+        } else {
+          setScriptFailed(true);
+        }
       }
     } catch (err) {
       if (err instanceof ApiClientError) {

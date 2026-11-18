@@ -89,6 +89,7 @@ export function setWalletTransactionPin(payload: {
 
 export function initializeWalletTopUp(payload: {
   amountKobo: number;
+  callbackUrl?: string;
 }): Promise<{
   reference: string;
   accessCode: string;
@@ -96,9 +97,17 @@ export function initializeWalletTopUp(payload: {
   amountKobo: number;
   currency: string;
 }> {
+  const callbackUrl =
+    payload.callbackUrl ??
+    (typeof window !== "undefined"
+      ? `${window.location.origin}/wallet`
+      : undefined);
   return api("/wallet/topup", {
     method: "POST",
-    body: payload,
+    body: {
+      ...payload,
+      ...(callbackUrl ? { callbackUrl } : {}),
+    },
   });
 }
 

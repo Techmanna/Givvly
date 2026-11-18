@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatNaira } from "@/lib/format";
-import { openPaystackCheckout } from "@/features/gifts/paystack";
+import { openGatewayCheckout } from "@/features/gifts/monnify";
 import { useAuthStore } from "@/stores/auth-store";
 import { TransactionReceiptModal } from "@/components/shared/TransactionReceiptModal";
 import type { WalletRecentRecipient, WalletTransactionItem } from "../api";
@@ -170,11 +170,14 @@ export function WalletDashboardCard() {
     authorizationUrl?: string;
     amountKobo: number;
   }) {
-    const res = await openPaystackCheckout({
+    const res = await openGatewayCheckout({
       email: user?.email || "member@givvly.store",
+      customerName: user?.name || undefined,
       amountKobo: gatewayInfo.amountKobo,
       reference: gatewayInfo.reference,
       accessCode: gatewayInfo.accessCode || "",
+      authorizationUrl: gatewayInfo.authorizationUrl,
+      description: "Givvly Wallet Top-Up",
       onComplete: async (completedRef) => {
         await handleConfirmTopUp(completedRef, gatewayInfo.amountKobo, false);
       },
@@ -669,7 +672,7 @@ export function WalletDashboardCard() {
                   disabled={initTopUpMutation.isPending}
                 >
                   <CreditCard className="mr-1.5 h-4 w-4" />
-                  Launch Paystack Checkout
+                  Pay
                 </Button>
               </div>
             </div>

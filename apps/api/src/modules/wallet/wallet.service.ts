@@ -8,6 +8,7 @@ import {
   Optional,
 } from "@nestjs/common";
 import { AccountStatus, Direction, OrderStatus, PaymentStatus, PayoutStatus, PoolStatus, Role } from "@prisma/client";
+import { ConfigService } from "@nestjs/config";
 import * as argon2 from "argon2";
 import * as crypto from "crypto";
 import { PrismaService } from "../../infra/prisma/prisma.service";
@@ -41,7 +42,8 @@ export class WalletService {
     private readonly ledger: LedgerService,
     private readonly paymentGatewayRegistry: PaymentGatewayRegistry,
     private readonly payouts: PayoutsService,
-    @Optional() private readonly digitalGifts?: DigitalGiftsService
+    @Optional() private readonly digitalGifts?: DigitalGiftsService,
+    @Optional() private readonly config?: ConfigService
   ) {}
 
   private walletAccountCode(userId: string): string {
@@ -595,14 +597,21 @@ export class WalletService {
     }
 
     const reference = `wal_topup_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const appUrl =
+      this.config?.get<string>("APP_URL") ||
+      process.env.APP_URL ||
+      "http://localhost:3000";
+    const callbackUrl =
+      dto.callbackUrl ?? `${appUrl}/wallet?payment_ref=${reference}`;
 
-    const gateway = this.paymentGatewayRegistry.getGateway("PAYSTACK");
+    const gateway = this.paymentGatewayRegistry.getGateway();
     const initRes = await gateway.initializePayment({
       reference,
       amountSubunits: dto.amountKobo,
       customerEmail: user.email,
       customerName: user.name,
       currency: "NGN",
+      callbackUrl,
       metadata: {
         kind: "WALLET_TOPUP",
         userId: user.id,
@@ -619,7 +628,7 @@ export class WalletService {
         accessCode: initRes.accessCode,
         authorizationUrl: initRes.authorizationUrl,
         payerEmail: user.email,
-        provider: "PAYSTACK",
+        provider: gateway.providerName,
         metadata: {
           kind: "WALLET_TOPUP",
           userId: user.id,
@@ -654,7 +663,9 @@ export class WalletService {
       throw new ForbiddenException("This top-up belongs to a different user");
     }
 
-    const gateway = this.paymentGatewayRegistry.getGateway("PAYSTACK");
+    const gateway = this.paymentGatewayRegistry.getGateway(
+      payment.provider || undefined
+    );
     let verifiedChannel = "card";
     const isDevSandboxAllowed =
       Boolean(simulateDev) && process.env.NODE_ENV !== "production";

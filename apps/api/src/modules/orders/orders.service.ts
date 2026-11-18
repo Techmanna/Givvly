@@ -10,6 +10,7 @@ import {
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { PaymentGatewayRegistry } from "../../infra/payments/payment-gateway.registry";
 import { OrderStatus, PaymentStatus, DisputeStatus, Direction, Channel } from "@prisma/client";
+import { ConfigService } from "@nestjs/config";
 import { LedgerService } from "../ledger/ledger.service";
 import { DigitalGiftsService } from "../digital-gifts/digital-gifts.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -33,8 +34,17 @@ export class OrdersService {
     private readonly paymentGatewayRegistry: PaymentGatewayRegistry,
     private readonly ledger: LedgerService,
     @Optional() private readonly digitalGifts?: DigitalGiftsService,
-    @Optional() private readonly notifications?: NotificationsService
+    @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly config?: ConfigService
   ) { }
+
+  private getAppUrl(): string {
+    return (
+      this.config?.get<string>("APP_URL") ||
+      process.env.APP_URL ||
+      "http://localhost:3000"
+    );
+  }
 
   /**
    * Direct checkout for gift items / boxes
@@ -251,13 +261,16 @@ export class OrdersService {
 
     // Initialize Payment Gateway before DB transaction to avoid holding DB locks over HTTP I/O
     // and to eliminate post-creation update round trips
-    const gateway = this.paymentGatewayRegistry.getGateway("PAYSTACK");
+    const gateway = this.paymentGatewayRegistry.getGatewayForCurrency(currency);
+    const callbackUrl =
+      dto.callbackUrl ?? `${this.getAppUrl()}/orders?payment_ref=${paymentReference}`;
     const paymentInit = await gateway.initializePayment({
       reference: paymentReference,
       amountSubunits: totalKobo,
       customerEmail: buyerEmail,
       customerName: user?.name,
       currency,
+      callbackUrl,
       metadata: {
         orderNumber,
         buyerUserId: user?.id,
@@ -276,7 +289,7 @@ export class OrdersService {
           accessCode: paymentInit.accessCode,
           authorizationUrl: paymentInit.authorizationUrl,
           payerEmail: buyerEmail,
-          provider: "PAYSTACK",
+          provider: gateway.providerName,
           metadata: {
             orderNumber,
             itemsCount: orderItemsData.length,
@@ -369,7 +382,11 @@ export class OrdersService {
   /**
    * Re-initialize payment for a PENDING_PAYMENT order
    */
-  async repayOrder(orderId: string, user?: { id: string; email: string }) {
+  async repayOrder(
+    orderId: string,
+    user?: { id: string; email: string },
+    callbackUrl?: string
+  ) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { items: true, payment: true },
@@ -392,12 +409,15 @@ export class OrdersService {
     const newReference = `ord_${crypto.randomBytes(12).toString("hex")}`;
     const currency = order.payment?.currency || "NGN";
 
-    const gateway = this.paymentGatewayRegistry.getGateway("PAYSTACK");
+    const gateway = this.paymentGatewayRegistry.getGatewayForCurrency(currency);
+    const resolvedCallbackUrl =
+      callbackUrl ?? `${this.getAppUrl()}/orders/${order.id}?payment_ref=${newReference}`;
     const paymentInit = await gateway.initializePayment({
       reference: newReference,
       amountSubunits: order.totalKobo,
       customerEmail: order.buyerEmail,
       currency,
+      callbackUrl: resolvedCallbackUrl,
       metadata: {
         orderId: order.id,
         orderNumber: order.number,
@@ -416,7 +436,7 @@ export class OrdersService {
           payerEmail: order.buyerEmail,
           accessCode: paymentInit.accessCode,
           authorizationUrl: paymentInit.authorizationUrl,
-          provider: "PAYSTACK",
+          provider: gateway.providerName,
           metadata: {
             orderId: order.id,
             orderNumber: order.number,
@@ -576,7 +596,9 @@ export class OrdersService {
       throw new BadRequestException("No payment associated with this order");
     }
 
-    const gateway = this.paymentGatewayRegistry.getGateway("PAYSTACK");
+    const gateway = this.paymentGatewayRegistry.getGateway(
+      order.payment.provider || undefined
+    );
     const verifyRes = await gateway.verifyPayment(order.payment.reference);
 
     if (verifyRes.status === "success") {
@@ -1215,7 +1237,8 @@ export class OrdersService {
    */
   async initializeQuotePayment(
     token: string,
-    user?: { id?: string; email?: string }
+    user?: { id?: string; email?: string },
+    callbackUrl?: string
   ) {
     const order = await this.prisma.order.findFirst({
       where: {
@@ -1239,14 +1262,18 @@ export class OrdersService {
       throw new BadRequestException("Total quote amount must be greater than zero.");
     }
 
-    const gateway = this.paymentGatewayRegistry.getGateway("PAYSTACK");
+    const gateway = this.paymentGatewayRegistry.getGatewayForCurrency("NGN");
     const paymentReference = `ord_wish_${crypto.randomBytes(12).toString("hex")}`;
+    const resolvedCallbackUrl =
+      callbackUrl ??
+      `${this.getAppUrl()}/orders/quote/${encodeURIComponent(token)}?payment_ref=${paymentReference}`;
 
     const paymentInit = await gateway.initializePayment({
       reference: paymentReference,
       amountSubunits: order.totalKobo,
       currency: "NGN",
       customerEmail: order.buyerEmail,
+      callbackUrl: resolvedCallbackUrl,
       metadata: {
         orderId: order.id,
         orderNumber: order.number,
@@ -1265,7 +1292,7 @@ export class OrdersService {
         accessCode: paymentInit.accessCode,
         authorizationUrl: paymentInit.authorizationUrl,
         payerEmail: order.buyerEmail,
-        provider: "PAYSTACK",
+        provider: gateway.providerName,
         metadata: {
           orderId: order.id,
           orderNumber: order.number,

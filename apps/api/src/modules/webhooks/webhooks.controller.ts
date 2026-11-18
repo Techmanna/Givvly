@@ -30,6 +30,24 @@ export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
 
   @Public()
+  @Post("monnify")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Handle inbound Monnify webhook events (HMAC-SHA512 verified)" })
+  @ApiHeader({ name: "monnify-signature", description: "HMAC SHA-512 signature of the raw body" })
+  @ApiOkResponse({ description: "Webhook acknowledged and queued." })
+  async handleMonnifyWebhook(@Req() req: RawBodyRequest) {
+    const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(req.body));
+    console.log({rawBody});
+    
+    return this.webhooksService.handleWebhook(
+      "MONNIFY",
+      req.headers as Record<string, string | string[] | undefined>,
+      rawBody,
+      req.body
+    );
+  }
+
+  @Public()
   @Post("paystack")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Handle inbound Paystack webhook events (HMAC-SHA512 verified)" })

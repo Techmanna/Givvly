@@ -39,7 +39,7 @@ import {
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { PaymentGatewayModal } from "./PaymentGatewayModal";
-import { openPaystackCheckout } from "@/features/gifts/paystack";
+import { openGatewayCheckout } from "@/features/gifts/monnify";
 import { verifyOrderPayment } from "../api";
 import { directCheckoutSchema } from "../schemas";
 import { useCreateDirectOrder, useOrdersList } from "../hooks/useOrders";
@@ -557,11 +557,13 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
       });
 
       if (paymentMethod === "paystack") {
-        const paystackRes = await openPaystackCheckout({
+        const paystackRes = await openGatewayCheckout({
           email: buyerEmail,
           amountKobo: result.order.totalKobo,
           reference: result.reference,
           accessCode: result.accessCode,
+          authorizationUrl: result.authorizationUrl,
+          description: `Givvly Order ${result.order.number}`,
           onComplete: async (ref) => {
             try {
               await verifyOrderPayment(result.order.id);

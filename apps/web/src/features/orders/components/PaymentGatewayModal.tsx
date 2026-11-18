@@ -21,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatNaira } from "@/lib/format";
-import { openPaystackCheckout } from "@/features/gifts/paystack";
+import { openGatewayCheckout } from "@/features/gifts/monnify";
 import {
   usePayOrderWithWalletMutation,
   useSetWalletPinMutation,
@@ -79,11 +79,13 @@ export function PaymentGatewayModal({
     setIsProcessing(true);
     setIsPaystackActive(true);
     try {
-      const res = await openPaystackCheckout({
+      const res = await openGatewayCheckout({
         email: paymentDetails.email,
         amountKobo: paymentDetails.amountKobo,
         reference: paymentDetails.reference,
         accessCode: paymentDetails.accessCode,
+        authorizationUrl: paymentDetails.authorizationUrl,
+        description: `Givvly Order ${order.number}`,
         onComplete: async (ref) => {
           setIsPaystackActive(false);
           setIsConfirmed(true);
@@ -439,7 +441,7 @@ export function PaymentGatewayModal({
                 {isProcessing && !payWithWalletMutation.isPending ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Opening Paystack...
+                    Opening Monnify...
                   </>
                 ) : (
                   <>

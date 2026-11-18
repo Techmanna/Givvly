@@ -6,6 +6,7 @@ import {
   IsPositive,
   IsEmail,
   IsOptional,
+  IsUrl,
   ValidateNested,
   IsArray,
   IsBoolean,
@@ -65,6 +66,7 @@ export const createOrderSchema = z
     vtuProvider: z.string().trim().max(30).optional(),
     billItemIdentifier: z.string().trim().max(80).optional(),
     customAmountKobo: z.number().int().min(5000).optional(),
+    callbackUrl: z.string().url().optional(),
   })
   .transform((data) => {
     const primaryPhone = data.recipientPhone || data.recipientPhones?.[0];
@@ -258,6 +260,11 @@ export class CreateOrderDto {
   @IsInt()
   @Min(5000)
   customAmountKobo?: number;
+
+  @ApiPropertyOptional({ example: "http://localhost:3000/orders", description: "Optional redirect URL after hosted payment checkout" })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  callbackUrl?: string;
 }
 
 export class OrderItemResponseDto {

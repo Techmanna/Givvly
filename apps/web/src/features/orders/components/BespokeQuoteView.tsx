@@ -256,7 +256,7 @@ export function BespokeQuoteView({ token }: BespokeQuoteViewProps) {
               {payMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Connecting to Paystack...
+                  Connecting to Monnify...
                 </>
               ) : (
                 <>
@@ -267,7 +267,7 @@ export function BespokeQuoteView({ token }: BespokeQuoteViewProps) {
             </Button>
             <p className="text-center text-[11px] text-muted-foreground flex items-center justify-center gap-1">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-              Secured via Paystack • Instant confirmation • Bank transfer & Cards accepted
+              Secured via Monnify • Instant confirmation • Bank transfer & Cards accepted
             </p>
           </CardContent>
         </Card>

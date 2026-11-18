@@ -31,6 +31,16 @@ export const envSchema = z.object({
     .min(16)
     .default("dev_account_hash_key_for_hmac_32_bytes"),
 
+  // Default Payment Gateway
+  DEFAULT_PAYMENT_GATEWAY: z.enum(["MONNIFY", "PAYSTACK"]).default("MONNIFY"),
+
+  // Monnify
+  MONNIFY_API_KEY: z.string().default("MK_TEST_mock_monnify_api_key"),
+  MONNIFY_SECRET_KEY: z.string().default("MSK_TEST_mock_monnify_secret_key"),
+  MONNIFY_CONTRACT_CODE: z.string().default("0000000000"),
+  MONNIFY_BASE_URL: z.string().url().default("https://sandbox.monnify.com"),
+  MONNIFY_SOURCE_ACCOUNT: z.string().optional().default(""),
+
   // Paystack
   PAYSTACK_SECRET_KEY: z.string().default("sk_test_mock_paystack_secret_key"),
   PAYSTACK_PUBLIC_KEY: z.string().default("pk_test_mock_paystack_public_key"),

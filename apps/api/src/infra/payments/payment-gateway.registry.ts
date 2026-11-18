@@ -1,15 +1,35 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from "@nestjs/common";
 import { PaymentGateway } from "./payment-gateway.interface";
 import { PaystackGateway } from "./adapters/paystack.gateway";
+import { MonnifyGateway } from "./adapters/monnify.gateway";
 
 @Injectable()
 export class PaymentGatewayRegistry {
   private readonly logger = new Logger(PaymentGatewayRegistry.name);
   private readonly gateways = new Map<string, PaymentGateway>();
-  private defaultGatewayName = "PAYSTACK";
+  private defaultGatewayName = "MONNIFY";
 
-  constructor(paystackGateway: PaystackGateway) {
+  constructor(
+    paystackGateway: PaystackGateway,
+    @Optional() monnifyGateway?: MonnifyGateway
+  ) {
+    if (monnifyGateway) {
+      this.registerGateway(monnifyGateway);
+    } else {
+      this.defaultGatewayName = "PAYSTACK";
+    }
     this.registerGateway(paystackGateway);
+
+    const configuredDefault =
+      process.env.DEFAULT_PAYMENT_GATEWAY?.trim().toUpperCase();
+    if (configuredDefault && this.gateways.has(configuredDefault)) {
+      this.defaultGatewayName = configuredDefault;
+    }
   }
 
   /**

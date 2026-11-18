@@ -38,7 +38,7 @@ import {
   useWalletSummary,
 } from "@/features/wallet";
 import { PaymentGatewayModal } from "./PaymentGatewayModal";
-import { openPaystackCheckout } from "@/features/gifts/paystack";
+import { openGatewayCheckout } from "@/features/gifts/monnify";
 import { verifyOrderPayment } from "../api";
 import { useCreateDirectOrder, useOrdersList } from "../hooks/useOrders";
 import { useShippingZones } from "@/features/catalog/hooks/useCatalog";
@@ -413,13 +413,15 @@ export function BagCheckoutForm() {
         email: buyerEmail,
       });
 
-      // Paystack Payment flow
+      // Payment Gateway flow (Monnify default)
       if (paymentMethod === "paystack") {
-        const paystackRes = await openPaystackCheckout({
+        const paystackRes = await openGatewayCheckout({
           email: buyerEmail,
           amountKobo: result.order.totalKobo,
           reference: result.reference,
           accessCode: result.accessCode,
+          authorizationUrl: result.authorizationUrl,
+          description: `Givvly Order ${result.order.number}`,
           onComplete: async (ref) => {
             try {
               await verifyOrderPayment(result.order.id);
@@ -810,7 +812,7 @@ export function BagCheckoutForm() {
                     <CreditCard className="h-5 w-5 text-primary mt-0.5" />
                     <div>
                       <p className="text-xs font-bold text-foreground">
-                        Paystack Gateway
+                        Card & Bank Transfer (Monnify)
                       </p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
                         Debit/Credit Card, Bank Transfer, USSD, Apple Pay

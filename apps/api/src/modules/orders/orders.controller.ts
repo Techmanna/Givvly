@@ -90,9 +90,10 @@ export class OrdersController {
   @ApiOkResponse({ description: "Paystack authorization URL and payment reference." })
   async payBespokeQuote(
     @Param("token") token: string,
-    @CurrentUser() user?: { id?: string; email?: string }
+    @CurrentUser() user?: { id?: string; email?: string },
+    @Body() body?: { callbackUrl?: string }
   ) {
-    return this.ordersService.initializeQuotePayment(token, user);
+    return this.ordersService.initializeQuotePayment(token, user, body?.callbackUrl);
   }
 
   @Public()
@@ -102,9 +103,10 @@ export class OrdersController {
   @ApiOkResponse({ description: "Fresh payment authorization details." })
   async repayOrder(
     @Param("id") orderId: string,
-    @CurrentUser() user?: { id: string; email: string }
+    @CurrentUser() user?: { id: string; email: string },
+    @Body() body?: { callbackUrl?: string }
   ) {
-    return this.ordersService.repayOrder(orderId, user);
+    return this.ordersService.repayOrder(orderId, user, body?.callbackUrl);
   }
 
   @Public()

@@ -9,6 +9,15 @@ export const clientEnvSchema = z.object({
       { message: "Must be a valid URL or path (e.g. /api/v1 or https://...)" }
     )
     .default("http://localhost:4000/api/v1"),
+  NEXT_PUBLIC_DEFAULT_PAYMENT_GATEWAY: z
+    .enum(["MONNIFY", "PAYSTACK"])
+    .default("MONNIFY"),
+  NEXT_PUBLIC_MONNIFY_API_KEY: z.string().optional(),
+  NEXT_PUBLIC_MONNIFY_CONTRACT_CODE: z.string().optional(),
+  NEXT_PUBLIC_MONNIFY_TEST_MODE: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
   NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: z
     .string()
     .min(1)
@@ -41,6 +50,12 @@ function getStaticRuntimeEnv(): Record<string, string | undefined> {
   return {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+    NEXT_PUBLIC_DEFAULT_PAYMENT_GATEWAY:
+      process.env.NEXT_PUBLIC_DEFAULT_PAYMENT_GATEWAY,
+    NEXT_PUBLIC_MONNIFY_API_KEY: process.env.NEXT_PUBLIC_MONNIFY_API_KEY,
+    NEXT_PUBLIC_MONNIFY_CONTRACT_CODE:
+      process.env.NEXT_PUBLIC_MONNIFY_CONTRACT_CODE,
+    NEXT_PUBLIC_MONNIFY_TEST_MODE: process.env.NEXT_PUBLIC_MONNIFY_TEST_MODE,
     NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY:
       process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
     NEXT_PUBLIC_USE_MOCK_API: process.env.NEXT_PUBLIC_USE_MOCK_API,
@@ -61,6 +76,14 @@ export function parseClientEnv(
   return clientEnvSchema.parse({
     NEXT_PUBLIC_APP_URL: raw.NEXT_PUBLIC_APP_URL || undefined,
     NEXT_PUBLIC_API_URL: raw.NEXT_PUBLIC_API_URL || undefined,
+    NEXT_PUBLIC_DEFAULT_PAYMENT_GATEWAY:
+      raw.NEXT_PUBLIC_DEFAULT_PAYMENT_GATEWAY || undefined,
+    NEXT_PUBLIC_MONNIFY_API_KEY:
+      raw.NEXT_PUBLIC_MONNIFY_API_KEY || undefined,
+    NEXT_PUBLIC_MONNIFY_CONTRACT_CODE:
+      raw.NEXT_PUBLIC_MONNIFY_CONTRACT_CODE || undefined,
+    NEXT_PUBLIC_MONNIFY_TEST_MODE:
+      raw.NEXT_PUBLIC_MONNIFY_TEST_MODE || undefined,
     NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY:
       raw.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || undefined,
     NEXT_PUBLIC_USE_MOCK_API: raw.NEXT_PUBLIC_USE_MOCK_API || undefined,
@@ -76,6 +99,14 @@ export function parseServerEnv(
   return serverEnvSchema.parse({
     NEXT_PUBLIC_APP_URL: raw.NEXT_PUBLIC_APP_URL || undefined,
     NEXT_PUBLIC_API_URL: raw.NEXT_PUBLIC_API_URL || undefined,
+    NEXT_PUBLIC_DEFAULT_PAYMENT_GATEWAY:
+      raw.NEXT_PUBLIC_DEFAULT_PAYMENT_GATEWAY || undefined,
+    NEXT_PUBLIC_MONNIFY_API_KEY:
+      raw.NEXT_PUBLIC_MONNIFY_API_KEY || undefined,
+    NEXT_PUBLIC_MONNIFY_CONTRACT_CODE:
+      raw.NEXT_PUBLIC_MONNIFY_CONTRACT_CODE || undefined,
+    NEXT_PUBLIC_MONNIFY_TEST_MODE:
+      raw.NEXT_PUBLIC_MONNIFY_TEST_MODE || undefined,
     NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY:
       raw.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || undefined,
     NEXT_PUBLIC_USE_MOCK_API: raw.NEXT_PUBLIC_USE_MOCK_API || undefined,

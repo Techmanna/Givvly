@@ -88,12 +88,20 @@ export type CreateOrderResult = {
 };
 
 export async function createDirectOrder(
-  payload: CreateDirectOrderRequest,
+  payload: CreateDirectOrderRequest & { callbackUrl?: string },
   idempotencyKey: string
 ): Promise<CreateOrderResult> {
+  const callbackUrl =
+    payload.callbackUrl ??
+    (typeof window !== "undefined"
+      ? `${window.location.origin}/orders`
+      : undefined);
   const res = await api<any>("/orders", {
     method: "POST",
-    body: payload,
+    body: {
+      ...payload,
+      ...(callbackUrl ? { callbackUrl } : {}),
+    },
     idempotencyKey,
   });
   const rawOrder = res?.order ?? res;
@@ -193,14 +201,21 @@ export async function fetchBespokeWishDetail(
 }
 
 export async function payBespokeWishQuote(
-  token: string
+  token: string,
+  callbackUrl?: string
 ): Promise<{
   authorizationUrl: string;
   reference: string;
   amountKobo: number;
 }> {
+  const resolvedCallbackUrl =
+    callbackUrl ??
+    (typeof window !== "undefined"
+      ? `${window.location.origin}/orders/quote/${encodeURIComponent(token)}`
+      : undefined);
   const res = await api<any>(`/orders/quote/${encodeURIComponent(token)}/pay`, {
     method: "POST",
+    body: resolvedCallbackUrl ? { callbackUrl: resolvedCallbackUrl } : undefined,
   });
   return res?.data ?? res;
 }
