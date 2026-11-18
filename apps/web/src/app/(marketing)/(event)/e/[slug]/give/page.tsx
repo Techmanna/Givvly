@@ -50,6 +50,8 @@ export default async function PublicGivePage({
           slug={event.slug}
           eventName={event.name}
           ownerFirstName={event.ownerFirstName}
+          ownerId={event.ownerId}
+          isArchived={event.status === "ARCHIVED"}
           moneyGiftsEnabled={event.moneyGiftsEnabled}
           eventType={event.type}
           eventDate={event.date}

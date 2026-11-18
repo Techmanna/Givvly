@@ -816,3 +816,10 @@ model ReconciliationRun {
   @@unique([runDate])
 }
 
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+

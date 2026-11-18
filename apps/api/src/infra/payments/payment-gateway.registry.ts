@@ -12,18 +12,17 @@ import { MonnifyGateway } from "./adapters/monnify.gateway";
 export class PaymentGatewayRegistry {
   private readonly logger = new Logger(PaymentGatewayRegistry.name);
   private readonly gateways = new Map<string, PaymentGateway>();
-  private defaultGatewayName = "MONNIFY";
+  private defaultGatewayName = "PAYSTACK";
 
   constructor(
     paystackGateway: PaystackGateway,
     @Optional() monnifyGateway?: MonnifyGateway
   ) {
-    if (monnifyGateway) {
+    if (this.defaultGatewayName === "MONNIFY" && monnifyGateway)  {
       this.registerGateway(monnifyGateway);
-    } else {
-      this.defaultGatewayName = "PAYSTACK";
+    } else  {
+      this.registerGateway(paystackGateway);
     }
-    this.registerGateway(paystackGateway);
 
     const configuredDefault =
       process.env.DEFAULT_PAYMENT_GATEWAY?.trim().toUpperCase();

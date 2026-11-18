@@ -29,6 +29,7 @@ import {
   usePurchaseRegistryItemMutation,
   useReserveRegistryItemMutation,
 } from "../hooks/useRegistry";
+import { openGatewayCheckout } from "@/features/gifts/monnify";
 import type { RegistryItem } from "../types";
 
 export type RegistryGridProps = {
@@ -36,6 +37,7 @@ export type RegistryGridProps = {
   items: RegistryItem[];
   moneyGiftsEnabled: boolean;
   isOwner?: boolean;
+  isArchived?: boolean;
 };
 
 export function RegistryGrid({
@@ -43,6 +45,7 @@ export function RegistryGrid({
   items,
   moneyGiftsEnabled,
   isOwner = false,
+  isArchived = false,
 }: RegistryGridProps) {
   const router = useRouter();
   const idempotencyKey = useGiveDraftStore((s) => s.draft.idempotencyKey);
@@ -99,11 +102,41 @@ export function RegistryGrid({
         idempotencyKey,
       });
 
-      toast.success("Item claimed! Redirecting to your receipt.");
+      const purchasedTitle = activeItem.title;
+      const purchasedAmountKobo =
+        payment.totalKobo ?? payment.amountKobo ?? activeItem.priceKobo;
+      const customerEmail = email.trim().toLowerCase();
+      const customerName = anonymous ? undefined : name.trim() || undefined;
+
       setActiveItem(null);
-      router.push(
-        `/e/${slug}/give/success?ref=${encodeURIComponent(payment.reference)}`
-      );
+
+      const popupResult = await openGatewayCheckout({
+        email: customerEmail,
+        customerName,
+        amountKobo: purchasedAmountKobo,
+        reference: payment.reference,
+        accessCode: payment.accessCode,
+        authorizationUrl: payment.authorizationUrl,
+        provider: (payment as { provider?: string }).provider,
+        description: `Registry gift: ${purchasedTitle}`,
+        onComplete: (ref) => {
+          toast.success("Item claimed! Redirecting to your receipt.");
+          router.push(
+            `/e/${slug}/give/success?ref=${encodeURIComponent(ref)}`
+          );
+        },
+        onDismiss: () => {
+          toast.info("Payment window closed. You can retry while your hold is active.");
+        },
+      });
+
+      if (!popupResult.opened) {
+        if (payment.authorizationUrl) {
+          window.location.href = payment.authorizationUrl;
+          return;
+        }
+        toast.error("Unable to open payment gateway. Please try again.");
+      }
     } catch (err) {
       if (err instanceof ApiClientError) {
         if (err.code === "RESERVATION_EXPIRED") {
@@ -205,7 +238,13 @@ export function RegistryGrid({
                   </p>
                 ) : null}
 
-                {isOwner ? (
+                {isArchived ? (
+                  <div className="pt-1">
+                    <span className="text-xs text-muted-foreground italic">
+                      {isClaimed ? "Claimed" : "Archived — gifting closed"}
+                    </span>
+                  </div>
+                ) : isOwner ? (
                   <div className="pt-1">
                     <span className="text-xs text-muted-foreground italic">
                       {isClaimed

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
   Heart,
   ImagePlus,
+  Loader2,
   MessageSquarePlus,
   X,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PaginationBar } from "@/components/shared/PaginationBar";
@@ -31,6 +33,7 @@ import {
 } from "@/features/events/api";
 import type { AllowedMediaMimeType } from "@/features/events/types";
 import { presignWallPhoto } from "../api";
+import { useAuthStore } from "@/stores/auth-store";
 import {
   useCreateWallPostMutation,
   usePublicWall,
@@ -43,6 +46,7 @@ export type WallOfLoveProps = {
   slug: string;
   ownerFirstName: string;
   isOwner?: boolean;
+  isArchived?: boolean;
 };
 
 type UploadedPhoto = {
@@ -64,11 +68,24 @@ const ALLOWED_MIME_TYPES = new Set([
   "video/quicktime",
 ]);
 
-export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLoveProps) {
+export function WallOfLove({
+  slug,
+  ownerFirstName,
+  isOwner = false,
+  isArchived = false,
+}: WallOfLoveProps) {
+  const currentUser = useAuthStore((s) => s.user);
   const [flaggedNotice, setFlaggedNotice] = useState<string | null>(null);
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    fileName: string;
+    isVideo: boolean;
+    current: number;
+    total: number;
+    percent: number;
+  } | null>(null);
 
   const wallQuery = usePublicWall(slug);
   const createMutation = useCreateWallPostMutation(slug);
@@ -77,10 +94,18 @@ export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLove
     resolver: zodResolver(wallPostSchema),
     mode: "onBlur",
     defaultValues: {
-      authorName: isOwner ? `${ownerFirstName} (Host)` : "",
+      authorName: isOwner
+        ? `${ownerFirstName} (Host)`
+        : (currentUser?.name ?? ""),
       text: "",
     },
   });
+
+  useEffect(() => {
+    if (!isOwner && currentUser?.name && !form.getValues("authorName")) {
+      form.setValue("authorName", currentUser.name);
+    }
+  }, [isOwner, currentUser?.name, form]);
 
   const watchedText = useWatch({ control: form.control, name: "text" });
   const showProfanityWarning = hasProfanityWarning(watchedText);
@@ -116,7 +141,17 @@ export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLove
     setIsUploadingPhoto(true);
     try {
       const nextUploaded: UploadedPhoto[] = [];
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]!;
+        const isVideo = file.type.startsWith("video/");
+        setUploadProgress({
+          fileName: file.name,
+          isVideo,
+          current: i + 1,
+          total: files.length,
+          percent: 0,
+        });
+
         await validateClientMediaFile(file, {
           allowVideo: true,
           maxImageBytes: MAX_PHOTO_SIZE_BYTES,
@@ -131,7 +166,11 @@ export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLove
           purpose: "WALL_PHOTO",
         });
 
-        await uploadFileToPresignedUrl(presign, file);
+        await uploadFileToPresignedUrl(presign, file, (pct) => {
+          setUploadProgress((prev) =>
+            prev ? { ...prev, percent: Math.min(100, Math.max(0, pct)) } : null
+          );
+        });
 
         const previewUrl =
           presign.publicUrl ??
@@ -140,8 +179,7 @@ export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLove
         nextUploaded.push({
           name: file.name,
           url: previewUrl,
-          type:
-            presign.kind ?? (file.type.startsWith("video/") ? "VIDEO" : "IMAGE"),
+          type: presign.kind ?? (isVideo ? "VIDEO" : "IMAGE"),
         });
       }
       setPhotos((prev) => [...prev, ...nextUploaded]);
@@ -153,6 +191,7 @@ export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLove
       );
     } finally {
       setIsUploadingPhoto(false);
+      setUploadProgress(null);
     }
   };
 
@@ -165,7 +204,12 @@ export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLove
         media: photos.map((p) => ({ url: p.url, type: p.type })),
       });
 
-      form.reset();
+      form.reset({
+        authorName: isOwner
+          ? `${ownerFirstName} (Host)`
+          : (currentUser?.name ?? ""),
+        text: "",
+      });
       setPhotos([]);
       if (created.status === "PENDING") {
         setFlaggedNotice(
@@ -176,7 +220,12 @@ export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLove
       }
     } catch (err) {
       if (err instanceof ApiClientError && err.code === "CONTENT_FLAGGED") {
-        form.reset();
+        form.reset({
+        authorName: isOwner
+          ? `${ownerFirstName} (Host)`
+          : (currentUser?.name ?? ""),
+        text: "",
+      });
         setPhotos([]);
         setFlaggedNotice(
           "Thank you! Your message has been received and will appear after review."
@@ -219,7 +268,15 @@ export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLove
         </span>
       </div>
 
-      <Card className="shadow-none">
+      {isArchived ? (
+        <div
+          role="status"
+          className="rounded-control border border-border bg-muted/40 p-4 text-xs text-muted-foreground"
+        >
+          This celebration has been archived. New Wall of Love posts are closed, while existing memories remain viewable below.
+        </div>
+      ) : (
+        <Card className="shadow-none">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
             {isOwner
@@ -343,6 +400,37 @@ export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLove
                 />
               </div>
 
+              {isUploadingPhoto && uploadProgress ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="space-y-1.5 rounded-control border border-border bg-muted/40 p-3 text-xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex min-w-0 items-center gap-1.5 font-medium text-foreground">
+                      <Loader2
+                        className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">
+                        Uploading {uploadProgress.isVideo ? "video" : "photo"}
+                        {uploadProgress.total > 1
+                          ? ` (${uploadProgress.current}/${uploadProgress.total})`
+                          : ""}
+                        : {uploadProgress.fileName}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-mono text-[11px] font-semibold text-primary">
+                      {uploadProgress.percent}%
+                    </span>
+                  </div>
+                  <Progress
+                    value={uploadProgress.percent}
+                    aria-label="Media upload progress"
+                  />
+                </div>
+              ) : null}
+
               {photoError ? (
                 <p className="text-xs text-destructive" role="alert">
                   {photoError}
@@ -392,6 +480,7 @@ export function WallOfLove({ slug, ownerFirstName, isOwner = false }: WallOfLove
           </form>
         </CardContent>
       </Card>
+      )}
 
       {posts.length === 0 ? (
         <EmptyState

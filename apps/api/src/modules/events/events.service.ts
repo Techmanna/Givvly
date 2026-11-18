@@ -751,6 +751,13 @@ export class EventsService {
       }
     }
 
+    const lifecycle = await this.getEventLifecycleSettings();
+    const archiveAt = lifecycle.autoArchiveEnabled
+      ? new Date(
+          event.date.getTime() + lifecycle.archiveAfterHours * 60 * 60 * 1000
+        ).toISOString()
+      : null;
+
     return {
       id: event.id,
       ownerId: event.ownerId,
@@ -762,6 +769,9 @@ export class EventsService {
       coverUrl: this.formatCoverUrl(event.coverMediaId),
       visibility: event.visibility,
       status: event.status,
+      autoArchiveEnabled: lifecycle.autoArchiveEnabled,
+      archiveAfterHours: lifecycle.archiveAfterHours,
+      archiveAt,
       moneyGiftsEnabled,
       currency: event.currency || "NGN",
       totalReceivedKobo,
@@ -928,6 +938,7 @@ export class EventsService {
         id: true,
         name: true,
         slug: true,
+        status: true,
         ownerId: true,
         owner: { select: { id: true, name: true, email: true } },
       },
@@ -935,6 +946,12 @@ export class EventsService {
 
     if (!event) {
       throw new NotFoundException("Event not found");
+    }
+
+    if (event.status !== EventStatus.PUBLISHED) {
+      throw new BadRequestException(
+        "This celebration is no longer accepting Wall of Love posts"
+      );
     }
 
     const sanitizedMedia: Array<{ url: string; type: "IMAGE" | "VIDEO" }> = [];
@@ -1008,13 +1025,18 @@ export class EventsService {
     };
   }
 
-  async submitPublicRsvp(slug: string, dto: SubmitRsvpRequestDto) {
+  async submitPublicRsvp(
+    slug: string,
+    dto: SubmitRsvpRequestDto,
+    user?: { id?: string; email?: string }
+  ) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
       select: {
         id: true,
         name: true,
         slug: true,
+        status: true,
         ownerId: true,
         owner: { select: { id: true, name: true, email: true } },
       },
@@ -1022,6 +1044,27 @@ export class EventsService {
 
     if (!event) {
       throw new NotFoundException("Event not found");
+    }
+
+    if (event.status !== EventStatus.PUBLISHED) {
+      throw new BadRequestException(
+        "This celebration is no longer accepting RSVPs"
+      );
+    }
+
+    const rsvpEmailNormalized = dto.email?.trim().toLowerCase() || "";
+    if (
+      (user?.id && user.id === event.ownerId) ||
+      (user?.email &&
+        event.owner?.email &&
+        user.email.toLowerCase() === event.owner.email.toLowerCase()) ||
+      (event.owner?.email &&
+        rsvpEmailNormalized &&
+        rsvpEmailNormalized === event.owner.email.toLowerCase())
+    ) {
+      throw new ForbiddenException(
+        "You cannot RSVP to your own celebration"
+      );
     }
 
     const contactKey =
@@ -1085,11 +1128,36 @@ export class EventsService {
 
   // --- Scheduled Event Milestone & Lifecycle Processor ---
 
+  async getEventLifecycleSettings(): Promise<{
+    autoArchiveEnabled: boolean;
+    archiveAfterHours: number;
+  }> {
+    try {
+      const setting = await (this.prisma as any).platformSetting?.findUnique({
+        where: { key: "event_lifecycle" },
+      });
+      const val = (setting?.value as Record<string, unknown>) || {};
+      const autoArchiveEnabled =
+        typeof val.autoArchiveEnabled === "boolean"
+          ? val.autoArchiveEnabled
+          : true;
+      const rawHours = Number(val.archiveAfterHours);
+      const archiveAfterHours =
+        Number.isFinite(rawHours) && rawHours >= 1 && rawHours <= 720
+          ? Math.round(rawHours)
+          : 24;
+      return { autoArchiveEnabled, archiveAfterHours };
+    } catch {
+      return { autoArchiveEnabled: true, archiveAfterHours: 24 };
+    }
+  }
+
   @Cron(CronExpression.EVERY_HOUR)
   async checkAndNotifyEventMilestones() {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const lifecycle = await this.getEventLifecycleSettings();
 
     // 1. Events that are today: notify host that today is celebration day
     const todayEvents = await this.prisma.event.findMany({
@@ -1129,12 +1197,19 @@ export class EventsService {
       }
     }
 
-    // 2. Events that have ended: archive from public lists and notify host
+    // 2. Events that have passed the configured archive window (default 24h after event date)
+    if (!lifecycle.autoArchiveEnabled) {
+      return;
+    }
+
+    const archiveCutoff = new Date(
+      now.getTime() - lifecycle.archiveAfterHours * 60 * 60 * 1000
+    );
     const endedEvents = await this.prisma.event.findMany({
       where: {
         status: EventStatus.PUBLISHED,
         date: {
-          lt: todayStart,
+          lte: archiveCutoff,
         },
       },
       include: { owner: true },

@@ -24,6 +24,7 @@ import {
   ChevronRight,
   LogOut,
   Share,
+  Settings,
   Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/moderation", label: "Moderation Queue", icon: Shield },
       { href: "/admin/disputes", label: "Disputes & Claims", icon: AlertCircle },
       { href: "/admin/vendors", label: "Legacy Vendors", icon: Store },
+      { href: "/admin/settings", label: "Platform Settings", icon: Settings },
     ],
   },
 ];

@@ -23,6 +23,7 @@ import { ApiClientError } from "@/lib/api-client";
 import { trackEvent } from "@/lib/analytics";
 import { formatNaira, nairaToKobo } from "@/lib/format";
 import { useGiveDraftStore } from "@/stores/give-draft-store";
+import { useAuthStore } from "@/stores/auth-store";
 import type { EventType } from "@givvly/contracts";
 import { useInitiateMoneyGiftMutation } from "../hooks/useGifts";
 import { loadMonnifyScript, openGatewayCheckout } from "../monnify";
@@ -294,6 +295,8 @@ export type GiveMoneyFormProps = {
   slug: string;
   eventName: string;
   ownerFirstName: string;
+  ownerId?: string | null;
+  isArchived?: boolean;
   moneyGiftsEnabled: boolean;
   eventType?: EventType;
   eventDate?: string;
@@ -305,6 +308,8 @@ export function GiveMoneyForm({
   slug,
   eventName,
   ownerFirstName,
+  ownerId,
+  isArchived = false,
   moneyGiftsEnabled,
   eventType,
   eventDate,
@@ -312,6 +317,8 @@ export function GiveMoneyForm({
   onSuccessNavigate,
 }: GiveMoneyFormProps) {
   const router = useRouter();
+  const currentUser = useAuthStore((s) => s.user);
+  const isOwner = Boolean(ownerId && currentUser?.id === ownerId);
   const draft = useGiveDraftStore((s) => s.draft);
   const hydrateForSlug = useGiveDraftStore((s) => s.hydrateForSlug);
   const updateDraft = useGiveDraftStore((s) => s.updateDraft);
@@ -399,6 +406,56 @@ export function GiveMoneyForm({
       router.push(`/e/${slug}/give/success?ref=${encodeURIComponent(reference)}`);
     }
   };
+
+  if (isArchived) {
+    return (
+      <div
+        role="alert"
+        className="flex items-start gap-3 rounded-card border border-border bg-muted/40 p-5 text-sm text-foreground"
+      >
+        <Lock
+          className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <div className="space-y-2">
+          <p className="font-semibold">This celebration has been archived</p>
+          <p className="text-xs text-muted-foreground">
+            {eventName} has ended and is no longer accepting new gifts. You can
+            still view the celebration keepsake and Wall of Love.
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-1">
+            <Link href={`/e/${slug}`}>Back to celebration page</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isOwner) {
+    return (
+      <div
+        role="alert"
+        className="flex items-start gap-3 rounded-card border border-primary/30 bg-primary/5 p-5 text-sm text-foreground"
+      >
+        <Lock
+          className="mt-0.5 h-5 w-5 shrink-0 text-primary"
+          aria-hidden="true"
+        />
+        <div className="space-y-2">
+          <p className="font-semibold">
+            You can&apos;t send a gift to your own celebration
+          </p>
+          <p className="text-xs text-muted-foreground">
+            You are signed in as the host of {eventName}. Share your celebration
+            link with guests so they can send cash blessings and gifts.
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-1">
+            <Link href={`/e/${slug}`}>Back to celebration page</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!moneyGiftsEnabled) {
     return (

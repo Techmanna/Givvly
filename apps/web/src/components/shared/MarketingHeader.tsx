@@ -57,8 +57,19 @@ export function MarketingHeader({ initialUser }: MarketingHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const storeUser = useAuthStore((s) => s.user);
+  const setAuthUser = useAuthStore((s) => s.setUser);
   const clearAuth = useAuthStore((s) => s.clear);
   const [sheetOpen, setSheetOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (initialUser && initialUser.id) {
+      if (!storeUser || storeUser.id !== initialUser.id || storeUser.name !== initialUser.name) {
+        setAuthUser(initialUser);
+      }
+    } else if (initialUser === null && !storeUser) {
+      clearAuth();
+    }
+  }, [initialUser, storeUser, setAuthUser, clearAuth]);
 
   const user = storeUser || initialUser;
   const isAuthed = Boolean(user && user.id);

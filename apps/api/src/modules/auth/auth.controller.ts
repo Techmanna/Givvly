@@ -238,7 +238,7 @@ export class AuthController {
       httpOnly: true,
       secure: isProd,
       sameSite: "lax",
-      maxAge: 15 * 60 * 1000,
+      maxAge: 60 * 60 * 1000,
       domain: domain || undefined,
       path: "/",
     });

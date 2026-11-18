@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   Logger,
@@ -47,11 +48,26 @@ export class PaymentsService {
         status: true,
         date: true,
         currency: true,
+        ownerId: true,
+        owner: { select: { email: true } },
       },
     });
 
     if (!event) {
       throw new NotFoundException(`Event with slug '${slug}' not found`);
+    }
+
+    const giverEmailNormalized =
+      (dto.giverEmail || (dto as any).email)?.trim().toLowerCase() || "";
+    if (
+      (giverUserId && giverUserId === event.ownerId) ||
+      (event.owner?.email &&
+        giverEmailNormalized &&
+        giverEmailNormalized === event.owner.email.toLowerCase())
+    ) {
+      throw new ForbiddenException(
+        "You cannot send a gift to your own celebration"
+      );
     }
 
     if (event.status !== EventStatus.PUBLISHED) {

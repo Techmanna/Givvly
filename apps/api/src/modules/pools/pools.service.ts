@@ -54,7 +54,14 @@ export class PoolsService {
     const [event, pool] = await Promise.all([
       this.prisma.event.findUnique({
         where: { slug },
-        select: { id: true, slug: true, status: true, currency: true },
+        select: {
+          id: true,
+          slug: true,
+          status: true,
+          currency: true,
+          ownerId: true,
+          owner: { select: { email: true } },
+        },
       }),
       this.prisma.pool.findUnique({
         where: { id: dto.poolId },
@@ -63,6 +70,19 @@ export class PoolsService {
 
     if (!event) {
       throw new NotFoundException(`Event '${slug}' not found`);
+    }
+
+    const contributorEmailNormalized =
+      (dto.giverEmail || (dto as any).email)?.trim().toLowerCase() || "";
+    if (
+      (giverUserId && giverUserId === event.ownerId) ||
+      (event.owner?.email &&
+        contributorEmailNormalized &&
+        contributorEmailNormalized === event.owner.email.toLowerCase())
+    ) {
+      throw new ForbiddenException(
+        "You cannot contribute to a pool on your own celebration"
+      );
     }
 
     if (event.status !== EventStatus.PUBLISHED) {

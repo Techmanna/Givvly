@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,17 +26,27 @@ import { Money } from "@/components/shared/Money";
 import { ApiClientError } from "@/lib/api-client";
 import { formatDate, formatNaira, nairaToKobo } from "@/lib/format";
 import { useGiveDraftStore } from "@/stores/give-draft-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { useContributeToPoolMutation } from "../hooks/useRegistry";
+import { openGatewayCheckout } from "@/features/gifts/monnify";
 import { createPoolContributionSchema } from "../schemas";
 import type { PoolContributionInput, PoolItem } from "../types";
 
 export type PoolCardProps = {
   slug: string;
   pool: PoolItem;
+  isOwner?: boolean;
+  isArchived?: boolean;
 };
 
-export function PoolCard({ slug, pool }: PoolCardProps) {
+export function PoolCard({
+  slug,
+  pool,
+  isOwner = false,
+  isArchived = false,
+}: PoolCardProps) {
   const router = useRouter();
+  const currentUser = useAuthStore((s) => s.user);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formAlert, setFormAlert] = useState<string | null>(null);
   const idempotencyKey = useGiveDraftStore((s) => s.draft.idempotencyKey);
@@ -71,12 +81,21 @@ export function PoolCard({ slug, pool }: PoolCardProps) {
     mode: "onBlur",
     defaultValues: {
       amountNaira: defaultAmountNaira,
-      name: "",
-      email: "",
+      name: currentUser?.name ?? "",
+      email: currentUser?.email ?? "",
       message: "",
       anonymous: false,
     },
   });
+
+  useEffect(() => {
+    if (currentUser?.name && !form.getValues("name")) {
+      form.setValue("name", currentUser.name);
+    }
+    if (currentUser?.email && !form.getValues("email")) {
+      form.setValue("email", currentUser.email);
+    }
+  }, [currentUser?.name, currentUser?.email, form]);
 
   const watchedAnonymous = useWatch({
     control: form.control,
@@ -98,11 +117,36 @@ export function PoolCard({ slug, pool }: PoolCardProps) {
         idempotencyKey,
       });
 
-      toast.success("Contribution confirmed!");
       setDialogOpen(false);
-      router.push(
-        `/e/${slug}/give/success?ref=${encodeURIComponent(payment.reference)}`
-      );
+
+      const popupResult = await openGatewayCheckout({
+        email: values.email.trim().toLowerCase(),
+        customerName: values.anonymous ? undefined : values.name?.trim() || undefined,
+        amountKobo:
+          payment.totalKobo ?? payment.amountKobo ?? nairaToKobo(values.amountNaira),
+        reference: payment.reference,
+        accessCode: payment.accessCode,
+        authorizationUrl: payment.authorizationUrl,
+        provider: (payment as { provider?: string }).provider,
+        description: `Group gift contribution: ${pool.title}`,
+        onComplete: (ref) => {
+          toast.success("Contribution confirmed!");
+          router.push(
+            `/e/${slug}/give/success?ref=${encodeURIComponent(ref)}`
+          );
+        },
+        onDismiss: () => {
+          toast.info("Payment window closed. You can retry anytime.");
+        },
+      });
+
+      if (!popupResult.opened) {
+        if (payment.authorizationUrl) {
+          window.location.href = payment.authorizationUrl;
+          return;
+        }
+        toast.error("Unable to open payment gateway. Please try again.");
+      }
     } catch (err) {
       if (err instanceof ApiClientError) {
         if (err.code === "POOL_OVERFUNDED") {
@@ -170,11 +214,21 @@ export function PoolCard({ slug, pool }: PoolCardProps) {
             <Button
               type="button"
               size="sm"
-              disabled={isFunded}
-              onClick={() => setDialogOpen(true)}
+              disabled={isFunded || isOwner || isArchived}
+              onClick={() => {
+                if (!isOwner && !isArchived) setDialogOpen(true);
+              }}
             >
               <Users className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{isFunded ? "Fully funded" : "Contribute"}</span>
+              <span>
+                {isArchived
+                  ? "Archived"
+                  : isOwner
+                  ? "Host Preview"
+                  : isFunded
+                  ? "Fully funded"
+                  : "Contribute"}
+              </span>
             </Button>
           </div>
         </CardContent>

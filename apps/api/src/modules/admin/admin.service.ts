@@ -2090,4 +2090,77 @@ export class AdminService {
     await this.prisma.shippingZone.delete({ where: { id } });
     return { deleted: true, id };
   }
+
+  async getPlatformSettings() {
+    const setting = await (this.prisma as any).platformSetting?.findUnique({
+      where: { key: "event_lifecycle" },
+    });
+    const val = (setting?.value as Record<string, unknown>) || {};
+    const autoArchiveEnabled =
+      typeof val.autoArchiveEnabled === "boolean"
+        ? val.autoArchiveEnabled
+        : true;
+    const rawHours = Number(val.archiveAfterHours);
+    const archiveAfterHours =
+      Number.isFinite(rawHours) && rawHours >= 1 && rawHours <= 720
+        ? Math.round(rawHours)
+        : 24;
+
+    return {
+      eventLifecycle: {
+        autoArchiveEnabled,
+        archiveAfterHours,
+      },
+      updatedAt: setting?.updatedAt ?? null,
+    };
+  }
+
+  async updatePlatformSettings(
+    dto: { autoArchiveEnabled?: boolean; archiveAfterHours?: number },
+    adminId?: string
+  ) {
+    const current = await this.getPlatformSettings();
+    const autoArchiveEnabled =
+      dto.autoArchiveEnabled ?? current.eventLifecycle.autoArchiveEnabled;
+    const rawHours =
+      dto.archiveAfterHours ?? current.eventLifecycle.archiveAfterHours;
+    if (
+      !Number.isFinite(rawHours) ||
+      rawHours < 1 ||
+      rawHours > 720
+    ) {
+      throw new BadRequestException(
+        "archiveAfterHours must be between 1 and 720 hours"
+      );
+    }
+    const archiveAfterHours = Math.round(rawHours);
+
+    const saved = await (this.prisma as any).platformSetting.upsert({
+      where: { key: "event_lifecycle" },
+      create: {
+        key: "event_lifecycle",
+        value: { autoArchiveEnabled, archiveAfterHours },
+        updatedBy: adminId ?? null,
+      },
+      update: {
+        value: { autoArchiveEnabled, archiveAfterHours },
+        updatedBy: adminId ?? null,
+      },
+    });
+
+    if (adminId) {
+      await this.logAudit(
+        adminId,
+        "ADMIN_SETTINGS_UPDATE",
+        "PlatformSetting",
+        "event_lifecycle",
+        { autoArchiveEnabled, archiveAfterHours }
+      );
+    }
+
+    return {
+      eventLifecycle: { autoArchiveEnabled, archiveAfterHours },
+      updatedAt: saved.updatedAt,
+    };
+  }
 }

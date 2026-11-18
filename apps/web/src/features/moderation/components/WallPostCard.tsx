@@ -1,10 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, Flag, Trash2, Crown } from "lucide-react";
+import {
+  Crown,
+  Eye,
+  EyeOff,
+  Flag,
+  Maximize2,
+  Play,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { MediaLightboxModal } from "@/components/shared/MediaLightboxModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { isVideoMediaUrl } from "@/features/events/api";
 import { formatDate } from "@/lib/format";
@@ -30,6 +39,7 @@ export function WallPostCard({
   onRequestDelete,
 }: WallPostCardProps) {
   const [reportOpen, setReportOpen] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   return (
     <>
@@ -84,28 +94,43 @@ export function WallPostCard({
               {post.media.map((item, idx) => {
                 const isVideo = isVideoMediaUrl(item.url, item.type);
                 return (
-                  <div
+                  <button
                     key={`${post.id}_media_${idx}`}
-                    className="overflow-hidden rounded-control border border-border bg-muted/40"
+                    type="button"
+                    onClick={() => setPreviewIndex(idx)}
+                    aria-label={`Preview ${isVideo ? "video" : "photo"} ${idx + 1} from ${post.authorName}`}
+                    className="group relative overflow-hidden rounded-control border border-border bg-muted/40 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     {isVideo ? (
-                      <video
-                        src={item.url}
-                        controls
-                        preload="metadata"
-                        playsInline
-                        className="h-24 w-full object-cover"
-                      />
+                      <>
+                        <video
+                          src={item.url}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          className="pointer-events-none h-24 w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover:bg-black/40">
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm">
+                            <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                          </span>
+                        </span>
+                      </>
                     ) : (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={item.url}
-                        alt={`Photo ${idx + 1} from ${post.authorName}`}
-                        className="h-24 w-full object-cover"
-                        loading="lazy"
-                      />
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.url}
+                          alt={`Photo ${idx + 1} from ${post.authorName}`}
+                          className="h-24 w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                        <span className="pointer-events-none absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                          <Maximize2 className="h-3 w-3" aria-hidden="true" />
+                        </span>
+                      </>
                     )}
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -161,6 +186,19 @@ export function WallPostCard({
           authorName={post.authorName}
         />
       ) : null}
+
+      <MediaLightboxModal
+        items={post.media.map((item, idx) => ({
+          url: item.url,
+          type: item.type,
+          alt: `Media ${idx + 1} from ${post.authorName}`,
+        }))}
+        activeIndex={previewIndex}
+        onClose={() => setPreviewIndex(null)}
+        onIndexChange={setPreviewIndex}
+        title={post.authorName}
+        subtitle={formatDate(post.createdAt, "d MMM yyyy, h:mm a")}
+      />
     </>
   );
 }

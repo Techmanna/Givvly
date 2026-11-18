@@ -39,6 +39,22 @@ import {
 
 type CurateStep = 1 | 2 | 3;
 
+const CURATE_BOX_DRAFT_KEY = "givvly:curate-box-draft:v1";
+
+type PersistedCurateBoxDraft = {
+  step: CurateStep;
+  boxId: string | null;
+  items: Array<{
+    productId: string;
+    variantId?: string;
+    variantName?: string;
+    qty: number;
+    unitPriceKobo: number;
+  }>;
+  giftNote: string;
+  selectedVariants: Record<string, string>;
+};
+
 const STEPS: Array<{ id: CurateStep; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 1, label: "Select a Gift Box", icon: Package },
   { id: 2, label: "Choose Gift Items", icon: Gift },
@@ -80,6 +96,7 @@ export function CurateBoxWizard({
   const [activeCategory, setActiveCategory] = React.useState<string>("ALL");
   const [selectedVariants, setSelectedVariants] = React.useState<Record<string, string>>({});
   const [addedBanner, setAddedBanner] = React.useState(false);
+  const hasHydratedRef = React.useRef(false);
 
   const giftBoxes = React.useMemo(
     () => products.filter((p) => p.inStock && p.boxRole === "GIFT_BOX"),
@@ -93,6 +110,79 @@ export function CurateBoxWizard({
       ),
     [products],
   );
+
+  // Restore saved progress from localStorage once catalog products are available
+  React.useEffect(() => {
+    if (hasHydratedRef.current) return;
+    if (typeof window === "undefined") return;
+    if (isLoading && products.length === 0) return;
+
+    hasHydratedRef.current = true;
+    try {
+      const raw = window.localStorage.getItem(CURATE_BOX_DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as Partial<PersistedCurateBoxDraft>;
+
+      const restoredBox = draft.boxId
+        ? giftBoxes.find((b) => b.id === draft.boxId) ?? null
+        : null;
+
+      const restoredItems: CuratedBoxSelectionItem[] = [];
+      if (Array.isArray(draft.items)) {
+        for (const savedItem of draft.items) {
+          const product = giftItems.find((p) => p.id === savedItem.productId);
+          if (!product) continue;
+          const variant = savedItem.variantId
+            ? getActiveVariants(product).find((v) => v.id === savedItem.variantId)
+            : undefined;
+          restoredItems.push({
+            productId: product.id,
+            product,
+            variantId: variant?.id ?? savedItem.variantId,
+            variantName: variant?.name ?? savedItem.variantName,
+            qty: Math.max(1, Number(savedItem.qty) || 1),
+            unitPriceKobo:
+              variant?.priceKobo ?? product.priceKobo ?? savedItem.unitPriceKobo,
+          });
+        }
+      }
+
+      if (restoredBox) setSelectedBox(restoredBox);
+      if (restoredItems.length > 0) setSelectedItems(restoredItems);
+      if (typeof draft.giftNote === "string") setGiftNote(draft.giftNote);
+      if (draft.selectedVariants && typeof draft.selectedVariants === "object") {
+        setSelectedVariants(draft.selectedVariants);
+      }
+      if (restoredBox && (draft.step === 1 || draft.step === 2 || draft.step === 3)) {
+        setStep(draft.step);
+      }
+    } catch {
+      // Ignore malformed draft
+    }
+  }, [isLoading, products.length, giftBoxes, giftItems]);
+
+  // Persist wizard progress to localStorage whenever state changes after hydration
+  React.useEffect(() => {
+    if (!hasHydratedRef.current || typeof window === "undefined") return;
+    try {
+      const payload: PersistedCurateBoxDraft = {
+        step,
+        boxId: selectedBox?.id ?? null,
+        items: selectedItems.map((i) => ({
+          productId: i.productId,
+          variantId: i.variantId,
+          variantName: i.variantName,
+          qty: i.qty,
+          unitPriceKobo: i.unitPriceKobo,
+        })),
+        giftNote,
+        selectedVariants,
+      };
+      window.localStorage.setItem(CURATE_BOX_DRAFT_KEY, JSON.stringify(payload));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [step, selectedBox, selectedItems, giftNote, selectedVariants]);
 
   const categories = React.useMemo(() => {
     const set = new Set<string>();
@@ -272,6 +362,13 @@ export function CurateBoxWizard({
     );
 
     setAddedBanner(true);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem(CURATE_BOX_DRAFT_KEY);
+      } catch {
+        // ignore
+      }
+    }
     openBag();
   };
 
@@ -279,8 +376,16 @@ export function CurateBoxWizard({
     setSelectedBox(null);
     setSelectedItems([]);
     setGiftNote("");
+    setSelectedVariants({});
     setAddedBanner(false);
     setStep(1);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem(CURATE_BOX_DRAFT_KEY);
+      } catch {
+        // ignore
+      }
+    }
   };
 
   return (

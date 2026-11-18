@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -45,6 +45,30 @@ export function PublicEventView({ event }: PublicEventViewProps) {
       (currentUser.id === event.ownerId ||
         (event.ownerId && currentUser.id === event.ownerId))
   );
+  const isArchived = event.status === "ARCHIVED";
+
+  const [archiveRemainingHours, setArchiveRemainingHours] = useState<number | null>(null);
+  useEffect(() => {
+    if (isArchived || !event.autoArchiveEnabled || !event.archiveAt) {
+      setArchiveRemainingHours(null);
+      return;
+    }
+    const updateRemaining = () => {
+      const nowMs = Date.now();
+      const eventMs = new Date(event.date).getTime();
+      const archiveMs = new Date(event.archiveAt!).getTime();
+      if (nowMs > eventMs && archiveMs > nowMs) {
+        setArchiveRemainingHours(
+          Math.max(1, Math.ceil((archiveMs - nowMs) / (60 * 60 * 1000)))
+        );
+      } else {
+        setArchiveRemainingHours(null);
+      }
+    };
+    updateRemaining();
+    const timer = setInterval(updateRemaining, 60_000);
+    return () => clearInterval(timer);
+  }, [isArchived, event.autoArchiveEnabled, event.archiveAt, event.date]);
 
   const inviteFields = event.template?.fields;
   const scheduleItems = event.template?.scheduleItems ?? [];
@@ -66,6 +90,49 @@ export function PublicEventView({ event }: PublicEventViewProps) {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-10 px-4 pb-28 pt-6 sm:px-6 md:pb-16">
+      {isArchived ? (
+        <div
+          role="status"
+          className="rounded-[20px] border border-border bg-muted/60 p-4 sm:p-5 shadow-xs"
+        >
+          <div className="flex items-start gap-3">
+            <Clock className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <div>
+              <p className="font-heading text-sm font-bold text-foreground sm:text-base">
+                Archived Celebration
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                This celebration has ended and been archived. Gifting, RSVPs, group pools, and Wall of Love posting are now closed, while memories remain viewable.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : archiveRemainingHours !== null ? (
+        <div
+          role="status"
+          className="rounded-[20px] border border-warning/40 bg-warning/10 p-4 sm:p-5 shadow-xs"
+        >
+          <div className="flex items-start gap-3">
+            <Clock className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
+            <div>
+              <p className="font-heading text-sm font-bold text-foreground sm:text-base">
+                Archiving in{" "}
+                {archiveRemainingHours === 1
+                  ? "less than 1 hr"
+                  : `${archiveRemainingHours} hrs`}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                This celebration has ended and will automatically archive in{" "}
+                {archiveRemainingHours === 1
+                  ? "under 1 hour"
+                  : `${archiveRemainingHours} hours`}
+                . Late gifts, RSVPs, and Wall of Love notes are still open until then.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Host Preview Notification Bar */}
       {isOwner && (
         <div className="rounded-[20px] border border-primary/25 bg-gradient-to-r from-primary/10 via-primary/5 to-accent/10 p-4 sm:p-5 shadow-xs">
@@ -260,7 +327,13 @@ export function PublicEventView({ event }: PublicEventViewProps) {
               </div>
               <div className="space-y-4">
                 {event.pools.map((pool) => (
-                  <PoolCard key={pool.id} slug={event.slug} pool={pool} />
+                  <PoolCard
+                    key={pool.id}
+                    slug={event.slug}
+                    pool={pool}
+                    isOwner={isOwner}
+                    isArchived={isArchived}
+                  />
                 ))}
               </div>
             </section>
@@ -289,6 +362,7 @@ export function PublicEventView({ event }: PublicEventViewProps) {
               items={event.registry}
               moneyGiftsEnabled={event.moneyGiftsEnabled}
               isOwner={isOwner}
+              isArchived={isArchived}
             />
           </section>
 
@@ -296,14 +370,28 @@ export function PublicEventView({ event }: PublicEventViewProps) {
             slug={event.slug}
             ownerFirstName={event.ownerFirstName}
             isOwner={isOwner}
+            isArchived={isArchived}
           />
         </div>
 
         {/* Right Sticky Concierge & RSVP Column */}
         <aside className="editorial-enter stagger-2 space-y-6 md:col-span-5">
           <div className="md:sticky md:top-24 space-y-6">
-            {/* Gifting Card: Host Invite & Share or Guest Send Blessing */}
-            {isOwner ? (
+            {/* Gifting Card: Archived, Host Invite & Share, or Guest Send Blessing */}
+            {isArchived ? (
+              <div className="paper-surface rounded-[24px] border border-border bg-card p-6 sm:p-7 space-y-3">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Gifting Closed</span>
+                </div>
+                <h3 className="font-heading text-xl font-semibold text-foreground">
+                  Celebration Archived
+                </h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  This celebration has ended and is no longer accepting cash blessings, pool contributions, or registry gifts.
+                </p>
+              </div>
+            ) : isOwner ? (
               <div className="paper-surface stationery-frame rounded-[24px] border border-primary/20 bg-card p-6 sm:p-7 space-y-4">
                 <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
                   <Share2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
@@ -454,8 +542,28 @@ export function PublicEventView({ event }: PublicEventViewProps) {
               </div>
             )}
 
-            {/* RSVP Section: Host Attendance Card or Guest RsvpForm */}
-            {isOwner ? (
+            {/* RSVP Section: Archived, Host Attendance Card, or Guest RsvpForm */}
+            {isArchived ? (
+              <div
+                id="rsvp-section"
+                className="paper-surface rounded-[24px] border border-border p-6 sm:p-7 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    RSVPs Closed
+                  </p>
+                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+                    {event.rsvpYesCount} attended
+                  </span>
+                </div>
+                <h3 className="font-heading text-xl font-semibold text-foreground">
+                  Guestlist Archived
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  RSVPs are closed because this celebration has been archived.
+                </p>
+              </div>
+            ) : isOwner ? (
               <div
                 id="rsvp-section"
                 className="paper-surface rounded-[24px] border border-border p-6 sm:p-7 space-y-4"
@@ -523,14 +631,16 @@ export function PublicEventView({ event }: PublicEventViewProps) {
         </aside>
       </div>
 
-      <GiveButtonBar
-        slug={event.slug}
-        moneyGiftsEnabled={event.moneyGiftsEnabled}
-        onOpenGiveDialog={() => setGiveDialogOpen(true)}
-        isOwner={isOwner}
-        eventId={event.id}
-        eventName={event.name}
-      />
+      {!isArchived ? (
+        <GiveButtonBar
+          slug={event.slug}
+          moneyGiftsEnabled={event.moneyGiftsEnabled}
+          onOpenGiveDialog={() => setGiveDialogOpen(true)}
+          isOwner={isOwner}
+          eventId={event.id}
+          eventName={event.name}
+        />
+      ) : null}
 
       <GiveDialog
         open={giveDialogOpen}

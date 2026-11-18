@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiClientError } from "@/lib/api-client";
 import { trackEvent } from "@/lib/analytics";
+import { useAuthStore } from "@/stores/auth-store";
 import { useSubmitRsvpMutation } from "../hooks/useRsvp";
 import { rsvpFormSchema } from "../schemas";
 import type { RsvpFormInput, RsvpRecord, RsvpResponse } from "../types";
@@ -36,6 +37,7 @@ export function RsvpForm({
   moneyGiftsEnabled,
   onOpenGiveDialog,
 }: RsvpFormProps) {
+  const currentUser = useAuthStore((s) => s.user);
   const [confirmedRsvp, setConfirmedRsvp] = useState<RsvpRecord | null>(null);
   const submitMutation = useSubmitRsvpMutation(slug);
 
@@ -43,13 +45,22 @@ export function RsvpForm({
     resolver: zodResolver(rsvpFormSchema),
     mode: "onBlur",
     defaultValues: {
-      name: "",
+      name: currentUser?.name ?? "",
       response: "YES",
       plusOneName: "",
-      email: "",
+      email: currentUser?.email ?? "",
       phone: "",
     },
   });
+
+  useEffect(() => {
+    if (currentUser?.name && !form.getValues("name")) {
+      form.setValue("name", currentUser.name);
+    }
+    if (currentUser?.email && !form.getValues("email")) {
+      form.setValue("email", currentUser.email);
+    }
+  }, [currentUser?.name, currentUser?.email, form]);
 
   const selectedResponse = useWatch({
     control: form.control,

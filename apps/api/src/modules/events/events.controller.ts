@@ -133,9 +133,10 @@ export class EventsController {
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   async submitPublicRsvp(
     @Param("slug") slug: string,
-    @Body() dto: SubmitRsvpRequestDto
+    @Body() dto: SubmitRsvpRequestDto,
+    @CurrentUser() user?: { id?: string; email?: string }
   ): Promise<RsvpRecordResponseDto> {
-    return this.eventsService.submitPublicRsvp(slug, dto) as any;
+    return this.eventsService.submitPublicRsvp(slug, dto, user) as any;
   }
 
   // --- Authenticated Host Management ---

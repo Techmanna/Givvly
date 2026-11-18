@@ -463,4 +463,20 @@ export class AdminController {
   async deleteShippingZone(@Param("id") id: string) {
     return this.adminService.deleteShippingZone(id);
   }
+
+  @Get("settings")
+  @ApiOperation({ summary: "Get platform settings (event auto-archive lifecycle)" })
+  async getPlatformSettings() {
+    return this.adminService.getPlatformSettings();
+  }
+
+  @Patch("settings")
+  @ApiOperation({ summary: "Update platform settings (event auto-archive lifecycle)" })
+  async updatePlatformSettings(
+    @Body()
+    dto: { autoArchiveEnabled?: boolean; archiveAfterHours?: number },
+    @CurrentUser("id") adminId?: string
+  ) {
+    return this.adminService.updatePlatformSettings(dto, adminId);
+  }
 }

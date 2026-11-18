@@ -113,6 +113,9 @@ export type PublicEvent = EventSummary & {
   ownerFirstName: string;
   ownerId?: string;
   allowPlusOne: boolean;
+  autoArchiveEnabled?: boolean;
+  archiveAfterHours?: number;
+  archiveAt?: string | null;
   registry: RegistryItem[];
   pools: PoolItem[];
   template?: InviteTemplateData;

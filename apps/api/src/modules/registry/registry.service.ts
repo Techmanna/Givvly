@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -120,7 +121,14 @@ export class RegistryService {
     const [event, item] = await Promise.all([
       this.prisma.event.findUnique({
         where: { slug },
-        select: { id: true, slug: true, status: true, currency: true },
+        select: {
+          id: true,
+          slug: true,
+          status: true,
+          currency: true,
+          ownerId: true,
+          owner: { select: { email: true } },
+        },
       }),
       this.prisma.registryItem.findUnique({
         where: { id: dto.registryItemId },
@@ -129,6 +137,19 @@ export class RegistryService {
 
     if (!event) {
       throw new NotFoundException(`Event '${slug}' not found`);
+    }
+
+    const giverEmailNormalized =
+      (dto.giverEmail || (dto as any).email)?.trim().toLowerCase() || "";
+    if (
+      (giverUserId && giverUserId === event.ownerId) ||
+      (event.owner?.email &&
+        giverEmailNormalized &&
+        giverEmailNormalized === event.owner.email.toLowerCase())
+    ) {
+      throw new ForbiddenException(
+        "You cannot purchase a registry gift for your own celebration"
+      );
     }
 
     if (event.status !== EventStatus.PUBLISHED) {
