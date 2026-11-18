@@ -13,9 +13,11 @@ export default async function NewEventLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <SessionBootstrap />
       {user ? (
-        <UserAppHeader user={user} />
+        <>
+          <SessionBootstrap />
+          <UserAppHeader user={user} />
+        </>
       ) : (
         <MarketingHeader initialUser={null} />
       )}

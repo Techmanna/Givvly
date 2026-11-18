@@ -435,7 +435,7 @@ export function getIntelligentRegistrySuggestions(
   const isFathersSeason = dateMonth === 6;
 
   if (isFestiveSeason) {
-    activeSignals.push("Date: Festive Season (Dec)");
+    activeSignals.push("Date: Festive Season (Nov - Dec)");
   } else if (isValentineSeason) {
     activeSignals.push("Date: Valentine's Season (Feb)");
   } else if (context.date) {
@@ -1427,6 +1427,7 @@ export function CreateEventWizard() {
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
+                      captionLayout="dropdown"
                       selected={selectedDateObj}
                       defaultMonth={selectedDateObj ?? minDateObj}
                       onSelect={(day) => {
@@ -2061,7 +2062,7 @@ export function CreateEventWizard() {
           ) : null}
         </CardContent>
 
-        <CardFooter className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
+        <CardFooter className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-2 rounded-b-card border-t border-border bg-card/95 py-4 backdrop-blur-xs shadow-[0_-4px_16px_rgba(0,0,0,0.05)]">
           {step > 1 ? (
             <Button type="button" variant="outline" onClick={handleBack}>
               Back

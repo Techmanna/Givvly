@@ -103,14 +103,17 @@ export function GiveDialog({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[92vh]">
-        <DrawerHeader>
+      <DrawerContent className="max-h-[88dvh]">
+        <DrawerHeader className="shrink-0 border-b border-border/60 pb-3">
           <DrawerTitle>Send a gift to {ownerFirstName}</DrawerTitle>
           <DrawerDescription>
             Celebrate {eventName} with a cash gift.
           </DrawerDescription>
         </DrawerHeader>
-        <div className="overflow-y-auto px-4 pb-6">
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 pt-3"
+          data-vaul-no-drag
+        >
           <GiveMoneyForm
             slug={slug}
             eventName={eventName}
