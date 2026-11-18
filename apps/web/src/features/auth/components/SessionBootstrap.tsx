@@ -15,6 +15,13 @@ export function SessionBootstrap() {
   useEffect(() => {
     registerUnauthenticatedHandler((nextPath) => {
       clear();
+      if (
+        typeof window !== "undefined" &&
+        (window.location.pathname === "/login" ||
+          window.location.pathname === "/signup")
+      ) {
+        return;
+      }
       if (typeof document !== "undefined") {
         document.cookie =
           "givvly_at=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
@@ -23,7 +30,12 @@ export function SessionBootstrap() {
       }
       const target = `/login?next=${encodeURIComponent(nextPath)}&error=unauthenticated`;
       if (typeof window !== "undefined") {
-        window.location.href = target;
+        // Clear HttpOnly auth cookies on Next.js server before redirecting to /login
+        fetch("/api/auth/logout", { method: "POST" })
+          .catch(() => undefined)
+          .finally(() => {
+            window.location.href = target;
+          });
       } else {
         router.push(target);
       }

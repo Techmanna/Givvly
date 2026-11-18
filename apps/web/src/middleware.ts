@@ -133,14 +133,23 @@ export async function middleware(request: NextRequest) {
 
   // No valid access token
   if (!claims) {
-    if (refreshCookie) {
+    const refreshAttempted =
+      request.cookies.get("givvly_refresh_attempted")?.value === "1";
+    if (refreshCookie && !refreshAttempted) {
       const refreshUrl = new URL("/api/auth/refresh", request.url);
       refreshUrl.searchParams.set("next", fullPath);
       return NextResponse.redirect(refreshUrl);
     }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", fullPath);
-    return NextResponse.redirect(loginUrl);
+    if (refreshAttempted) {
+      loginUrl.searchParams.set("error", "session_expired");
+    }
+    const loginResponse = NextResponse.redirect(loginUrl);
+    loginResponse.cookies.delete("givvly_at");
+    loginResponse.cookies.delete("givvly_rt");
+    loginResponse.cookies.delete("givvly_refresh_attempted");
+    return loginResponse;
   }
 
   // Vendor routes now redirect to admin console

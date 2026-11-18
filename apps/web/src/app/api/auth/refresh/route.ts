@@ -36,14 +36,23 @@ export async function GET(request: NextRequest) {
     if (!backendResponse.ok) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("next", safeNext);
+      loginUrl.searchParams.set("error", "session_expired");
       const redirectResponse = NextResponse.redirect(loginUrl);
       redirectResponse.cookies.delete("givvly_at");
       redirectResponse.cookies.delete("givvly_rt");
+      redirectResponse.cookies.delete("givvly_refresh_attempted");
       return redirectResponse;
     }
 
     const destinationUrl = new URL(safeNext, request.url);
     const redirectResponse = NextResponse.redirect(destinationUrl);
+    // Short-lived loop guard so middleware won't bounce back to /api/auth/refresh immediately
+    redirectResponse.cookies.set("givvly_refresh_attempted", "1", {
+      path: "/",
+      maxAge: 10,
+      httpOnly: true,
+      sameSite: "lax",
+    });
 
     const setCookies =
       typeof backendResponse.headers.getSetCookie === "function"
