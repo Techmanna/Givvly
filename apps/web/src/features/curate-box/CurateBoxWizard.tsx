@@ -795,7 +795,7 @@ export function CurateBoxWizard({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 rounded-full"
+                              className="h-7 w-7 min-h-0 rounded-full p-0 text-foreground"
                               aria-label={`Decrease quantity of ${item.name}`}
                               onClick={() =>
                                 handleUpdateQty(
@@ -805,7 +805,7 @@ export function CurateBoxWizard({
                                 )
                               }
                             >
-                              <Minus className="h-3.5 w-3.5" />
+                              <Minus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                             </Button>
                             <span className="text-xs font-semibold text-foreground">
                               {inBoxItem.qty} in box
@@ -814,7 +814,7 @@ export function CurateBoxWizard({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 rounded-full"
+                              className="h-7 w-7 min-h-0 rounded-full p-0 text-foreground"
                               disabled={pricing.remainingSlots === 0}
                               aria-label={`Increase quantity of ${item.name}`}
                               onClick={() =>
@@ -825,7 +825,7 @@ export function CurateBoxWizard({
                                 )
                               }
                             >
-                              <Plus className="h-3.5 w-3.5" />
+                              <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                             </Button>
                           </div>
                         ) : (
@@ -1126,7 +1126,7 @@ export function CurateBoxWizard({
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 rounded-full"
+                          className="h-7 w-7 min-h-0 rounded-full p-0 text-foreground"
                           aria-label={`Decrease quantity of ${item.product.name}`}
                           onClick={() =>
                             handleUpdateQty(
@@ -1136,7 +1136,7 @@ export function CurateBoxWizard({
                             )
                           }
                         >
-                          <Minus className="h-3.5 w-3.5" />
+                          <Minus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                         </Button>
                         <span className="w-7 text-center text-xs font-semibold">
                           {item.qty}
@@ -1145,7 +1145,7 @@ export function CurateBoxWizard({
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 rounded-full"
+                          className="h-7 w-7 min-h-0 rounded-full p-0 text-foreground"
                           disabled={pricing.remainingSlots === 0}
                           aria-label={`Increase quantity of ${item.product.name}`}
                           onClick={() =>
@@ -1156,20 +1156,20 @@ export function CurateBoxWizard({
                             )
                           }
                         >
-                          <Plus className="h-3.5 w-3.5" />
+                          <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                         </Button>
                       </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive"
+                        className="h-8 w-8 min-h-0 rounded-full p-0 text-muted-foreground hover:text-destructive"
                         aria-label={`Remove ${item.product.name}`}
                         onClick={() =>
                           handleUpdateQty(item.productId, item.variantId, 0)
                         }
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" />
                       </Button>
                     </div>
                   </div>

@@ -7,6 +7,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
 import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
+import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 import { AllExceptionsFilter } from "./common/filters/http-exception.filter";
 import { isAllowedCorsOrigin } from "./common/utils/cors.util";
 
@@ -108,9 +109,12 @@ async function bootstrap() {
     ],
   });
 
-  // Global Envelope & Error Handling
+  // Global Envelope, Logging & Error Handling
   app.setGlobalPrefix("api/v1");
-  app.useGlobalInterceptors(new TransformInterceptor());
+  app.useGlobalInterceptors(
+    new LoggingInterceptor(),
+    new TransformInterceptor()
+  );
   app.useGlobalFilters(new AllExceptionsFilter());
 
   // Global standard validation pipe
