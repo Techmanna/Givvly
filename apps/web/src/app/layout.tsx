@@ -3,6 +3,8 @@ import { Fraunces, DM_Sans } from "next/font/google";
 import { QueryProvider } from "@/lib/query-client";
 import { Toaster } from "@/components/ui/sonner";
 import { BagDrawer } from "@/components/shared/BagDrawer";
+import { FloatingWhatsAppButton } from "@/components/shared/FloatingWhatsAppButton";
+import { SITE_CONTACT, SITE_SOCIALS } from "@/lib/constants";
 import "@/styles/globals.css";
 
 const fraunces = Fraunces({
@@ -165,14 +167,12 @@ const rootStructuredData = {
       description:
         "Events-first gifting and registry platform for Nigerian weddings, milestone birthdays, and celebrations worldwide.",
       slogan: "The right gift, for every right moment...",
-      sameAs: [
-        "https://www.instagram.com/givvly.store",
-        "https://twitter.com/givvly_ng",
-      ],
+      sameAs: SITE_SOCIALS.map((social) => social.href),
       contactPoint: {
         "@type": "ContactPoint",
         contactType: "Customer Support & Concierge",
-        email: "concierge@givvly.store",
+        email: SITE_CONTACT.email,
+        telephone: SITE_CONTACT.phone,
         availableLanguage: ["English", "Yoruba", "Igbo", "Hausa"],
       },
     },
@@ -235,6 +235,7 @@ export default function RootLayout({
         <QueryProvider>
           {children}
           <BagDrawer />
+          <FloatingWhatsAppButton />
           <Toaster position="top-center" richColors />
         </QueryProvider>
       </body>

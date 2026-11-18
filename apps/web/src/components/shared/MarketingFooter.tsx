@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { Heart, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
+import { SITE_CONTACT } from "@/lib/constants";
 import { BrandLogo } from "./BrandLogo";
+import { SocialLinks } from "./SocialLinks";
 
 const footerSections = [
     {
@@ -84,9 +86,22 @@ export function MarketingFooter() {
                             />
 
                             <span>
-                                Secured by Paystack • NDPA Compliant
+                                Secured by Monnify &amp; Paystack • NDPA Compliant
                             </span>
                         </p>
+
+                        <div className="space-y-3 pt-1">
+                            <SocialLinks />
+                            <p className="text-xs text-muted-foreground">
+                                Concierge:{" "}
+                                <a
+                                    href={SITE_CONTACT.mailto}
+                                    className="font-medium text-foreground underline-offset-4 hover:text-primary hover:underline"
+                                >
+                                    {SITE_CONTACT.email}
+                                </a>
+                            </p>
+                        </div>
                     </div>
 
                     {/* Footer navigation */}
