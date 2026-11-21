@@ -231,6 +231,62 @@ export class FlutterwaveService {
     };
   }
 
+  private banksCache = new Map<
+    string,
+    { expiresAt: number; banks: Array<{ code: string; name: string }> }
+  >();
+
+  async listBanks(
+    country = "NG"
+  ): Promise<Array<{ code: string; name: string }>> {
+    const normalizedCountry = (country || "NG").toUpperCase();
+    const cached = this.banksCache.get(normalizedCountry);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.banks;
+    }
+
+    if (this.isMock) {
+      return [
+        { code: "044", name: "Access Bank" },
+        { code: "011", name: "First Bank of Nigeria" },
+        { code: "214", name: "First City Monument Bank" },
+        { code: "070", name: "Fidelity Bank" },
+        { code: "058", name: "Guaranty Trust Bank" },
+        { code: "090267", name: "Kuda Microfinance Bank" },
+        { code: "305", name: "OPay" },
+        { code: "100033", name: "PalmPay" },
+        { code: "232", name: "Sterling Bank" },
+        { code: "033", name: "United Bank for Africa" },
+        { code: "035", name: "Wema Bank" },
+        { code: "057", name: "Zenith Bank" },
+      ];
+    }
+
+    const data = await this.request<
+      Array<{ id?: number; code?: string; name?: string }>
+    >("GET", `/banks/${encodeURIComponent(normalizedCountry)}`);
+
+    const seen = new Set<string>();
+    const banks: Array<{ code: string; name: string }> = [];
+    for (const item of Array.isArray(data) ? data : []) {
+      const code = String(item?.code || "").trim();
+      const name = String(item?.name || "").trim();
+      if (!code || !name || seen.has(code)) continue;
+      seen.add(code);
+      banks.push({ code, name });
+    }
+    banks.sort((a, b) => a.name.localeCompare(b.name));
+
+    if (banks.length > 0) {
+      this.banksCache.set(normalizedCountry, {
+        expiresAt: Date.now() + 60 * 60 * 1000,
+        banks,
+      });
+    }
+
+    return banks;
+  }
+
   async resolveAccount(params: {
     accountNumber: string;
     bankCode: string;
@@ -242,17 +298,31 @@ export class FlutterwaveService {
       };
     }
 
-    const data = await this.request<{
-      account_number?: string;
-      account_name?: string;
-    }>("POST", "/accounts/resolve", {
-      account_number: params.accountNumber,
-      account_bank: params.bankCode,
-    });
+    try {
+      const data = await this.request<{
+        account_number?: string;
+        account_name?: string;
+      }>("POST", "/accounts/resolve", {
+        account_number: params.accountNumber,
+        account_bank: params.bankCode,
+      });
 
-    return {
-      accountNumber: data?.account_number || params.accountNumber,
-      accountName: data?.account_name || "",
-    };
+      if (!data?.account_name) {
+        throw new Error("Could not resolve account name from Flutterwave");
+      }
+
+      return {
+        accountNumber: data.account_number || params.accountNumber,
+        accountName: data.account_name,
+      };
+    } catch (err: any) {
+      const isTestKey = this.secretKey.startsWith("FLWSECK_TEST");
+      if (isTestKey && /invalid account/i.test(String(err?.message || ""))) {
+        throw new Error(
+          "Flutterwave Test Mode (FLWSECK_TEST) only resolves Access Bank (044) with test account numbers (e.g. 0690000031 or 0690000032). Switch to live Flutterwave keys to verify real Nigerian bank accounts."
+        );
+      }
+      throw err;
+    }
   }
 }

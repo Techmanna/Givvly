@@ -145,7 +145,6 @@ describe("EventsService - Slug Generation Integration", () => {
       expect(mockPrisma.event.updateMany).toHaveBeenCalledWith({
         where: {
           ownerId: "user-1",
-          payoutAccountId: null,
         },
         data: {
           payoutAccountId: "pacc-new-1",

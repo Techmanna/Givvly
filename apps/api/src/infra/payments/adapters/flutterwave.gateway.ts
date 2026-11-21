@@ -163,6 +163,19 @@ export class FlutterwaveGateway implements PaymentGateway {
     };
   }
 
+  async listBanks(
+    country = "NG"
+  ): Promise<Array<{ code: string; name: string }>> {
+    return this.flutterwaveService.listBanks(country);
+  }
+
+  async resolveBankAccount(params: {
+    accountNumber: string;
+    bankCode: string;
+  }): Promise<{ accountNumber: string; accountName: string }> {
+    return this.flutterwaveService.resolveAccount(params);
+  }
+
   async createTransferRecipient(params: {
     name: string;
     accountNumber: string;

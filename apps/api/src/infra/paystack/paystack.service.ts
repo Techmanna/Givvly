@@ -172,6 +172,61 @@ export class PaystackService {
     };
   }
 
+  private banksCache?: {
+    expiresAt: number;
+    banks: Array<{ code: string; name: string }>;
+  };
+
+  /**
+   * List supported Nigerian commercial banks
+   */
+  async listBanks(): Promise<Array<{ code: string; name: string }>> {
+    if (this.banksCache && this.banksCache.expiresAt > Date.now()) {
+      return this.banksCache.banks;
+    }
+
+    if (this.isMockMode) {
+      return [
+        { code: "044", name: "Access Bank" },
+        { code: "011", name: "First Bank of Nigeria" },
+        { code: "058", name: "Guaranty Trust Bank" },
+        { code: "033", name: "United Bank for Africa" },
+        { code: "057", name: "Zenith Bank" },
+      ];
+    }
+
+    const res = await fetch(`${this.baseUrl}/bank?country=nigeria`, {
+      headers: {
+        Authorization: `Bearer ${this.secretKey}`,
+      },
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.status) {
+      throw new Error(data.message || "Failed to fetch banks from Paystack");
+    }
+
+    const seen = new Set<string>();
+    const banks: Array<{ code: string; name: string }> = [];
+    for (const item of Array.isArray(data.data) ? data.data : []) {
+      const code = String(item?.code || "").trim();
+      const name = String(item?.name || "").trim();
+      if (!code || !name || seen.has(code)) continue;
+      seen.add(code);
+      banks.push({ code, name });
+    }
+    banks.sort((a, b) => a.name.localeCompare(b.name));
+
+    if (banks.length > 0) {
+      this.banksCache = {
+        expiresAt: Date.now() + 60 * 60 * 1000,
+        banks,
+      };
+    }
+
+    return banks;
+  }
+
   /**
    * Resolve NUBAN Bank Account
    */

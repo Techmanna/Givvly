@@ -51,6 +51,51 @@ describe("PayoutSetupForm & EventUnlockForm", () => {
       expect(screen.getByText(/••••••6789/)).toBeInTheDocument();
     });
     expect(screen.getByText(/money gifts on/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /edit account/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /delete account/i })
+    ).toBeInTheDocument();
+  });
+
+  it("allows editing and deleting an existing payout account", async () => {
+    vi.spyOn(eventsApi, "fetchBanks").mockResolvedValue([
+      { code: "044", name: "Access Bank" },
+    ]);
+    vi.spyOn(eventsApi, "fetchPayoutAccount").mockResolvedValue({
+      id: "pa_1",
+      bankCode: "044",
+      bankName: "Access Bank",
+      accountNumberLast4: "0032",
+      accountName: "PASTOR BRIGHT",
+      status: "VERIFIED",
+      updatedAt: "2026-10-28T10:00:00Z",
+    });
+    const deleteSpy = vi
+      .spyOn(eventsApi, "deletePayoutAccount")
+      .mockResolvedValue({ deleted: true });
+
+    const user = userEvent.setup();
+    renderWithQuery(<PayoutSetupForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/••••••0032/)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /edit account/i }));
+    expect(
+      screen.getByRole("button", { name: /update payout details/i })
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /cancel edit/i }));
+
+    await user.click(screen.getByRole("button", { name: /delete account/i }));
+    await user.click(screen.getByRole("button", { name: /confirm remove/i }));
+
+    await waitFor(() => {
+      expect(deleteSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("counts attempts on INVALID_ACCESS_CODE in EventUnlockForm and redirects on valid code", async () => {

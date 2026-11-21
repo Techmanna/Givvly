@@ -414,3 +414,9 @@ export function savePayoutAccount(payload: {
   });
 }
 
+export function deletePayoutAccount(): Promise<{ deleted: boolean }> {
+  return api<{ deleted: boolean }>("/payout-accounts", {
+    method: "DELETE",
+  });
+}
+

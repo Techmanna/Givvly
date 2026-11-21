@@ -135,6 +135,17 @@ export class PaystackGateway implements PaymentGateway {
     }
   }
 
+  async listBanks(): Promise<Array<{ code: string; name: string }>> {
+    return this.paystackService.listBanks();
+  }
+
+  async resolveBankAccount(params: {
+    accountNumber: string;
+    bankCode: string;
+  }): Promise<{ accountNumber: string; accountName: string }> {
+    return this.paystackService.resolveAccount(params);
+  }
+
   async createTransferRecipient(params: {
     name: string;
     accountNumber: string;

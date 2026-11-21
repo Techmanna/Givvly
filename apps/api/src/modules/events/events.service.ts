@@ -11,6 +11,7 @@ import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "@/infra/prisma/prisma.service";
 import { PaystackService } from "@/infra/paystack/paystack.service";
+import { PaymentGatewayRegistry } from "@/infra/payments/payment-gateway.registry";
 import { StorageProviderRegistry } from "@/infra/storage/storage-provider.registry";
 import { NotificationsService } from "../notifications/notifications.service";
 import { SlugService } from "../../common/slug/slug.service";
@@ -80,7 +81,8 @@ export class EventsService {
     @Optional() private readonly paystack?: PaystackService,
     @Optional() private readonly storageRegistry?: StorageProviderRegistry,
     @Optional() private readonly notifications?: NotificationsService,
-    @Optional() slugService?: SlugService
+    @Optional() slugService?: SlugService,
+    @Optional() private readonly gatewayRegistry?: PaymentGatewayRegistry
   ) {
     this.slugService = slugService ?? new SlugService(this.prisma);
   }
@@ -575,32 +577,103 @@ export class EventsService {
     return this.getKeepsakeSummary(userId, event.id);
   }
 
+  async listBanks(): Promise<Array<{ code: string; name: string }>> {
+    const gateway = this.gatewayRegistry?.getGateway();
+    if (gateway?.listBanks) {
+      try {
+        const banks = await gateway.listBanks("NG");
+        if (banks.length > 0) {
+          return banks;
+        }
+      } catch (err: any) {
+        this.logger.warn(
+          `Failed to fetch banks from default gateway (${gateway.providerName}): ${err?.message}`
+        );
+      }
+    }
+
+    if (this.paystack) {
+      try {
+        const banks = await this.paystack.listBanks();
+        if (banks.length > 0) {
+          return banks;
+        }
+      } catch (err: any) {
+        this.logger.warn(
+          `Failed to fetch banks from Paystack fallback: ${err?.message}`
+        );
+      }
+    }
+
+    return [
+      { code: "044", name: "Access Bank" },
+      { code: "070", name: "Fidelity Bank" },
+      { code: "011", name: "First Bank of Nigeria" },
+      { code: "214", name: "First City Monument Bank" },
+      { code: "058", name: "Guaranty Trust Bank" },
+      { code: "090267", name: "Kuda Microfinance Bank" },
+      { code: "305", name: "OPay" },
+      { code: "100033", name: "PalmPay" },
+      { code: "232", name: "Sterling Bank" },
+      { code: "033", name: "United Bank for Africa" },
+      { code: "035", name: "Wema Bank" },
+      { code: "057", name: "Zenith Bank" },
+    ];
+  }
+
   async resolveBankAccount(dto: { bankCode: string; accountNumber: string }) {
+    const accountNumber = dto.accountNumber.trim();
+    const bankCode = dto.bankCode.trim();
+    const gateway = this.gatewayRegistry?.getGateway();
+
+    if (gateway?.resolveBankAccount) {
+      try {
+        const res = await gateway.resolveBankAccount({
+          accountNumber,
+          bankCode,
+        });
+        return {
+          accountName: res.accountName,
+          accountNumber: res.accountNumber || accountNumber,
+          bankCode,
+        };
+      } catch (err: any) {
+        this.logger.warn(
+          `Bank account resolution failed via ${gateway.providerName} for bank=${bankCode} acct=***${accountNumber.slice(-4)}: ${err?.message}`
+        );
+        throw new BadRequestException(
+          err?.message ||
+            "Could not verify bank account details with the payment gateway. Please check the bank and 10-digit account number."
+        );
+      }
+    }
+
     if (!this.paystack) {
       return {
         accountName: "GIVVLY MOCK ACCOUNT HOLDER",
-        accountNumber: dto.accountNumber,
-        bankCode: dto.bankCode,
+        accountNumber,
+        bankCode,
       };
     }
 
     try {
       const res = await this.paystack.resolveAccount({
-        accountNumber: dto.accountNumber.trim(),
-        bankCode: dto.bankCode.trim(),
+        accountNumber,
+        bankCode,
       });
       return {
         accountName: res.accountName,
         accountNumber: res.accountNumber,
-        bankCode: dto.bankCode,
+        bankCode,
       };
-    } catch {
-      // Mock / fallback
-      return {
-        accountName: "GIVVLY VERIFIED BENEFICIARY",
-        accountNumber: dto.accountNumber,
-        bankCode: dto.bankCode,
-      };
+    } catch (err: any) {
+      this.logger.warn(
+        `Bank account resolution failed via Paystack for bank=${bankCode} acct=***${accountNumber.slice(-4)}: ${err?.message}`
+      );
+      throw new BadRequestException(
+        err?.message ||
+          "Could not verify bank account details. Please check the bank and 10-digit account number."
+      );
     }
   }
 
@@ -608,6 +681,7 @@ export class EventsService {
   async getPayoutAccount(userId: string) {
     const account = await this.prisma.payoutAccount.findFirst({
       where: { userId, isDefault: true },
+      orderBy: { updatedAt: "desc" },
     });
 
     if (!account) return null;
@@ -632,9 +706,32 @@ export class EventsService {
     }
 
     const cleanAccount = dto.accountNumber.trim();
+    const cleanBankCode = dto.bankCode.trim();
+
+    const verified = await this.resolveBankAccount({
+      bankCode: cleanBankCode,
+      accountNumber: cleanAccount,
+    });
+
+    let resolvedBankName = dto.bankName?.trim();
+    if (!resolvedBankName) {
+      const banks = await this.listBanks();
+      resolvedBankName = banks.find((b) => b.code === cleanBankCode)?.name;
+    }
+    const finalBankName = resolvedBankName || "Commercial Bank";
+    const finalAccountName =
+      verified.accountName?.trim() || dto.accountName.trim();
+
     const accountLast4 = cleanAccount.slice(-4);
     const accountHash = hmacString(cleanAccount, hashKey);
     const accountNumberEnc = encryptAesGcm(cleanAccount, encKey);
+
+    if (typeof (this.prisma.payoutAccount as any).updateMany === "function") {
+      await this.prisma.payoutAccount.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
 
     // Save as verified account
     const account = await this.prisma.payoutAccount.upsert({
@@ -646,21 +743,23 @@ export class EventsService {
       },
       create: {
         userId,
-        bankCode: dto.bankCode.trim(),
-        bankName: dto.bankName?.trim() || "Commercial Bank",
+        bankCode: cleanBankCode,
+        bankName: finalBankName,
         accountNumberEnc,
         accountHash,
         accountLast4,
-        accountName: dto.accountName.trim(),
+        accountName: finalAccountName,
+        recipientCode: null,
         status: "VERIFIED",
         isDefault: true,
       },
       update: {
-        bankCode: dto.bankCode.trim(),
-        bankName: dto.bankName?.trim() || "Commercial Bank",
+        bankCode: cleanBankCode,
+        bankName: finalBankName,
         accountNumberEnc,
         accountLast4,
-        accountName: dto.accountName.trim(),
+        accountName: finalAccountName,
+        recipientCode: null,
         status: "VERIFIED",
         isDefault: true,
       },
@@ -670,7 +769,6 @@ export class EventsService {
       await this.prisma.event.updateMany({
         where: {
           ownerId: userId,
-          payoutAccountId: null,
         },
         data: {
           payoutAccountId: account.id,
@@ -686,6 +784,41 @@ export class EventsService {
       accountName: account.accountName,
       status: account.status,
     };
+  }
+
+  async deletePayoutAccount(userId: string) {
+    const existing = await this.prisma.payoutAccount.findFirst({
+      where: { userId, isDefault: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException("No linked payout account found");
+    }
+
+    if (typeof (this.prisma.payout as any)?.count === "function") {
+      const activePayoutCount = await this.prisma.payout.count({
+        where: {
+          userId,
+          status: { in: ["QUEUED", "PROCESSING"] as any },
+        },
+      });
+      if (activePayoutCount > 0) {
+        throw new BadRequestException(
+          "Cannot delete your payout account while a withdrawal or payout is queued or processing."
+        );
+      }
+    }
+
+    await this.prisma.event.updateMany({
+      where: { ownerId: userId },
+      data: { payoutAccountId: null },
+    });
+
+    await this.prisma.payoutAccount.deleteMany({
+      where: { userId },
+    });
+
+    return { deleted: true };
   }
 
   // --- Public Guest Experience Methods ---

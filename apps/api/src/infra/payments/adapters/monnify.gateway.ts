@@ -137,6 +137,17 @@ export class MonnifyGateway implements PaymentGateway {
     };
   }
 
+  async listBanks(): Promise<Array<{ code: string; name: string }>> {
+    return this.monnifyService.listBanks();
+  }
+
+  async resolveBankAccount(params: {
+    accountNumber: string;
+    bankCode: string;
+  }): Promise<{ accountNumber: string; accountName: string }> {
+    return this.monnifyService.resolveAccount(params);
+  }
+
   async createTransferRecipient(params: {
     name: string;
     accountNumber: string;

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createEvent,
+  deletePayoutAccount,
   fetchBanks,
   fetchEventDetail,
   fetchEventStats,
@@ -140,6 +141,20 @@ export function useSavePayoutAccountMutation() {
     onSuccess: (saved) => {
       queryClient.setQueryData(eventKeys.payoutAccount(), saved);
       queryClient.invalidateQueries({ queryKey: eventKeys.mine() });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+    },
+  });
+}
+
+export function useDeletePayoutAccountMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => deletePayoutAccount(),
+    onSuccess: () => {
+      queryClient.setQueryData(eventKeys.payoutAccount(), null);
+      queryClient.invalidateQueries({ queryKey: eventKeys.mine() });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
   });
 }

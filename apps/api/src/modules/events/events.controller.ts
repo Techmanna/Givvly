@@ -4,6 +4,7 @@ import {
   Get,
   Patch,
   Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -447,6 +448,37 @@ export class EventsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiCookieAuth("givvly_at")
+  @Put(["payout-account", "payout-accounts"])
+  @ApiOperation({ summary: "Update existing NUBAN payout account" })
+  @ApiOkResponse({
+    description: "Payout account updated and encrypted.",
+    type: PayoutAccountResponseDto,
+  })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updatePayoutAccount(
+    @CurrentUser("id") userId: string,
+    @Body() dto: CreatePayoutAccountRequestDto
+  ): Promise<PayoutAccountResponseDto> {
+    return this.eventsService.savePayoutAccount(userId, dto) as any;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiCookieAuth("givvly_at")
+  @Delete(["payout-account", "payout-accounts"])
+  @ApiOperation({ summary: "Delete linked payout account" })
+  @ApiOkResponse({
+    description: "Payout account deleted and unlinked from events.",
+  })
+  async deletePayoutAccount(
+    @CurrentUser("id") userId: string
+  ): Promise<{ deleted: boolean }> {
+    return this.eventsService.deletePayoutAccount(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiCookieAuth("givvly_at")
   @Throttle({ short: { ttl: 10_000, limit: 3 }, default: { ttl: 60_000, limit: 10 } })
   @Post(["payout-account/resolve", "payout-accounts/resolve"])
   @ApiOperation({ summary: "Resolve NUBAN account name via Paystack" })
@@ -465,23 +497,10 @@ export class EventsController {
   @Get("banks")
   @ApiOperation({ summary: "List supported Nigerian commercial banks" })
   @ApiOkResponse({
-    description: "List of banks with CBN codes.",
+    description: "List of banks with codes from the default payment gateway.",
     type: [BankOptionResponseDto],
   })
-  getBanks(): BankOptionResponseDto[] {
-    return [
-      { code: "058", name: "Guaranty Trust Bank" },
-      { code: "011", name: "First Bank of Nigeria" },
-      { code: "033", name: "United Bank for Africa" },
-      { code: "057", name: "Zenith Bank" },
-      { code: "232", name: "Sterling Bank" },
-      { code: "044", name: "Access Bank" },
-      { code: "035", name: "Wema Bank" },
-      { code: "070", name: "Fidelity Bank" },
-      { code: "214", name: "First City Monument Bank" },
-      { code: "100004", name: "Opay" },
-      { code: "100033", name: "PalmPay" },
-      { code: "090110", name: "Kuda Bank" },
-    ];
+  async getBanks(): Promise<BankOptionResponseDto[]> {
+    return this.eventsService.listBanks();
   }
 }

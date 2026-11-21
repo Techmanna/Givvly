@@ -286,4 +286,81 @@ export class MonnifyService {
       transactionReference: res?.transactionReference,
     };
   }
+
+  private banksCache?: {
+    expiresAt: number;
+    banks: Array<{ code: string; name: string }>;
+  };
+
+  async listBanks(): Promise<Array<{ code: string; name: string }>> {
+    if (this.banksCache && this.banksCache.expiresAt > Date.now()) {
+      return this.banksCache.banks;
+    }
+
+    if (this.isMock) {
+      return [
+        { code: "044", name: "Access Bank" },
+        { code: "011", name: "First Bank of Nigeria" },
+        { code: "058", name: "Guaranty Trust Bank" },
+        { code: "033", name: "United Bank for Africa" },
+        { code: "057", name: "Zenith Bank" },
+      ];
+    }
+
+    const data = await this.request<Array<{ code?: string; name?: string }>>(
+      "GET",
+      "/api/v1/banks"
+    );
+
+    const seen = new Set<string>();
+    const banks: Array<{ code: string; name: string }> = [];
+    for (const item of Array.isArray(data) ? data : []) {
+      const code = String(item?.code || "").trim();
+      const name = String(item?.name || "").trim();
+      if (!code || !name || seen.has(code)) continue;
+      seen.add(code);
+      banks.push({ code, name });
+    }
+    banks.sort((a, b) => a.name.localeCompare(b.name));
+
+    if (banks.length > 0) {
+      this.banksCache = {
+        expiresAt: Date.now() + 60 * 60 * 1000,
+        banks,
+      };
+    }
+
+    return banks;
+  }
+
+  async resolveAccount(params: {
+    accountNumber: string;
+    bankCode: string;
+  }): Promise<{ accountNumber: string; accountName: string }> {
+    if (this.isMock) {
+      return {
+        accountNumber: params.accountNumber,
+        accountName: "GIVVLY MOCK ACCOUNT HOLDER",
+      };
+    }
+
+    const data = await this.request<{
+      accountNumber?: string;
+      accountName?: string;
+    }>(
+      "GET",
+      `/api/v1/disbursements/account/validate?accountNumber=${encodeURIComponent(
+        params.accountNumber
+      )}&bankCode=${encodeURIComponent(params.bankCode)}`
+    );
+
+    if (!data?.accountName) {
+      throw new Error("Could not resolve account name from Monnify");
+    }
+
+    return {
+      accountNumber: data.accountNumber || params.accountNumber,
+      accountName: data.accountName,
+    };
+  }
 }

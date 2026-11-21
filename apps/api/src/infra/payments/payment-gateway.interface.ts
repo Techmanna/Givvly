@@ -69,6 +69,13 @@ export interface PaymentGateway {
   // Disbursement / Payouts capabilities
   readonly supportsPayouts: boolean;
 
+  listBanks?(country?: string): Promise<Array<{ code: string; name: string }>>;
+
+  resolveBankAccount?(params: {
+    accountNumber: string;
+    bankCode: string;
+  }): Promise<{ accountNumber: string; accountName: string }>;
+
   createTransferRecipient?(params: {
     name: string;
     accountNumber: string;
