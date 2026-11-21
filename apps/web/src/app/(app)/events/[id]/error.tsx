@@ -20,7 +20,7 @@ export default function EventDetailError({
   }, [error]);
 
   return (
-    <main className="mx-auto w-full max-w-5xl ">
+    <main className="mx-auto w-full max-w-5xl p-4 sm:p-6">
       <ErrorState errorId={error.requestId ?? error.digest} onRetry={reset} />
     </main>
   );
