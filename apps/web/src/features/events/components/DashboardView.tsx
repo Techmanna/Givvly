@@ -277,19 +277,20 @@ export function DashboardView() {
       />
 
       {/* Segmented Navigation Tabs */}
-      <div className="flex border-b border-border">
+      <div className="flex items-center gap-4 overflow-x-auto border-b border-border sm:gap-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <button
           type="button"
           onClick={() => setActiveTab("events")}
-          className={`relative pb-3 text-sm font-semibold transition-colors duration-200 ${
+          className={`relative inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap pb-3 text-xs font-semibold transition-colors duration-200 sm:gap-2 sm:text-sm ${
             activeTab === "events"
-              ? "text-primary border-b-2 border-primary"
+              ? "border-b-2 border-primary text-primary"
               : "text-muted-foreground hover:text-foreground"
-          } mr-6 inline-flex items-center gap-2`}
+          }`}
         >
-          <CalendarPlus className="h-4 w-4" />
-          <span>My Celebrations</span>
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary font-bold">
+          <CalendarPlus className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="sm:hidden">Celebrations</span>
+          <span className="hidden sm:inline">My Celebrations</span>
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
             {events.length}
           </span>
         </button>
@@ -297,15 +298,16 @@ export function DashboardView() {
         <button
           type="button"
           onClick={() => setActiveTab("orders")}
-          className={`relative pb-3 text-sm font-semibold transition-colors duration-200 ${
+          className={`relative inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap pb-3 text-xs font-semibold transition-colors duration-200 sm:gap-2 sm:text-sm ${
             activeTab === "orders"
-              ? "text-primary border-b-2 border-primary"
+              ? "border-b-2 border-primary text-primary"
               : "text-muted-foreground hover:text-foreground"
-          } mr-6 inline-flex items-center gap-2`}
+          }`}
         >
-          <ShoppingBag className="h-4 w-4" />
-          <span>My Gift Orders & Boxes</span>
-          <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs text-accent-foreground font-bold">
+          <ShoppingBag className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="sm:hidden">Gift Orders</span>
+          <span className="hidden sm:inline">My Gift Orders &amp; Boxes</span>
+          <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold text-accent-foreground">
             {orders.length}
           </span>
         </button>
@@ -313,17 +315,18 @@ export function DashboardView() {
         <button
           type="button"
           onClick={() => setActiveTab("payout")}
-          className={`relative pb-3 text-sm font-semibold transition-colors duration-200 ${
+          className={`relative inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap pb-3 text-xs font-semibold transition-colors duration-200 sm:gap-2 sm:text-sm ${
             activeTab === "payout"
-              ? "text-primary border-b-2 border-primary"
+              ? "border-b-2 border-primary text-primary"
               : "text-muted-foreground hover:text-foreground"
-          } inline-flex items-center gap-2`}
+          }`}
         >
-          <ShieldCheck className="h-4 w-4" />
-          <span>Payout Settings</span>
+          <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="sm:hidden">Payouts</span>
+          <span className="hidden sm:inline">Payout Settings</span>
           {payoutVerified && (
-            <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
-              <CheckCircle2 className="h-3 w-3" />
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+              <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
             </span>
           )}
         </button>

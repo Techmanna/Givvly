@@ -246,7 +246,7 @@ export function UserAppHeader({ user: initialUser }: UserAppHeaderProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="lg:hidden h-9 w-9 text-muted-foreground hover:text-foreground"
+                className="lg:hidden text-muted-foreground hover:text-foreground"
                 aria-label="Open mobile navigation"
               >
                 <Menu className="h-5 w-5" />
