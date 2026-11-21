@@ -20,7 +20,7 @@ export default function AccountNotificationsError({
   }, [error]);
 
   return (
-    <main className="mx-auto w-full max-w-3xl p-4 sm:p-6">
+    <main className="mx-auto w-full max-w-3xl ">
       <ErrorState errorId={error.requestId ?? error.digest} onRetry={reset} />
     </main>
   );
