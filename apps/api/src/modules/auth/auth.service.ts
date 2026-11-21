@@ -390,6 +390,33 @@ export class AuthService {
       }),
     ]);
 
+    try {
+      const appUrl =
+        this.configService.get<string>("APP_URL") || "https://www.givvly.store";
+      await this.emailService.send({
+        to: record.user.email,
+        subject: "Your Givvly password was changed",
+        text: `Hi ${record.user.name || "there"}, your Givvly account password was just reset. If you did not make this change, contact support immediately.`,
+        html: this.emailService.renderTemplate(
+          "Your Givvly password was changed",
+          `
+          <h2>Password Reset Confirmed 🔐</h2>
+          <p>Hi ${record.user.name || "there"},</p>
+          <p>Your Givvly account password was successfully reset just now.</p>
+          <p style="font-size: 13px; color: #7A6468;">If you did not authorize this change, please contact Givvly Support immediately.</p>
+          <p style="text-align: center;">
+            <a href="${appUrl}/login" class="btn">Sign In to Givvly</a>
+          </p>
+          `,
+          "Security Alert"
+        ),
+      });
+    } catch (err: any) {
+      this.logger.warn(
+        `Could not send password reset confirmation email: ${err?.message}`
+      );
+    }
+
     return {
       success: true,
       message:

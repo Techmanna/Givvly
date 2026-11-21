@@ -3,14 +3,19 @@ import {
   NotFoundException,
   UnauthorizedException,
   BadRequestException,
+  Optional,
 } from "@nestjs/common";
 import * as argon2 from "argon2";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { UpdateProfileDto, ChangePasswordDto } from "./dto/update-user.dto";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notifications?: NotificationsService
+  ) {}
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const profileSelect = {
@@ -65,7 +70,7 @@ export class UsersService {
   async changePassword(userId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, passwordHash: true },
+      select: { id: true, email: true, name: true, passwordHash: true },
     });
 
     if (!user) {
@@ -94,6 +99,20 @@ export class UsersService {
       where: { id: userId },
       data: { passwordHash: newHash },
     });
+
+    if (this.notifications && user.email) {
+      void this.notifications
+        .sendSecurityAlertEmail({
+          userId: user.id,
+          to: user.email,
+          userName: user.name,
+          title: "Your Givvly password was changed",
+          summary:
+            "Your Givvly account password was updated from your security settings.",
+          actionPath: "/account/security",
+        })
+        .catch(() => {});
+    }
 
     return { ok: true, message: "Password updated successfully" };
   }

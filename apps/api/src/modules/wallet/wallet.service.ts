@@ -17,6 +17,7 @@ import { PaymentGatewayRegistry } from "../../infra/payments/payment-gateway.reg
 import { LedgerService } from "../ledger/ledger.service";
 import { PayoutsService } from "../payouts/payouts.service";
 import { DigitalGiftsService } from "../digital-gifts/digital-gifts.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import {
   CBN_KYC_POLICIES,
   CbnKycTier,
@@ -43,7 +44,8 @@ export class WalletService {
     private readonly paymentGatewayRegistry: PaymentGatewayRegistry,
     private readonly payouts: PayoutsService,
     @Optional() private readonly digitalGifts?: DigitalGiftsService,
-    @Optional() private readonly config?: ConfigService
+    @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly notifications?: NotificationsService
   ) {}
 
   private walletAccountCode(userId: string): string {
@@ -261,7 +263,7 @@ export class WalletService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, walletPinHash: true },
+      select: { id: true, email: true, name: true, walletPinHash: true },
     });
 
     if (!user) {
@@ -288,6 +290,23 @@ export class WalletService {
         walletPinLockedUntil: null,
       },
     });
+
+    if (this.notifications && user.email) {
+      void this.notifications
+        .sendSecurityAlertEmail({
+          userId: user.id,
+          to: user.email,
+          userName: user.name,
+          title: user.walletPinHash
+            ? "Your Givvly Wallet PIN was changed"
+            : "Your Givvly Wallet PIN was set",
+          summary: user.walletPinHash
+            ? "Your 4-digit Givvly Wallet Transaction PIN was updated just now."
+            : "A 4-digit Transaction PIN was configured on your Givvly Wallet.",
+          actionPath: "/account/payout",
+        })
+        .catch(() => {});
+    }
 
     return {
       ok: true,
@@ -721,6 +740,29 @@ export class WalletService {
     });
 
     const updatedBalance = await this.ledger.getAccountBalance(walletCode);
+
+    if (this.notifications && payment.status !== PaymentStatus.SUCCESS) {
+      void this.prisma.user
+        .findUnique({
+          where: { id: userId },
+          select: { id: true, email: true, name: true },
+        })
+        .then((u) => {
+          if (!u?.email) return;
+          return this.notifications!.sendWalletFundedEmail(
+            u.email,
+            u.id,
+            u.name,
+            payment.amountKobo,
+            payment.currency || "NGN",
+            payment.reference,
+            gateway.providerName,
+            Number(updatedBalance.balanceKobo)
+          );
+        })
+        .catch(() => {});
+    }
+
     return {
       status: "success",
       reference: payment.reference,
@@ -852,6 +894,30 @@ export class WalletService {
           tx
         );
       });
+
+      if (this.notifications) {
+        void this.prisma.user
+          .findUnique({
+            where: { id: senderUserId },
+            select: { id: true, email: true, name: true },
+          })
+          .then((sender) => {
+            if (!sender) return;
+            return this.notifications!.sendWalletTransferEmails({
+              sender,
+              recipient: {
+                id: recipient.id,
+                email: recipient.email,
+                name: recipient.name,
+              },
+              amountKobo,
+              currency: dto.currency || "NGN",
+              reference: txReference,
+              note: dto.note?.trim(),
+            });
+          })
+          .catch(() => {});
+      }
 
       return {
         status: "success",
@@ -1026,6 +1092,26 @@ export class WalletService {
           where: { id: order.id },
           include: { items: true, history: true },
         });
+
+        if (this.notifications && order.buyerEmail) {
+          const appUrl = (
+            this.config?.get<string>("APP_URL") ||
+            process.env.APP_URL ||
+            "https://www.givvly.store"
+          ).replace(/\/$/, "");
+          const trackingUrl = `${appUrl}/track/${encodeURIComponent(order.trackingToken || order.number)}`;
+          void this.notifications
+            .sendOrderConfirmedEmail(
+              order.buyerEmail,
+              userId,
+              order.recipientName || "Customer",
+              order.number,
+              order.totalKobo,
+              order.payment?.currency || "NGN",
+              trackingUrl
+            )
+            .catch(() => {});
+        }
 
         return {
           status: "success",
@@ -1214,6 +1300,28 @@ export class WalletService {
         });
 
         const nextBal = await this.ledger.getAccountBalance(walletCode);
+
+        if (this.notifications) {
+          void this.prisma.user
+            .findUnique({
+              where: { id: userId },
+              select: { id: true, email: true, name: true },
+            })
+            .then((u) => {
+              if (!u?.email) return;
+              return this.notifications!.sendPayoutNotification(
+                u.email,
+                u.id,
+                u.name,
+                dto.amountKobo,
+                "NGN",
+                verifiedAccount.bankName,
+                verifiedAccount.accountLast4,
+                payout.reference
+              );
+            })
+            .catch(() => {});
+        }
 
         return {
           status: "success",

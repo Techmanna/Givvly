@@ -776,6 +776,26 @@ export class EventsService {
       });
     }
 
+    if (this.notifications && typeof (this.prisma.user as any)?.findUnique === "function") {
+      void this.prisma.user
+        .findUnique({
+          where: { id: userId },
+          select: { id: true, email: true, name: true },
+        })
+        .then((u) => {
+          if (!u?.email) return;
+          return this.notifications!.sendSecurityAlertEmail({
+            userId: u.id,
+            to: u.email,
+            userName: u.name,
+            title: "Payout bank account updated",
+            summary: `Your Givvly payout bank account was set to ${account.bankName} (•••• ${account.accountLast4}, ${account.accountName}).`,
+            actionPath: "/account/payout",
+          });
+        })
+        .catch(() => {});
+    }
+
     return {
       id: account.id,
       bankCode: account.bankCode,
@@ -817,6 +837,26 @@ export class EventsService {
     await this.prisma.payoutAccount.deleteMany({
       where: { userId },
     });
+
+    if (this.notifications && typeof (this.prisma.user as any)?.findUnique === "function") {
+      void this.prisma.user
+        .findUnique({
+          where: { id: userId },
+          select: { id: true, email: true, name: true },
+        })
+        .then((u) => {
+          if (!u?.email) return;
+          return this.notifications!.sendSecurityAlertEmail({
+            userId: u.id,
+            to: u.email,
+            userName: u.name,
+            title: "Payout bank account removed",
+            summary: `Your linked payout bank account (${existing.bankName} •••• ${existing.accountLast4}) was removed from your Givvly profile.`,
+            actionPath: "/account/payout",
+          });
+        })
+        .catch(() => {});
+    }
 
     return { deleted: true };
   }

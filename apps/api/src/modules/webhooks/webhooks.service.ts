@@ -770,6 +770,20 @@ export class WebhooksService {
         this.logger.log(
           `Wallet top-up credited via webhook for user='${walletUserId}', amount=${payment.amountKobo} kobo`
         );
+
+        if (this.notifications && payment.payerEmail) {
+          void this.notifications
+            .sendWalletFundedEmail(
+              payment.payerEmail,
+              walletUserId,
+              String(paymentMeta.payerName || "there"),
+              payment.amountKobo,
+              currency,
+              payment.reference,
+              providerName
+            )
+            .catch(() => {});
+        }
       }
     });
 

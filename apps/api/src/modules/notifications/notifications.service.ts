@@ -472,9 +472,48 @@ export class NotificationsService {
   ) {
     const title = `New RSVP: ${guestName} (${response}) 💌`;
     const body = `${guestName} responded ${response} to "${eventName}".`;
-    const rsvpUrl = `/events/${eventId}/rsvps`;
+    const rsvpUrl = `/events/${eventId}/guests`;
+    const appUrl = (
+      process.env.APP_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://www.givvly.store"
+    ).replace(/\/$/, "");
+    const fullUrl = `${appUrl}${rsvpUrl}`;
+
+    const html = this.emailService.renderTemplate(
+      title,
+      `
+      <h2>New Celebration RSVP 💌</h2>
+      <p>Hi ${hostName || "there"},</p>
+      <p><strong>${guestName}</strong> just responded <strong>${response}</strong> to your celebration <strong>${eventName}</strong>.</p>
+      <div class="highlight-card">
+        <p style="margin: 0 0 8px;"><strong>Guest:</strong> ${guestName}</p>
+        <p style="margin: 0 0 8px;"><strong>Response:</strong> ${response}</p>
+        <p style="margin: 0;"><strong>Event:</strong> ${eventName}</p>
+      </div>
+      <p style="text-align: center;">
+        <a href="${fullUrl}" class="btn">View Guest List</a>
+      </p>
+      `,
+      "RSVP Update"
+    );
 
     await Promise.all([
+      ...(to
+        ? [
+            this.notify({
+              userId: hostUserId,
+              toAddress: to,
+              channel: Channel.EMAIL,
+              type: "RSVP_RECEIVED",
+              category: "EVENTS",
+              title,
+              body,
+              html,
+              data: { guestName, response, eventName, eventSlug, eventId, href: rsvpUrl },
+            }),
+          ]
+        : []),
       this.notify({
         userId: hostUserId,
         channel: Channel.IN_APP,
@@ -483,6 +522,244 @@ export class NotificationsService {
         title,
         body,
         data: { guestName, response, eventName, eventSlug, eventId, href: rsvpUrl },
+      }),
+    ]);
+  }
+
+  async sendWalletFundedEmail(
+    to: string,
+    userId: string,
+    userName: string,
+    amountKobo: number,
+    currency = "NGN",
+    reference: string,
+    provider: string,
+    newBalanceKobo?: number
+  ) {
+    const formattedAmount = formatSubunitsToDisplay(amountKobo, currency);
+    const formattedBalance =
+      typeof newBalanceKobo === "number"
+        ? formatSubunitsToDisplay(newBalanceKobo, currency)
+        : undefined;
+    const title = `Wallet Credited: ${formattedAmount}`;
+    const body = `Your Givvly Wallet has been credited with ${formattedAmount} via ${provider}. Ref: ${reference}.`;
+    const appUrl = (
+      process.env.APP_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://www.givvly.store"
+    ).replace(/\/$/, "");
+    const walletUrl = `${appUrl}/account/payout`;
+
+    const html = this.emailService.renderTemplate(
+      title,
+      `
+      <h2>Wallet Credited! 💰</h2>
+      <p>Hi ${userName || "there"},</p>
+      <p>Your Givvly Digital Wallet has been funded with <strong>${formattedAmount}</strong>.</p>
+      <div class="highlight-card">
+        <p style="margin: 0 0 8px;"><strong>Amount Credited:</strong> ${formattedAmount}</p>
+        <p style="margin: 0 0 8px;"><strong>Channel / Gateway:</strong> ${provider}</p>
+        ${formattedBalance ? `<p style="margin: 0 0 8px;"><strong>Available Balance:</strong> ${formattedBalance}</p>` : ""}
+        <p style="margin: 0;"><strong>Reference:</strong> ${reference}</p>
+      </div>
+      <p style="text-align: center;">
+        <a href="${walletUrl}" class="btn">View Wallet Statement</a>
+      </p>
+      `,
+      "Wallet Credit"
+    );
+
+    await Promise.all([
+      ...(to
+        ? [
+            this.notify({
+              userId,
+              toAddress: to,
+              channel: Channel.EMAIL,
+              type: "WALLET_TOPUP",
+              category: "WALLET",
+              title,
+              body,
+              html,
+              data: { amountKobo, currency, reference, provider, href: "/account/payout" },
+            }),
+          ]
+        : []),
+      this.notify({
+        userId,
+        channel: Channel.IN_APP,
+        type: "WALLET_TOPUP",
+        category: "WALLET",
+        title,
+        body,
+        data: { amountKobo, currency, reference, provider, href: "/account/payout" },
+      }),
+    ]);
+  }
+
+  async sendWalletTransferEmails(params: {
+    sender: { id: string; email: string; name: string };
+    recipient: { id: string; email: string; name: string };
+    amountKobo: number;
+    currency?: string;
+    reference: string;
+    note?: string;
+  }) {
+    const currency = params.currency || "NGN";
+    const formattedAmount = formatSubunitsToDisplay(params.amountKobo, currency);
+    const appUrl = (
+      process.env.APP_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://www.givvly.store"
+    ).replace(/\/$/, "");
+    const walletUrl = `${appUrl}/account/payout`;
+
+    const senderTitle = `Wallet Transfer Sent: ${formattedAmount}`;
+    const senderBody = `You sent ${formattedAmount} to ${params.recipient.name}. Ref: ${params.reference}.`;
+    const senderHtml = this.emailService.renderTemplate(
+      senderTitle,
+      `
+      <h2>Transfer Sent 💸</h2>
+      <p>Hi ${params.sender.name || "there"},</p>
+      <p>You sent <strong>${formattedAmount}</strong> from your Givvly Wallet to <strong>${params.recipient.name}</strong>.</p>
+      <div class="highlight-card">
+        <p style="margin: 0 0 8px;"><strong>Amount:</strong> ${formattedAmount}</p>
+        <p style="margin: 0 0 8px;"><strong>Recipient:</strong> ${params.recipient.name} (${params.recipient.email})</p>
+        ${params.note ? `<p style="margin: 0 0 8px;"><strong>Note:</strong> ${params.note}</p>` : ""}
+        <p style="margin: 0;"><strong>Reference:</strong> ${params.reference}</p>
+      </div>
+      <p style="text-align: center;">
+        <a href="${walletUrl}" class="btn">View Wallet Statement</a>
+      </p>
+      `,
+      "Debit Alert"
+    );
+
+    const recipientTitle = `Wallet Credit Alert: ${formattedAmount}`;
+    const recipientBody = `${params.sender.name} sent you ${formattedAmount} via Givvly Wallet. Ref: ${params.reference}.`;
+    const recipientHtml = this.emailService.renderTemplate(
+      recipientTitle,
+      `
+      <h2>You Received ${formattedAmount}! 🎉</h2>
+      <p>Hi ${params.recipient.name || "there"},</p>
+      <p><strong>${params.sender.name}</strong> sent you <strong>${formattedAmount}</strong> directly into your Givvly Digital Wallet.</p>
+      <div class="highlight-card">
+        <p style="margin: 0 0 8px;"><strong>Amount Credited:</strong> ${formattedAmount}</p>
+        <p style="margin: 0 0 8px;"><strong>From:</strong> ${params.sender.name}</p>
+        ${params.note ? `<p style="margin: 0 0 8px;"><strong>Note:</strong> ${params.note}</p>` : ""}
+        <p style="margin: 0;"><strong>Reference:</strong> ${params.reference}</p>
+      </div>
+      <p style="text-align: center;">
+        <a href="${walletUrl}" class="btn">Open My Wallet</a>
+      </p>
+      `,
+      "Credit Alert"
+    );
+
+    await Promise.all([
+      ...(params.sender.email
+        ? [
+            this.notify({
+              userId: params.sender.id,
+              toAddress: params.sender.email,
+              channel: Channel.EMAIL,
+              type: "WALLET_TRANSFER_OUT",
+              category: "WALLET",
+              title: senderTitle,
+              body: senderBody,
+              html: senderHtml,
+              data: { amountKobo: params.amountKobo, currency, reference: params.reference, href: "/account/payout" },
+            }),
+          ]
+        : []),
+      this.notify({
+        userId: params.sender.id,
+        channel: Channel.IN_APP,
+        type: "WALLET_TRANSFER_OUT",
+        category: "WALLET",
+        title: senderTitle,
+        body: senderBody,
+        data: { amountKobo: params.amountKobo, currency, reference: params.reference, href: "/account/payout" },
+      }),
+      ...(params.recipient.email
+        ? [
+            this.notify({
+              userId: params.recipient.id,
+              toAddress: params.recipient.email,
+              channel: Channel.EMAIL,
+              type: "WALLET_TRANSFER_IN",
+              category: "WALLET",
+              title: recipientTitle,
+              body: recipientBody,
+              html: recipientHtml,
+              data: { amountKobo: params.amountKobo, currency, reference: params.reference, href: "/account/payout" },
+            }),
+          ]
+        : []),
+      this.notify({
+        userId: params.recipient.id,
+        channel: Channel.IN_APP,
+        type: "WALLET_TRANSFER_IN",
+        category: "WALLET",
+        title: recipientTitle,
+        body: recipientBody,
+        data: { amountKobo: params.amountKobo, currency, reference: params.reference, href: "/account/payout" },
+      }),
+    ]);
+  }
+
+  async sendSecurityAlertEmail(params: {
+    userId: string;
+    to: string;
+    userName?: string;
+    title: string;
+    summary: string;
+    actionPath?: string;
+  }) {
+    const appUrl = (
+      process.env.APP_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://www.givvly.store"
+    ).replace(/\/$/, "");
+    const targetUrl = `${appUrl}${params.actionPath || "/account/security"}`;
+    const html = this.emailService.renderTemplate(
+      params.title,
+      `
+      <h2>Security Alert 🔐</h2>
+      <p>Hi ${params.userName || "there"},</p>
+      <p>${params.summary}</p>
+      <p style="font-size: 13px; color: #7A6468;">If you did not authorize this change, please secure your account immediately by resetting your password and contacting Givvly Support.</p>
+      <p style="text-align: center;">
+        <a href="${targetUrl}" class="btn">Review Account Security</a>
+      </p>
+      `,
+      "Security Alert"
+    );
+
+    await Promise.all([
+      ...(params.to
+        ? [
+            this.notify({
+              userId: params.userId,
+              toAddress: params.to,
+              channel: Channel.EMAIL,
+              type: "SECURITY_ALERT",
+              category: "SECURITY",
+              title: params.title,
+              body: params.summary,
+              html,
+              data: { href: params.actionPath || "/account/security" },
+            }),
+          ]
+        : []),
+      this.notify({
+        userId: params.userId,
+        channel: Channel.IN_APP,
+        type: "SECURITY_ALERT",
+        category: "SECURITY",
+        title: params.title,
+        body: params.summary,
+        data: { href: params.actionPath || "/account/security" },
       }),
     ]);
   }

@@ -6,6 +6,7 @@ import { AuthModule } from "../auth/auth.module";
 import { LedgerModule } from "../ledger/ledger.module";
 import { PayoutsModule } from "../payouts/payouts.module";
 import { DigitalGiftsModule } from "../digital-gifts/digital-gifts.module";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { WalletController } from "./wallet.controller";
 import { WalletService } from "./wallet.service";
 
@@ -18,6 +19,7 @@ import { WalletService } from "./wallet.service";
     LedgerModule,
     PayoutsModule,
     DigitalGiftsModule,
+    NotificationsModule,
   ],
   controllers: [WalletController],
   providers: [WalletService],
