@@ -89,9 +89,22 @@ export async function openFlutterwaveCheckout(
     return { opened: true };
   }
 
-  const publicKey = env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY;
+  const candidateFromAccessCode =
+    params.accessCode &&
+    /^FLWPUBK(_TEST)?-[A-Za-z0-9]+-X$/i.test(params.accessCode.trim())
+      ? params.accessCode.trim()
+      : undefined;
+  const candidateFromEnv = env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY?.trim();
+  const validEnvKey =
+    candidateFromEnv &&
+    /^FLWPUBK(_TEST)?-[A-Za-z0-9]+-X$/i.test(candidateFromEnv) &&
+    !candidateFromEnv.includes("mock_")
+      ? candidateFromEnv
+      : undefined;
+
+  const publicKey = candidateFromAccessCode || validEnvKey;
   if (!publicKey) {
-    // Hosted link (data.link) fallback when public key is unset on client
+    // Hosted link (data.link) fallback when no valid public key is available on client
     return { opened: false };
   }
 

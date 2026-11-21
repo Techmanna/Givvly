@@ -44,9 +44,16 @@ export class FlutterwaveGateway implements PaymentGateway {
       metadata: params.metadata,
     });
 
+    const publicKey =
+      typeof this.flutterwaveService.getPublicKey === "function"
+        ? this.flutterwaveService.getPublicKey()?.trim()
+        : undefined;
+    const hasValidPublicKey =
+      Boolean(publicKey) && !publicKey!.includes("mock_");
+
     return {
       authorizationUrl: res.link,
-      accessCode: params.reference,
+      accessCode: hasValidPublicKey ? publicKey : params.reference,
       reference: params.reference,
       providerReference: res.txRef,
     };
