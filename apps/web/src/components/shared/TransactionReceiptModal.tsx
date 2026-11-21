@@ -43,6 +43,7 @@ interface NormalizedReceipt {
   description: string;
   recipientLabel?: string;
   deliveryAddress?: string;
+  vtuNumbers?: string;
   items?: Array<{ label: string; value: string }>;
   shareUrl?: string;
 }
@@ -83,16 +84,26 @@ function buildNormalizedReceipt(
   if (order) {
     const createdDate =
       order.createdAt || order.timeline?.[0]?.at || new Date().toISOString();
-    const recipientParts = [order.recipientName, order.recipientPhone].filter(
-      Boolean
-    );
+    const vtuNumbersList =
+      order.vtuPhones && order.vtuPhones.length > 0
+        ? order.vtuPhones
+        : order.vtuType && order.recipientPhone
+          ? [order.recipientPhone]
+          : [];
+    const vtuNumbers =
+      vtuNumbersList.length > 0 ? vtuNumbersList.join(", ") : undefined;
+
+    const recipientParts = [
+      order.recipientName,
+      vtuNumbers ? undefined : order.recipientPhone,
+    ].filter(Boolean);
     const trackingUrl =
       typeof window !== "undefined"
         ? `${window.location.origin}/track/${encodeURIComponent(order.number)}`
         : `/track/${encodeURIComponent(order.number)}`;
 
     return {
-      title: "Givvly Order Receipt",
+      title: "Order Receipt",
       subtitle: `Order ${order.number}`,
       reference: order.number,
       id: order.id,
@@ -105,7 +116,8 @@ function buildNormalizedReceipt(
       description: order.items.map((i) => `${i.qty}× ${i.name}`).join(", "),
       recipientLabel:
         recipientParts.length > 0 ? recipientParts.join(" • ") : undefined,
-      deliveryAddress: order.address,
+      deliveryAddress: vtuNumbers ? undefined : order.address,
+      vtuNumbers,
       items: [
         ...order.items.map((item) => ({
           label: `${item.qty}× ${item.name}`,
@@ -149,6 +161,7 @@ function generateReceiptCanvas(receipt: NormalizedReceipt): HTMLCanvasElement {
   const width = 800;
   const extraRows =
     (receipt.recipientLabel ? 1 : 0) +
+    (receipt.vtuNumbers ? 1 : 0) +
     (receipt.deliveryAddress ? 1 : 0) +
     (receipt.items?.length ?? 0);
   const height = 640 + extraRows * 44;
@@ -221,12 +234,18 @@ function generateReceiptCanvas(receipt: NormalizedReceipt): HTMLCanvasElement {
     { label: "Receipt Type", value: receipt.title },
     { label: "Category", value: receipt.subtitle },
     { label: "Reference", value: receipt.reference },
-    { label: "Record ID", value: receipt.id },
+    // { label: "Record ID", value: receipt.id },
     { label: "Date & Time", value: receipt.dateStr },
   ];
 
   if (receipt.recipientLabel) {
     rows.push({ label: "Recipient", value: receipt.recipientLabel });
+  }
+  if (receipt.vtuNumbers) {
+    rows.push({
+      label: "Number Sent To",
+      value: receipt.vtuNumbers.slice(0, 48),
+    });
   }
   if (receipt.deliveryAddress) {
     rows.push({
@@ -412,7 +431,9 @@ export function TransactionReceiptModal({
       billedToName: order?.buyerEmail || "Givvly Member",
       billedToSub: receipt.subtitle,
       recipientName: receipt.recipientLabel,
-      recipientSub: receipt.deliveryAddress,
+      recipientSub: receipt.vtuNumbers
+        ? `Sent to: ${receipt.vtuNumbers}`
+        : receipt.deliveryAddress,
       paymentMethod: order ? "Givvly Checkout" : "Givvly Double-Entry Wallet",
       items: invoiceItems,
       totals,
@@ -545,18 +566,30 @@ export function TransactionReceiptModal({
               </span>
             </div>
 
-            <div className="flex items-center justify-between px-3.5 py-2.5">
+            {/* Record ID hidden for better UX */}
+            {/* <div className="flex items-center justify-between px-3.5 py-2.5">
               <span className="text-muted-foreground">Record ID</span>
               <span className="font-mono text-muted-foreground truncate max-w-[220px]">
                 {receipt.id}
               </span>
-            </div>
+            </div> */}
 
             {receipt.recipientLabel && (
               <div className="flex items-center justify-between px-3.5 py-2.5">
                 <span className="text-muted-foreground">Recipient</span>
                 <span className="font-medium text-foreground text-right">
                   {receipt.recipientLabel}
+                </span>
+              </div>
+            )}
+
+            {receipt.vtuNumbers && (
+              <div className="flex items-center justify-between gap-4 px-3.5 py-2.5">
+                <span className="text-muted-foreground shrink-0">
+                  Number Sent To
+                </span>
+                <span className="font-mono font-semibold text-foreground text-right">
+                  {receipt.vtuNumbers}
                 </span>
               </div>
             )}

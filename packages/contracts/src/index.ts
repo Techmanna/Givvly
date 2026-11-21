@@ -186,6 +186,9 @@ export type Order = {
   timeline: { status: OrderStatus; at: string }[];
   recipientName: string;
   recipientPhone?: string;
+  vtuType?: string;
+  vtuProvider?: string;
+  vtuPhones?: string[];
   trackingToken?: string;
   address?: string;
   createdAt?: string;

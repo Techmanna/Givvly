@@ -35,6 +35,23 @@ function normalizeOrder(raw: any): Order {
           },
         ];
 
+  const isVtu =
+    Boolean(raw.vtuType) ||
+    Boolean(raw.address?.vtuType) ||
+    items.some((i: any) =>
+      /\b(airtime|data)\b/i.test(String(i.name || ""))
+    );
+  const vtuPhones: string[] | undefined = isVtu
+    ? Array.isArray(raw.vtuPhones) && raw.vtuPhones.length > 0
+      ? raw.vtuPhones
+      : Array.isArray(raw.address?.recipientPhones) &&
+          raw.address.recipientPhones.length > 0
+        ? raw.address.recipientPhones
+        : raw.recipientPhone
+          ? [raw.recipientPhone]
+          : undefined
+    : undefined;
+
   return {
     id: raw.id || raw.number,
     number: raw.number || raw.orderNumber || raw.id,
@@ -53,11 +70,15 @@ function normalizeOrder(raw: any): Order {
     status: raw.status || "CONFIRMED",
     timeline,
     recipientName: raw.recipientName || raw.recipientPhone || "Recipient",
-    recipientPhone: raw.recipientPhone || undefined,
+    recipientPhone: raw.recipientPhone || vtuPhones?.[0] || undefined,
+    vtuType: raw.vtuType || raw.address?.vtuType || undefined,
+    vtuProvider: raw.vtuProvider || raw.address?.vtuProvider || undefined,
+    vtuPhones,
     buyerEmail: raw.buyerEmail || undefined,
     trackingToken: raw.trackingToken || raw.number || undefined,
-    address:
-      typeof raw.address === "string"
+    address: isVtu
+      ? undefined
+      : typeof raw.address === "string"
         ? raw.address
         : raw.address
           ? [raw.address.street, raw.address.area, raw.address.city, raw.address.state]

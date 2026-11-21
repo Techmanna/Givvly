@@ -1037,8 +1037,16 @@ export class OrdersService {
     }
 
     const address = order.address as any;
+    const isVtu = Boolean(address?.vtuType);
     const deliveryCity = address?.city;
     const deliveryState = address?.state;
+    const vtuPhones: string[] | undefined = isVtu
+      ? Array.isArray(address?.recipientPhones) && address.recipientPhones.length > 0
+        ? address.recipientPhones
+        : order.recipientPhone
+          ? [order.recipientPhone]
+          : undefined
+      : undefined;
 
     return {
       id: order.id,
@@ -1046,8 +1054,14 @@ export class OrdersService {
       orderNumber: order.number,
       status: order.status,
       recipientName: order.recipientName,
+      recipientPhone: isVtu
+        ? order.recipientPhone || vtuPhones?.[0]
+        : undefined,
+      vtuType: address?.vtuType,
+      vtuProvider: address?.vtuProvider,
+      vtuPhones,
       deliveryLocation:
-        deliveryCity && deliveryState
+        !isVtu && deliveryCity && deliveryState
           ? `${deliveryCity}, ${deliveryState}`
           : undefined,
       items: (order.items || []).map((i) => ({
@@ -1064,6 +1078,11 @@ export class OrdersService {
             ? h.createdAt
             : h.createdAt?.toISOString?.() ?? String(h.createdAt),
       })),
+      subtotalKobo: order.subtotalKobo,
+      deliveryFeeKobo: order.deliveryFeeKobo,
+      vatKobo: order.vatKobo,
+      packagingFeeKobo: order.packagingFeeKobo,
+      feeKobo: order.feeKobo,
       totalKobo: order.totalKobo,
       createdAt: order.createdAt,
       deliveredAt: order.deliveredAt,
