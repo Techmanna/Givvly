@@ -1,5 +1,6 @@
 import { env, isMockApiEnabled } from "@/lib/env";
 import { openPaystackCheckout } from "./paystack";
+import { openFlutterwaveCheckout } from "./flutterwave";
 
 type MonnifyInitOptions = {
   amount: number;
@@ -74,6 +75,7 @@ export type OpenGatewayCheckoutParams = {
   email: string;
   customerName?: string;
   amountKobo: number;
+  currency?: string;
   reference: string;
   accessCode?: string;
   authorizationUrl?: string;
@@ -129,16 +131,27 @@ export async function openMonnifyCheckout(
 }
 
 /**
- * Opens the active payment gateway checkout (Monnify by default, or Paystack if URL/provider specifies it).
+ * Opens the active payment gateway checkout (Flutterwave by default, or Monnify/Paystack when specified).
  */
 export async function openGatewayCheckout(
   params: OpenGatewayCheckoutParams
 ): Promise<{ opened: boolean }> {
-  const isPaystack =
-    params.provider?.toUpperCase() === "PAYSTACK" ||
-    Boolean(params.authorizationUrl?.includes("paystack.com"));
+  const explicitProvider = params.provider?.toUpperCase();
+  let resolvedProvider = explicitProvider;
 
-  if (isPaystack) {
+  if (!resolvedProvider) {
+    if (params.authorizationUrl?.includes("paystack.com")) {
+      resolvedProvider = "PAYSTACK";
+    } else if (params.authorizationUrl?.includes("monnify.com")) {
+      resolvedProvider = "MONNIFY";
+    } else if (params.authorizationUrl?.includes("flutterwave.com")) {
+      resolvedProvider = "FLUTTERWAVE";
+    } else {
+      resolvedProvider = env.NEXT_PUBLIC_DEFAULT_PAYMENT_GATEWAY || "FLUTTERWAVE";
+    }
+  }
+
+  if (resolvedProvider === "PAYSTACK") {
     return openPaystackCheckout({
       email: params.email,
       amountKobo: params.amountKobo,
@@ -149,5 +162,9 @@ export async function openGatewayCheckout(
     });
   }
 
-  return openMonnifyCheckout(params);
+  if (resolvedProvider === "MONNIFY") {
+    return openMonnifyCheckout(params);
+  }
+
+  return openFlutterwaveCheckout(params);
 }

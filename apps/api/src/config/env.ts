@@ -32,7 +32,25 @@ export const envSchema = z.object({
     .default("dev_account_hash_key_for_hmac_32_bytes"),
 
   // Default Payment Gateway
-  DEFAULT_PAYMENT_GATEWAY: z.enum(["MONNIFY", "PAYSTACK"]).default("MONNIFY"),
+  DEFAULT_PAYMENT_GATEWAY: z
+    .enum(["FLUTTERWAVE", "MONNIFY", "PAYSTACK"])
+    .default("FLUTTERWAVE"),
+
+  // Flutterwave (v3)
+  FLUTTERWAVE_PUBLIC_KEY: z
+    .string()
+    .default("FLWPUBK_TEST-mock_flutterwave_public_key"),
+  FLUTTERWAVE_SECRET_KEY: z
+    .string()
+    .default("FLWSECK_TEST-mock_flutterwave_secret_key"),
+  FLUTTERWAVE_ENCRYPTION_KEY: z.string().optional().default(""),
+  FLUTTERWAVE_WEBHOOK_SECRET_HASH: z
+    .string()
+    .default("mock_flutterwave_webhook_hash"),
+  FLUTTERWAVE_BASE_URL: z
+    .string()
+    .url()
+    .default("https://api.flutterwave.com/v3"),
 
   // Monnify
   MONNIFY_API_KEY: z.string().default("MK_TEST_mock_monnify_api_key"),

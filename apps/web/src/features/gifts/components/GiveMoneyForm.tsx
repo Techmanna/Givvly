@@ -27,6 +27,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import type { EventType } from "@givvly/contracts";
 import { useInitiateMoneyGiftMutation } from "../hooks/useGifts";
 import { loadMonnifyScript, openGatewayCheckout } from "../monnify";
+import { loadFlutterwaveScript } from "../flutterwave";
 import { giveMoneySchema, hasProfanityWarning } from "../schemas";
 import type { GiveMoneyInput, PaymentInitResponse } from "../types";
 
@@ -370,6 +371,7 @@ export function GiveMoneyForm({
 
   useEffect(() => {
     hydrateForSlug(slug);
+    void loadFlutterwaveScript();
     void loadMonnifyScript();
   }, [hydrateForSlug, slug]);
 

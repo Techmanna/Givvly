@@ -812,7 +812,7 @@ export function BagCheckoutForm() {
                     <CreditCard className="h-5 w-5 text-primary mt-0.5" />
                     <div>
                       <p className="text-xs font-bold text-foreground">
-                        Card & Bank Transfer (Monnify)
+                        Card & Bank Transfer (Flutterwave)
                       </p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
                         Debit/Credit Card, Bank Transfer, USSD, Apple Pay

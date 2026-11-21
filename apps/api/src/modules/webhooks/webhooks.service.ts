@@ -177,7 +177,23 @@ export class WebhooksService {
     providerName: string
   ) {
     const reference = event.reference;
-    const amountSubunits = event.amountSubunits;
+    let amountSubunits = event.amountSubunits;
+
+    if (providerName === "FLUTTERWAVE") {
+      const gateway = this.gatewayRegistry.getGateway("FLUTTERWAVE");
+      const verified = await gateway.verifyPayment(reference);
+      if (verified.status !== "success") {
+        throw new Error(
+          `Flutterwave payment verification failed for '${reference}' (status=${verified.status})`
+        );
+      }
+      if (amountSubunits === undefined) {
+        amountSubunits = verified.amountSubunits;
+      }
+      if (!event.currency && verified.currency) {
+        event = { ...event, currency: verified.currency };
+      }
+    }
 
     let pendingGiftNotification: {
       payerEmail?: string;

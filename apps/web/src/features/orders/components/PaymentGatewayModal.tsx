@@ -441,7 +441,7 @@ export function PaymentGatewayModal({
                 {isProcessing && !payWithWalletMutation.isPending ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Opening Monnify...
+                    Opening Flutterwave...
                   </>
                 ) : (
                   <>
@@ -451,29 +451,12 @@ export function PaymentGatewayModal({
                   </>
                 )}
               </Button>
-
-              {/* Development / Sandbox Simulation */}
-              <div className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 text-center space-y-2">
-                <p className="text-xs font-medium text-primary">
-                  Dev Mode / Sandbox Option
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSimulatePayment}
-                  disabled={isProcessing}
-                  className="w-full gap-2 rounded-full text-xs"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                  Simulate Successful Payment (Instant Confirm)
-                </Button>
-              </div>
             </div>
 
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-1">
               <ShieldCheck className="h-4 w-4 text-success" />
               <span>
-                256-bit bank-grade encryption via Givvly Wallet &amp; Paystack
+                256-bit bank-grade encryption via Givvly Wallet &amp; Flutterwave
               </span>
             </div>
           </div>

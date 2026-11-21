@@ -7,21 +7,33 @@ import {
 import { PaymentGateway } from "./payment-gateway.interface";
 import { PaystackGateway } from "./adapters/paystack.gateway";
 import { MonnifyGateway } from "./adapters/monnify.gateway";
+import { FlutterwaveGateway } from "./adapters/flutterwave.gateway";
 
 @Injectable()
 export class PaymentGatewayRegistry {
   private readonly logger = new Logger(PaymentGatewayRegistry.name);
   private readonly gateways = new Map<string, PaymentGateway>();
-  private defaultGatewayName = "PAYSTACK";
+  private defaultGatewayName = "FLUTTERWAVE";
 
   constructor(
     paystackGateway: PaystackGateway,
-    @Optional() monnifyGateway?: MonnifyGateway
+    @Optional() monnifyGateway?: MonnifyGateway,
+    @Optional() flutterwaveGateway?: FlutterwaveGateway
   ) {
-    if (this.defaultGatewayName === "MONNIFY" && monnifyGateway)  {
+    if (flutterwaveGateway) {
+      this.registerGateway(flutterwaveGateway);
+    }
+    if (monnifyGateway) {
       this.registerGateway(monnifyGateway);
-    } else  {
-      this.registerGateway(paystackGateway);
+    }
+    this.registerGateway(paystackGateway);
+
+    if (flutterwaveGateway) {
+      this.defaultGatewayName = "FLUTTERWAVE";
+    } else if (monnifyGateway) {
+      this.defaultGatewayName = "MONNIFY";
+    } else {
+      this.defaultGatewayName = "PAYSTACK";
     }
 
     const configuredDefault =
@@ -43,7 +55,7 @@ export class PaymentGatewayRegistry {
   }
 
   /**
-   * Get gateway by provider name (defaults to PAYSTACK)
+   * Get gateway by provider name (defaults to defaultGatewayName)
    */
   getGateway(providerName?: string): PaymentGateway {
     const name = (providerName || this.defaultGatewayName).toUpperCase();
@@ -69,7 +81,12 @@ export class PaymentGatewayRegistry {
       }
     }
 
-    // Try finding gateway that supports this currency
+    const defaultGateway = this.gateways.get(this.defaultGatewayName);
+    if (defaultGateway?.supportsCurrency(currency)) {
+      return defaultGateway;
+    }
+
+    // Try finding any registered gateway that supports this currency
     for (const gateway of this.gateways.values()) {
       if (gateway.supportsCurrency(currency)) {
         return gateway;

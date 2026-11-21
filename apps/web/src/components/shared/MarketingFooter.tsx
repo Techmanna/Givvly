@@ -86,7 +86,7 @@ export function MarketingFooter() {
                             />
 
                             <span>
-                                Secured by Monnify &amp; Paystack • NDPA Compliant
+                                Secured by Flutterwave • NDPA Compliant
                             </span>
                         </p>
 

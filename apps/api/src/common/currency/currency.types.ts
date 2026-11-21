@@ -22,7 +22,7 @@ export const CURRENCY_REGISTRY: Record<string, CurrencyMetadata> = {
     minGiftSubunits: 50000, // ₦500
     maxGiftSubunits: 100000000, // ₦1,000,000
     defaultFeeCapSubunits: 200000, // ₦2,000
-    defaultProvider: "PAYSTACK",
+    defaultProvider: "FLUTTERWAVE",
   },
   USD: {
     code: "USD",
@@ -33,7 +33,7 @@ export const CURRENCY_REGISTRY: Record<string, CurrencyMetadata> = {
     minGiftSubunits: 500, // $5
     maxGiftSubunits: 500000, // $5,000
     defaultFeeCapSubunits: 1500, // $15
-    defaultProvider: "PAYSTACK",
+    defaultProvider: "FLUTTERWAVE",
   },
   GBP: {
     code: "GBP",
@@ -44,7 +44,7 @@ export const CURRENCY_REGISTRY: Record<string, CurrencyMetadata> = {
     minGiftSubunits: 500, // £5
     maxGiftSubunits: 500000, // £5,000
     defaultFeeCapSubunits: 1500, // £15
-    defaultProvider: "PAYSTACK",
+    defaultProvider: "FLUTTERWAVE",
   },
   EUR: {
     code: "EUR",
@@ -55,7 +55,7 @@ export const CURRENCY_REGISTRY: Record<string, CurrencyMetadata> = {
     minGiftSubunits: 500, // €5
     maxGiftSubunits: 500000, // €5,000
     defaultFeeCapSubunits: 1500, // €15
-    defaultProvider: "PAYSTACK",
+    defaultProvider: "FLUTTERWAVE",
   },
   GHS: {
     code: "GHS",
@@ -66,7 +66,7 @@ export const CURRENCY_REGISTRY: Record<string, CurrencyMetadata> = {
     minGiftSubunits: 5000, // GH₵50
     maxGiftSubunits: 5000000, // GH₵50,000
     defaultFeeCapSubunits: 15000, // GH₵150
-    defaultProvider: "PAYSTACK",
+    defaultProvider: "FLUTTERWAVE",
   },
   KES: {
     code: "KES",
@@ -77,7 +77,7 @@ export const CURRENCY_REGISTRY: Record<string, CurrencyMetadata> = {
     minGiftSubunits: 50000, // KSh 500
     maxGiftSubunits: 50000000, // KSh 500,000
     defaultFeeCapSubunits: 150000, // KSh 1,500
-    defaultProvider: "PAYSTACK",
+    defaultProvider: "FLUTTERWAVE",
   },
 };
 
@@ -95,7 +95,7 @@ export function getCurrencyConfig(currency?: string): CurrencyMetadata {
       minGiftSubunits: 50000,
       maxGiftSubunits: 100000000,
       defaultFeeCapSubunits: 200000,
-      defaultProvider: "PAYSTACK",
+      defaultProvider: "FLUTTERWAVE",
     }
   );
 }

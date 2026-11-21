@@ -48,6 +48,18 @@ export function WalletDashboardCard() {
   const { user } = useAuthStore();
   const [page, setPage] = React.useState(1);
   const [activeTab, setActiveTab] = React.useState<ActiveTab>("overview");
+  const actionPanelRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    if (activeTab === "overview") return;
+    const frame = window.requestAnimationFrame(() => {
+      actionPanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab]);
   const [feedback, setFeedback] = React.useState<{
     type: "success" | "error";
     text: string;
@@ -186,8 +198,19 @@ export function WalletDashboardCard() {
       },
     });
 
-    if (!res.opened && gatewayInfo.authorizationUrl) {
-      window.open(gatewayInfo.authorizationUrl, "_blank", "noopener,noreferrer");
+    const isMockGatewayUrl = Boolean(
+      gatewayInfo.authorizationUrl?.includes("/mock_") ||
+        gatewayInfo.authorizationUrl?.includes("MNFY%7CMOCK")
+    );
+    if (!res.opened) {
+      if (gatewayInfo.authorizationUrl && !isMockGatewayUrl) {
+        window.location.href = gatewayInfo.authorizationUrl;
+        return;
+      }
+      setFeedback({
+        type: "error",
+        text: "Unable to open the payment gateway window. Please try again.",
+      });
     }
   }
 
@@ -634,11 +657,16 @@ export function WalletDashboardCard() {
 
       {/* Action Panels */}
       {activeTab === "topup" && (
-        <div className="space-y-4 rounded-xl border border-border bg-secondary/20 p-4">
+        <div
+          ref={(el) => {
+            actionPanelRef.current = el;
+          }}
+          className="scroll-mt-24 space-y-4 rounded-xl border border-border bg-secondary/20 p-4"
+        >
           <form onSubmit={handleStartTopUp} className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-heading text-sm font-semibold text-foreground">
-                Fund Wallet via Paystack (NGN)
+                Fund Wallet via Flutterwave (NGN)
               </h3>
               <span className="text-xs text-muted-foreground">
                 Max Balance ({cbn?.tier}):{" "}
@@ -677,83 +705,16 @@ export function WalletDashboardCard() {
               </div>
             </div>
           </form>
-
-          {topUpGateway?.open && (
-            <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div>
-                  <span className="font-semibold text-foreground">
-                    Paystack Top-Up Initialized ({topUpGateway.reference})
-                  </span>
-                  <p className="text-[11px] text-muted-foreground">
-                    Complete payment in the Paystack popup window, or use Dev
-                    Sandbox below for instant local testing.
-                  </p>
-                </div>
-                <span className="font-mono text-base font-bold text-primary">
-                  {formatNaira(topUpGateway.amountKobo)}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => launchPaystackWindow(topUpGateway)}
-                >
-                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                  Open Paystack Checkout Window
-                </Button>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() =>
-                    handleConfirmTopUp(
-                      topUpGateway.reference,
-                      topUpGateway.amountKobo,
-                      false
-                    )
-                  }
-                  disabled={verifyTopUpMutation.isPending}
-                >
-                  I&apos;ve Paid on Paystack — Verify
-                </Button>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    handleConfirmTopUp(
-                      topUpGateway.reference,
-                      topUpGateway.amountKobo,
-                      true
-                    )
-                  }
-                  disabled={verifyTopUpMutation.isPending}
-                >
-                  <CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
-                  Simulate Successful Payment (Dev Sandbox)
-                </Button>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setTopUpGateway(null)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
       {activeTab === "kyc" && (
-        <div className="space-y-4 rounded-xl border border-border bg-secondary/20 p-4">
+        <div
+          ref={(el) => {
+            actionPanelRef.current = el;
+          }}
+          className="scroll-mt-24 space-y-4 rounded-xl border border-border bg-secondary/20 p-4"
+        >
           <div>
             <h3 className="font-heading text-sm font-semibold text-foreground">
               Nigerian CBN Three-Tiered KYC Wallet Limits &amp; Upgrade
@@ -929,8 +890,11 @@ export function WalletDashboardCard() {
 
       {activeTab === "withdraw" && (
         <form
+          ref={(el) => {
+            actionPanelRef.current = el;
+          }}
           onSubmit={handleWithdraw}
-          className="space-y-4 rounded-xl border border-border bg-secondary/20 p-4"
+          className="scroll-mt-24 space-y-4 rounded-xl border border-border bg-secondary/20 p-4"
         >
           <div>
             <h3 className="font-heading text-sm font-semibold text-foreground">
@@ -1010,8 +974,11 @@ export function WalletDashboardCard() {
 
       {activeTab === "transfer" && (
         <form
+          ref={(el) => {
+            actionPanelRef.current = el;
+          }}
           onSubmit={handleTransfer}
-          className="space-y-4 rounded-xl border border-border bg-secondary/20 p-4"
+          className="scroll-mt-24 space-y-4 rounded-xl border border-border bg-secondary/20 p-4"
         >
           <div>
             <h3 className="font-heading text-sm font-semibold text-foreground">
@@ -1141,8 +1108,11 @@ export function WalletDashboardCard() {
 
       {activeTab === "pin" && (
         <form
+          ref={(el) => {
+            actionPanelRef.current = el;
+          }}
           onSubmit={handleSavePin}
-          className="space-y-4 rounded-xl border border-border bg-secondary/20 p-4"
+          className="scroll-mt-24 space-y-4 rounded-xl border border-border bg-secondary/20 p-4"
         >
           <div>
             <h3 className="font-heading text-sm font-semibold text-foreground">
@@ -1203,7 +1173,12 @@ export function WalletDashboardCard() {
       )}
 
       {activeTab === "audit" && (
-        <div className="space-y-3 rounded-xl border border-border bg-secondary/20 p-4">
+        <div
+          ref={(el) => {
+            actionPanelRef.current = el;
+          }}
+          className="scroll-mt-24 space-y-3 rounded-xl border border-border bg-secondary/20 p-4"
+        >
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-heading text-sm font-semibold text-foreground">

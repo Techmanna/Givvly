@@ -30,6 +30,22 @@ export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
 
   @Public()
+  @Post("flutterwave")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Handle inbound Flutterwave webhook events (verif-hash verified)" })
+  @ApiHeader({ name: "verif-hash", description: "Flutterwave webhook secret hash" })
+  @ApiOkResponse({ description: "Webhook acknowledged and queued." })
+  async handleFlutterwaveWebhook(@Req() req: RawBodyRequest) {
+    const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(req.body));
+    return this.webhooksService.handleWebhook(
+      "FLUTTERWAVE",
+      req.headers as Record<string, string | string[] | undefined>,
+      rawBody,
+      req.body
+    );
+  }
+
+  @Public()
   @Post("monnify")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Handle inbound Monnify webhook events (HMAC-SHA512 verified)" })
@@ -37,8 +53,6 @@ export class WebhooksController {
   @ApiOkResponse({ description: "Webhook acknowledged and queued." })
   async handleMonnifyWebhook(@Req() req: RawBodyRequest) {
     const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(req.body));
-    console.log({rawBody});
-    
     return this.webhooksService.handleWebhook(
       "MONNIFY",
       req.headers as Record<string, string | string[] | undefined>,
