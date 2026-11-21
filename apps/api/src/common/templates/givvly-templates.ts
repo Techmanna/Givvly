@@ -54,6 +54,61 @@ function resolvePublicAssetBase(appUrl?: string): string {
   return trimmed;
 }
 
+export interface GivvlyEmailRecommendationItem {
+  title: string;
+  subtitle?: string;
+  priceFormatted?: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  relevanceScore: number;
+}
+
+export interface GivvlyEmailRecommendationBlock {
+  heading: string;
+  items: GivvlyEmailRecommendationItem[];
+  preferencesUrl?: string;
+}
+
+export function renderEmailRecommendationSection(
+  block: GivvlyEmailRecommendationBlock
+): string {
+  if (!block.items || block.items.length === 0) {
+    return "";
+  }
+
+  const cardsHtml = block.items
+    .map(
+      (item) => `
+      <div style="background:#FFFFFF;border:1px solid #ECDCD6;border-radius:12px;padding:14px 16px;margin-top:10px;">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr>
+            <td valign="middle" align="left">
+              <div style="font-size:14px;font-weight:700;color:#332022;">${escapeHtml(item.title)}</div>
+              ${item.subtitle ? `<div style="font-size:12.5px;color:#7A6468;margin-top:2px;">${escapeHtml(item.subtitle)}</div>` : ""}
+              ${item.priceFormatted ? `<div style="font-size:13px;font-weight:700;color:#B5495B;margin-top:4px;">${escapeHtml(item.priceFormatted)}</div>` : ""}
+            </td>
+            <td valign="middle" align="right" style="padding-left:12px;white-space:nowrap;">
+              <a href="${escapeHtml(item.ctaUrl)}" style="display:inline-block;background:#F3E6DF;color:#B5495B;text-decoration:none;font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;">${escapeHtml(item.ctaLabel)}</a>
+            </td>
+          </tr>
+        </table>
+      </div>`
+    )
+    .join("");
+
+  const prefsLink = block.preferencesUrl
+    ? `<p style="margin:12px 0 0;font-size:11px;color:#7A6468;">Personalized for you &bull; <a href="${escapeHtml(block.preferencesUrl)}" style="color:#B5495B;text-decoration:none;">Manage suggestion preferences</a></p>`
+    : "";
+
+  return `
+  <div style="margin-top:26px;padding:18px 20px;background:#FCF7F4;border:1px solid #ECDCD6;border-radius:14px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A6468;margin-bottom:4px;">Tailored for Your Celebration</div>
+    <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:#332022;">${escapeHtml(block.heading)}</div>
+    ${cardsHtml}
+    ${prefsLink}
+  </div>`.trim();
+}
+
 export function renderGivvlyEmailHtml(options: GivvlyEmailTemplateOptions): string {
   const baseUrl = resolvePublicAssetBase(options.appUrl);
   const logoUrl = `${baseUrl}/images/givvly-logo.png`;

@@ -2,10 +2,12 @@ import {
   Injectable,
   NotFoundException,
   Logger,
+  Optional,
 } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { EmailService } from "./email.service";
+import { EmailRecommendationService } from "./email-recommendation.service";
 import { Channel, NotifStatus } from "@prisma/client";
 import { UpdateNotificationPreferencesDto } from "./dto/notification-preferences.dto";
 import { formatSubunitsToDisplay } from "../orders/utils/whatsapp-order.util";
@@ -31,7 +33,8 @@ export class NotificationsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly emailService: EmailService
+    private readonly emailService: EmailService,
+    @Optional() private readonly recommender?: EmailRecommendationService
   ) { }
 
   /**
@@ -106,12 +109,33 @@ export class NotificationsService {
     let persistedData = params.data ? { ...params.data } : undefined;
 
     if (params.channel === Channel.EMAIL && params.toAddress) {
-      const html =
+      let html =
         params.html ||
         this.emailService.renderTemplate(
           params.title,
           `<h2>${params.title}</h2><p>${params.body}</p>`
         );
+
+      if (this.recommender) {
+        try {
+          const recHtml = await this.recommender.renderRecommendationHtml({
+            userId: params.userId,
+            type: params.type,
+            data: params.data,
+          });
+          if (recHtml) {
+            const footerMarker = '<div class="email-footer">';
+            html = html.includes(footerMarker)
+              ? html.replace(
+                  footerMarker,
+                  `<div style="padding:0 32px 24px;">${recHtml}</div>${footerMarker}`
+                )
+              : `${html}${recHtml}`;
+          }
+        } catch {
+          // Never block transactional email delivery on optional recommendations
+        }
+      }
 
       attempts = 1;
       try {
