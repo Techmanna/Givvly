@@ -74,7 +74,7 @@ export class FlutterwaveGateway implements PaymentGateway {
 
     const currency = String(res.currency || "NGN").toUpperCase();
     const factor = getCurrencyConfig(currency).subunitFactor || 100;
-    const amountMajor = Number(res.charged_amount ?? res.amount ?? 0);
+    const amountMajor = Number(res.amount ?? res.charged_amount ?? 0);
     const feeMajor = Number(res.app_fee ?? 0);
 
     return {
@@ -121,7 +121,7 @@ export class FlutterwaveGateway implements PaymentGateway {
       const status = String(data.status || "").toLowerCase();
       eventType = status === "successful" ? "PAYMENT_SUCCESS" : "PAYMENT_FAILED";
       reference = String(data.tx_ref || data.flw_ref || data.id || "unknown");
-      const amountMajor = Number(data.charged_amount ?? data.amount ?? 0);
+      const amountMajor = Number(data.amount ?? data.charged_amount ?? 0);
       amountSubunits =
         amountMajor > 0 ? Math.round(amountMajor * factor) : undefined;
       const feeMajor = Number(data.app_fee ?? 0);
