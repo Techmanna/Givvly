@@ -3,9 +3,18 @@ import { env } from "@/lib/env";
 import { sanitizeNextPath } from "@/lib/format";
 
 function getBackendUrl(): string {
-  return "API_INTERNAL_URL" in env && typeof env.API_INTERNAL_URL === "string"
-    ? env.API_INTERNAL_URL.replace(/\/$/, "")
-    : env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+  const internal = process.env.API_INTERNAL_URL || process.env.BACKEND_API_URL;
+  if (internal && internal.startsWith("http")) {
+    return internal.replace(/\/$/, "");
+  }
+  const publicUrl = process.env.NEXT_PUBLIC_API_URL || env.NEXT_PUBLIC_API_URL;
+  if (publicUrl && publicUrl.startsWith("http")) {
+    return publicUrl.replace(/\/$/, "");
+  }
+  if ("API_INTERNAL_URL" in env && typeof env.API_INTERNAL_URL === "string") {
+    return env.API_INTERNAL_URL.replace(/\/$/, "");
+  }
+  return "http://localhost:4000/api/v1";
 }
 
 export async function GET(request: NextRequest) {
@@ -60,14 +69,21 @@ export async function GET(request: NextRequest) {
         : [];
 
     for (const cookieStr of setCookies) {
-      redirectResponse.headers.append("Set-Cookie", cookieStr);
+      // Remove any explicit domain parameter so the cookie binds to the current origin
+      const cleanedCookie = cookieStr.replace(/;\s*Domain=[^;]+/gi, "");
+      redirectResponse.headers.append("Set-Cookie", cleanedCookie);
     }
 
     return redirectResponse;
   } catch {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", safeNext);
-    return NextResponse.redirect(loginUrl);
+    loginUrl.searchParams.set("error", "session_expired");
+    const redirectResponse = NextResponse.redirect(loginUrl);
+    redirectResponse.cookies.delete("givvly_at");
+    redirectResponse.cookies.delete("givvly_rt");
+    redirectResponse.cookies.delete("givvly_refresh_attempted");
+    return redirectResponse;
   }
 }
 

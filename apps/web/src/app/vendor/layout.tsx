@@ -11,7 +11,7 @@ export default async function VendorLayout({
   const user = await getSession();
 
   if (!user) {
-    redirect("/login?next=/admin");
+    redirect("/login?next=/admin&error=session_expired");
   }
 
   if (user.role !== "ADMIN") {

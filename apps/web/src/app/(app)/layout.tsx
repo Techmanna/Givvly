@@ -12,7 +12,7 @@ export default async function ProtectedAppLayout({
   const user = await getSession();
 
   if (!user) {
-    redirect("/login?next=/dashboard");
+    redirect("/login?next=/dashboard&error=session_expired");
   }
 
   return (

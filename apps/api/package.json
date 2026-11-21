@@ -20,9 +20,6 @@
     "seed": "ts-node prisma/seed.ts",
     "seed:prod": "ts-node prisma/seed.prod.ts"
   },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
-  },
   "dependencies": {
     "@givvly/contracts": "workspace:*",
     "@nestjs/common": "^11.0.0",
