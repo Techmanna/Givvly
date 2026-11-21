@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +23,8 @@ import {
 import { CopyButton } from "@/components/shared/CopyButton";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { Money } from "@/components/shared/Money";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatNaira } from "@/lib/format";
+import { buildGivvlyInvoiceHtml } from "@/lib/invoice-template";
 import { useAuthStore } from "@/stores/auth-store";
 import { useGiveDraftStore } from "@/stores/give-draft-store";
 import { usePaymentStatusQuery } from "../hooks/useGifts";
@@ -311,12 +313,60 @@ export function GiveReceiptView({
                 </div>
               ) : null}
 
-              <Button asChild className="w-full">
-                <Link href={`/e/${slug}`}>
-                  <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                  <span>Return to {eventName}</span>
-                </Link>
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 gap-2"
+                  onClick={() => {
+                    const win = window.open("", "_blank", "width=880,height=780");
+                    if (!win) return;
+                    const html = buildGivvlyInvoiceHtml({
+                      title: "Official Gift Receipt",
+                      invoiceNumber: `RCPT #${payment.reference}`,
+                      reference: payment.reference,
+                      status: "PAID & CONFIRMED",
+                      issuedAt: formatDate(paymentDate, "d MMM yyyy, h:mm a"),
+                      billedToName: payment.anonymous
+                        ? "Anonymous Guest"
+                        : payment.giverName ?? "Guest",
+                      recipientName: `${ownerFirstName} (${eventName})`,
+                      paymentMethod: "Givvly Celebration Gift",
+                      items: [
+                        {
+                          description: `Celebration Gift — ${eventName}`,
+                          qty: 1,
+                          unitPrice: formatNaira(giftAmountKobo),
+                          amount: formatNaira(giftAmountKobo),
+                        },
+                      ],
+                      totals: [
+                        { label: "Gift Amount", value: formatNaira(giftAmountKobo) },
+                        {
+                          label: "Givvly Platform Fee",
+                          value: formatNaira(serviceFeeKobo),
+                        },
+                        {
+                          label: "Total Paid",
+                          value: formatNaira(totalKobo),
+                          isTotal: true,
+                        },
+                      ],
+                    });
+                    win.document.write(html);
+                    win.document.close();
+                  }}
+                >
+                  <Printer className="h-4 w-4" aria-hidden="true" />
+                  <span>Print / Save Official Receipt</span>
+                </Button>
+                <Button asChild className="flex-1">
+                  <Link href={`/e/${slug}`}>
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    <span>Return to {eventName}</span>
+                  </Link>
+                </Button>
+              </div>
             </CardContent>
           );
         })()}

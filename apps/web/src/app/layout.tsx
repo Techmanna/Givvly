@@ -53,9 +53,9 @@ export const metadata: Metadata = {
     "VTU airtime gift",
     "data bundle gift Nigeria",
   ],
-  authors: [{ name: "Givvly Inc.", url: "https://givvly.store" }],
-  creator: "Givvly Inc.",
-  publisher: "Givvly Inc.",
+  authors: [{ name: "Givvly Services.", url: "https://givvly.store" }],
+  creator: "Givvly Services.",
+  publisher: "Givvly Services.",
   formatDetection: {
     email: false,
     address: false,

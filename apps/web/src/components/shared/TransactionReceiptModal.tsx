@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatNaira } from "@/lib/format";
+import { buildGivvlyInvoiceHtml } from "@/lib/invoice-template";
 import type { WalletTransactionItem } from "@/features/wallet/api";
 import type { Order } from "@givvly/contracts";
 
@@ -155,38 +156,46 @@ function generateReceiptCanvas(receipt: NormalizedReceipt): HTMLCanvasElement {
   canvas.height = height;
 
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#FAF8F5";
+  ctx.fillStyle = "#FAF3EF";
   ctx.fillRect(0, 0, width, height);
 
   // Outer card border
   ctx.fillStyle = "#FFFFFF";
-  ctx.strokeStyle = "#E4E0D8";
+  ctx.strokeStyle = "#ECDCD6";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.roundRect(36, 36, width - 72, height - 72, 24);
   ctx.fill();
   ctx.stroke();
 
-  // Brand top bar
-  ctx.fillStyle = "#14532D";
-  ctx.font = "bold 26px system-ui, -apple-system, sans-serif";
-  ctx.fillText("Givvly", 76, 96);
+  // Top gradient bar
+  const grad = ctx.createLinearGradient(36, 0, width - 36, 0);
+  grad.addColorStop(0, "#B5495B");
+  grad.addColorStop(0.55, "#D4A959");
+  grad.addColorStop(1, "#B5495B");
+  ctx.fillStyle = grad;
+  ctx.fillRect(36, 36, width - 72, 8);
 
-  ctx.fillStyle = "#6B7280";
-  ctx.font = "600 14px system-ui, -apple-system, sans-serif";
-  ctx.fillText("OFFICIAL TRANSACTION RECEIPT", 76, 122);
+  // Brand top bar
+  ctx.fillStyle = "#B5495B";
+  ctx.font = "bold 26px Georgia, serif";
+  ctx.fillText("Givvly", 76, 98);
+
+  ctx.fillStyle = "#7A6468";
+  ctx.font = "600 13px system-ui, -apple-system, sans-serif";
+  ctx.fillText("OFFICIAL INVOICE & RECEIPT", 76, 124);
 
   // Status pill
-  ctx.fillStyle = "#DCFCE7";
+  ctx.fillStyle = "#E8F5EE";
   ctx.beginPath();
   ctx.roundRect(width - 210, 74, 134, 34, 17);
   ctx.fill();
-  ctx.fillStyle = "#15803D";
+  ctx.fillStyle = "#2E7D5B";
   ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
   ctx.fillText(receipt.status, width - 185, 96);
 
   // Amount section
-  ctx.fillStyle = "#111827";
+  ctx.fillStyle = "#332022";
   ctx.font = "bold 40px ui-monospace, SFMono-Regular, Menlo, monospace";
   const sign =
     receipt.direction === "CREDIT"
@@ -318,28 +327,99 @@ export function TransactionReceiptModal({
   };
 
   const handlePrintPdf = () => {
-    const canvas = generateReceiptCanvas(receipt);
-    const dataUrl = canvas.toDataURL("image/png");
-    const win = window.open("", "_blank", "width=820,height=720");
+    const win = window.open("", "_blank", "width=880,height=780");
     if (!win) {
       toast.error("Please allow popups to print or save receipt as PDF.");
       return;
     }
-    win.document.write(`
-      <!doctype html>
-      <html>
-        <head>
-          <title>Givvly Receipt - ${receipt.reference}</title>
-          <style>
-            body { margin: 0; display: flex; justify-content: center; align-items: center; background: #fff; font-family: system-ui, sans-serif; }
-            img { max-width: 100%; height: auto; }
-          </style>
-        </head>
-        <body>
-          <img src="${dataUrl}" onload="window.print();" />
-        </body>
-      </html>
-    `);
+
+    const invoiceItems = order
+      ? order.items.map((item) => ({
+          description: item.name || item.title || "Gift Item",
+          qty: item.qty,
+          unitPrice: formatNaira(item.unitPriceKobo),
+          amount: formatNaira(item.unitPriceKobo * item.qty),
+        }))
+      : [
+          {
+            description: receipt.description || receipt.title,
+            subtext: receipt.subtitle,
+            qty: 1,
+            unitPrice: `${sign}${formatNaira(receipt.amountKobo)}`,
+            amount: `${sign}${formatNaira(receipt.amountKobo)}`,
+          },
+        ];
+
+    const totals: Array<{ label: string; value: string; isTotal?: boolean }> =
+      order
+        ? [
+            {
+              label: "Subtotal",
+              value: formatNaira(
+                order.subtotalKobo ??
+                  order.items.reduce(
+                    (sum, i) => sum + i.unitPriceKobo * i.qty,
+                    0
+                  )
+              ),
+            },
+            ...(typeof order.packagingFeeKobo === "number" &&
+            order.packagingFeeKobo > 0
+              ? [
+                  {
+                    label: "Gift Wrapping",
+                    value: formatNaira(order.packagingFeeKobo),
+                  },
+                ]
+              : []),
+            ...(typeof order.deliveryFeeKobo === "number" &&
+            order.deliveryFeeKobo > 0
+              ? [
+                  {
+                    label: "Delivery & Shipping",
+                    value: formatNaira(order.deliveryFeeKobo),
+                  },
+                ]
+              : []),
+            ...(typeof order.vatKobo === "number" && order.vatKobo > 0
+              ? [{ label: "VAT (7.5%)", value: formatNaira(order.vatKobo) }]
+              : []),
+            {
+              label: "Givvly Platform Fee",
+              value: formatNaira(order.feeKobo ?? 0),
+            },
+            {
+              label: "Total Paid",
+              value: formatNaira(order.totalKobo),
+              isTotal: true,
+            },
+          ]
+        : [
+            { label: "Givvly Platform Fee", value: formatNaira(0) },
+            {
+              label: "Total Amount",
+              value: `${sign}${formatNaira(receipt.amountKobo)}`,
+              isTotal: true,
+            },
+          ];
+
+    const html = buildGivvlyInvoiceHtml({
+      title: order ? "Official Invoice & Receipt" : receipt.title,
+      invoiceNumber: order ? `INV #${order.number}` : receipt.reference,
+      reference: receipt.reference,
+      status: receipt.status,
+      issuedAt: receipt.dateStr,
+      billedToName: order?.buyerEmail || "Givvly Member",
+      billedToSub: receipt.subtitle,
+      recipientName: receipt.recipientLabel,
+      recipientSub: receipt.deliveryAddress,
+      paymentMethod: order ? "Givvly Checkout" : "Givvly Double-Entry Wallet",
+      items: invoiceItems,
+      totals,
+      footerNote: receipt.shareUrl || "www.givvly.store",
+    });
+
+    win.document.write(html);
     win.document.close();
   };
 
@@ -393,13 +473,23 @@ export function TransactionReceiptModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-md sm:max-w-lg p-6">
+      <DialogContent className="max-w-md sm:max-w-lg overflow-hidden p-0">
+        <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary" />
+        <div className="p-6">
         <DialogHeader className="space-y-2 border-b border-border pb-4">
-          <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Givvly Official Receipt
-            </span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/givvly-logo.png"
+                alt="Givvly"
+                className="h-7 w-auto object-contain"
+              />
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                <ShieldCheck className="h-3 w-3" />
+                Official Receipt
+              </span>
+            </div>
             <Badge variant="success" className="gap-1">
               <CheckCircle2 className="h-3 w-3" />
               {receipt.status}
@@ -531,6 +621,7 @@ export function TransactionReceiptModal({
               Print / PDF
             </Button>
           </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>

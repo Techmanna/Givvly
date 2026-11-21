@@ -5,9 +5,11 @@ import {
   Param,
   Post,
   Query,
+  Res,
   UseGuards,
   UsePipes,
 } from "@nestjs/common";
+import { Response } from "express";
 import {
   ApiTags,
   ApiOperation,
@@ -235,5 +237,30 @@ export class OrdersController {
     @Param("token") token: string
   ): Promise<PublicOrderTrackingResponseDto> {
     return this.ordersService.trackOrderByToken(token) as any;
+  }
+
+  @Get("orders/:id/invoice")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiCookieAuth("givvly_at")
+  @ApiOperation({ summary: "Render official Givvly HTML invoice for an order" })
+  async getOrderInvoice(
+    @Param("id") orderId: string,
+    @CurrentUser() user: { id: string; role?: string },
+    @Res() res: Response
+  ) {
+    const html = await this.ordersService.getOrderInvoiceHtml(orderId, user);
+    res.type("text/html; charset=utf-8").send(html);
+  }
+
+  @Public()
+  @Get("public/track/:token/invoice")
+  @ApiOperation({ summary: "Render official Givvly HTML invoice by tracking token" })
+  async getPublicOrderInvoice(
+    @Param("token") token: string,
+    @Res() res: Response
+  ) {
+    const html = await this.ordersService.getPublicOrderInvoiceHtml(token);
+    res.type("text/html; charset=utf-8").send(html);
   }
 }

@@ -19,6 +19,7 @@ import { ReviewOrderDto, DisputeOrderDto } from "./dto/order-feedback.dto";
 import { CreateBespokeWishPackageInput } from "./dto/bespoke-wish.dto";
 import { canOrderTransition } from "./order-state-machine";
 import { generateOrderWhatsAppLink } from "./utils/whatsapp-order.util";
+import { renderGivvlyInvoiceHtml } from "@/common/templates/givvly-templates";
 import * as crypto from "crypto";
 
 const STANDARD_DELIVERY_FEE_KOBO = 250_000; // ₦2,500
@@ -1323,5 +1324,155 @@ export class OrdersService {
       authorizationUrl: paymentInit.authorizationUrl,
       reference: paymentReference,
     };
+  }
+
+  private formatInvoiceAmount(kobo: number, currency = "NGN"): string {
+    const major = kobo / 100;
+    try {
+      return new Intl.NumberFormat("en-NG", {
+        style: "currency",
+        currency,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }).format(major);
+    } catch {
+      return `₦${major.toLocaleString("en-NG")}`;
+    }
+  }
+
+  private buildOrderInvoiceHtml(order: any): string {
+    const currency = order.payment?.currency || "NGN";
+    const appUrl = this.getAppUrl();
+    const publicBase =
+      appUrl.includes("localhost") || appUrl.includes("127.0.0.1")
+        ? "https://www.givvly.store"
+        : appUrl.replace(/\/$/, "");
+
+    const addr =
+      typeof order.address === "string"
+        ? order.address
+        : order.address
+          ? [
+              order.address.street,
+              order.address.area,
+              order.address.city,
+              order.address.state,
+            ]
+              .filter(Boolean)
+              .join(", ")
+          : undefined;
+
+    const providerLabel =
+      order.payment?.channel === "givvly_wallet" ||
+      order.payment?.provider === "GIVVLY_WALLET"
+        ? "Givvly Wallet"
+        : order.payment?.provider || "Flutterwave";
+
+    const statusTone =
+      order.status === "CANCELLED" || order.status === "DISPUTED"
+        ? "danger"
+        : order.status === "PENDING_PAYMENT" ||
+            order.status === "AWAITING_QUOTE" ||
+            order.status === "QUOTED"
+          ? "warning"
+          : "success";
+
+    const feeKobo = Number(order.feeKobo ?? order.payment?.feeKobo ?? 0);
+    const vatKobo = Number(order.vatKobo ?? 0);
+    const deliveryFeeKobo = Number(order.deliveryFeeKobo ?? 0);
+    const packagingFeeKobo = Number(order.packagingFeeKobo ?? 0);
+    const subtotalKobo = Number(order.subtotalKobo ?? order.totalKobo ?? 0);
+
+    return renderGivvlyInvoiceHtml({
+      invoiceNumber: `INV #${order.number}`,
+      reference: order.payment?.reference || order.number,
+      status: String(order.status || "CONFIRMED").replace(/_/g, " "),
+      statusTone,
+      issuedAt: new Date(order.createdAt || Date.now()).toLocaleString(
+        "en-NG",
+        {
+          dateStyle: "medium",
+          timeStyle: "short",
+          timeZone: "Africa/Lagos",
+        }
+      ),
+      billedToName: order.buyerEmail || "Givvly Customer",
+      billedToEmail: order.buyerEmail || undefined,
+      recipientName: order.recipientName || undefined,
+      recipientContact: order.recipientPhone || undefined,
+      deliveryAddress: addr,
+      paymentMethod: providerLabel,
+      items: (order.items || []).map((item: any) => ({
+        description: item.title || item.name || "Gift Item",
+        qty: item.qty || 1,
+        unitPriceFormatted: this.formatInvoiceAmount(
+          Number(item.unitPriceKobo || 0),
+          currency
+        ),
+        amountFormatted: this.formatInvoiceAmount(
+          Number(item.unitPriceKobo || 0) * (item.qty || 1),
+          currency
+        ),
+      })),
+      subtotalFormatted: this.formatInvoiceAmount(subtotalKobo, currency),
+      wrappingFormatted:
+        packagingFeeKobo > 0
+          ? this.formatInvoiceAmount(packagingFeeKobo, currency)
+          : undefined,
+      deliveryFormatted:
+        deliveryFeeKobo > 0
+          ? this.formatInvoiceAmount(deliveryFeeKobo, currency)
+          : undefined,
+      vatFormatted:
+        vatKobo > 0 ? this.formatInvoiceAmount(vatKobo, currency) : undefined,
+      platformFeeFormatted: this.formatInvoiceAmount(feeKobo, currency),
+      totalFormatted: this.formatInvoiceAmount(
+        Number(order.totalKobo || 0),
+        currency
+      ),
+      trackingUrl: order.trackingToken
+        ? `${publicBase}/track/${encodeURIComponent(order.trackingToken)}`
+        : undefined,
+      logoUrl: `${publicBase}/images/givvly-logo.png`,
+    });
+  }
+
+  async getOrderInvoiceHtml(
+    orderId: string,
+    user: { id: string; role?: string }
+  ): Promise<string> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true, payment: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order '${orderId}' not found`);
+    }
+
+    if (
+      user.role !== "ADMIN" &&
+      order.buyerUserId &&
+      order.buyerUserId !== user.id
+    ) {
+      throw new ForbiddenException("You do not have access to this invoice");
+    }
+
+    return this.buildOrderInvoiceHtml(order);
+  }
+
+  async getPublicOrderInvoiceHtml(token: string): Promise<string> {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        OR: [{ trackingToken: token }, { number: token }],
+      },
+      include: { items: true, payment: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException("Order not found");
+    }
+
+    return this.buildOrderInvoiceHtml(order);
   }
 }
