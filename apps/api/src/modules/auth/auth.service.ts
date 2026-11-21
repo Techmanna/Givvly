@@ -390,38 +390,78 @@ export class AuthService {
       }),
     ]);
 
-    try {
-      const appUrl =
-        this.configService.get<string>("APP_URL") || "https://www.givvly.store";
-      await this.emailService.send({
-        to: record.user.email,
-        subject: "Your Givvly password was changed",
-        text: `Hi ${record.user.name || "there"}, your Givvly account password was just reset. If you did not make this change, contact support immediately.`,
-        html: this.emailService.renderTemplate(
-          "Your Givvly password was changed",
-          `
-          <h2>Password Reset Confirmed 🔐</h2>
-          <p>Hi ${record.user.name || "there"},</p>
-          <p>Your Givvly account password was successfully reset just now.</p>
-          <p style="font-size: 13px; color: #7A6468;">If you did not authorize this change, please contact Givvly Support immediately.</p>
-          <p style="text-align: center;">
-            <a href="${appUrl}/login" class="btn">Sign In to Givvly</a>
-          </p>
-          `,
-          "Security Alert"
-        ),
-      });
-    } catch (err: any) {
-      this.logger.warn(
-        `Could not send password reset confirmation email: ${err?.message}`
-      );
-    }
+    const appUrl =
+      this.configService.get<string>("APP_URL") || "https://www.givvly.store";
+    await this.sendOrQueueAuthEmail({
+      userId: record.userId,
+      to: record.user.email,
+      type: "SECURITY_ALERT",
+      subject: "Your Givvly password was changed",
+      text: `Hi ${record.user.name || "there"}, your Givvly account password was just reset. If you did not make this change, contact support immediately.`,
+      html: this.emailService.renderTemplate(
+        "Your Givvly password was changed",
+        `
+        <h2>Password Reset Confirmed 🔐</h2>
+        <p>Hi ${record.user.name || "there"},</p>
+        <p>Your Givvly account password was successfully reset just now.</p>
+        <p style="font-size: 13px; color: #7A6468;">If you did not authorize this change, please contact Givvly Support immediately.</p>
+        <p style="text-align: center;">
+          <a href="${appUrl}/login" class="btn">Sign In to Givvly</a>
+        </p>
+        `,
+        "Security Alert"
+      ),
+    });
 
     return {
       success: true,
       message:
         "Password reset successfully. You can now sign in with your new password.",
     };
+  }
+
+  private async sendOrQueueAuthEmail(params: {
+    userId?: string;
+    to: string;
+    type: string;
+    subject: string;
+    text: string;
+    html: string;
+  }): Promise<void> {
+    try {
+      await this.emailService.send({
+        to: params.to,
+        subject: params.subject,
+        text: params.text,
+        html: params.html,
+      });
+      this.logger.log(`Auth email (${params.type}) sent to ${params.to}`);
+    } catch (err: any) {
+      this.logger.warn(
+        `Auth email (${params.type}) failed for ${params.to}; queuing for retry: ${err?.message}`
+      );
+      if (typeof (this.prisma.notification as any)?.create === "function") {
+        await this.prisma.notification
+          .create({
+            data: {
+              userId: params.userId,
+              toAddress: params.to,
+              channel: "EMAIL",
+              type: params.type,
+              title: params.subject,
+              body: params.text,
+              status: "QUEUED",
+              attempts: 1,
+              error: err?.message || "Initial send failed",
+              data: {
+                _emailHtml: params.html,
+                _nextRetryAt: Date.now() + 30_000,
+              } as any,
+            },
+          })
+          .catch(() => {});
+      }
+    }
   }
 
   private async createVerificationToken(
@@ -467,20 +507,13 @@ export class AuthService {
       `
     );
 
-    try {
-      await this.emailService.send({
-        to,
-        subject: "Verify your Givvly account",
-        html,
-        text: `Hello ${name || "there"},\n\nPlease verify your email address by visiting:\n${verifyUrl}\n\nThis link expires in 24 hours.`,
-      });
-      this.logger.log(`Verification email sent to ${to}`);
-    } catch (err: any) {
-      this.logger.error(
-        `Failed to send verification email to ${to}: ${err.message}`,
-        err.stack
-      );
-    }
+    await this.sendOrQueueAuthEmail({
+      to,
+      type: "AUTH_VERIFY_EMAIL",
+      subject: "Verify your Givvly account",
+      html,
+      text: `Hello ${name || "there"},\n\nPlease verify your email address by visiting:\n${verifyUrl}\n\nThis link expires in 24 hours.`,
+    });
   }
 
   private async sendPasswordResetEmail(
@@ -506,20 +539,13 @@ export class AuthService {
       `
     );
 
-    try {
-      await this.emailService.send({
-        to,
-        subject: "Reset your Givvly password",
-        html,
-        text: `Hello ${name || "there"},\n\nReset your password by visiting:\n${resetUrl}\n\nThis link expires in 24 hours.`,
-      });
-      this.logger.log(`Password reset email sent to ${to}`);
-    } catch (err: any) {
-      this.logger.error(
-        `Failed to send password reset email to ${to}: ${err.message}`,
-        err.stack
-      );
-    }
+    await this.sendOrQueueAuthEmail({
+      to,
+      type: "AUTH_PASSWORD_RESET",
+      subject: "Reset your Givvly password",
+      html,
+      text: `Hello ${name || "there"},\n\nReset your password by visiting:\n${resetUrl}\n\nThis link expires in 24 hours.`,
+    });
   }
 
   private async createSession(

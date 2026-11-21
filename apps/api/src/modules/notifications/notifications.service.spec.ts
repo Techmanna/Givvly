@@ -239,5 +239,73 @@ describe("NotificationsService", () => {
       expect(prisma.notificationPref.upsert).toHaveBeenCalled();
     });
   });
+
+  describe("Durable Email Retry Queue", () => {
+    it("queues failed email for retry with backoff instead of marking FAILED immediately", async () => {
+      emailService.send.mockRejectedValueOnce(new Error("Resend 503 temporary error"));
+
+      await service.notify({
+        userId: "user-1",
+        toAddress: "retry@example.com",
+        channel: Channel.EMAIL,
+        type: "WALLET_TOPUP",
+        category: "WALLET",
+        title: "Wallet Credited",
+        body: "Credited ₦1,000",
+      });
+
+      expect(prisma.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: NotifStatus.QUEUED,
+            attempts: 1,
+            error: "Resend 503 temporary error",
+            data: expect.objectContaining({
+              _emailHtml: expect.any(String),
+              _nextRetryAt: expect.any(Number),
+            }),
+          }),
+        })
+      );
+    });
+
+    it("retries queued emails in processQueuedEmails and marks SENT on success", async () => {
+      prisma.notification.findMany.mockResolvedValueOnce([
+        {
+          id: "notif-q-1",
+          toAddress: "retry@example.com",
+          channel: Channel.EMAIL,
+          type: "WALLET_TOPUP",
+          title: "Wallet Credited",
+          body: "Credited ₦1,000",
+          attempts: 1,
+          data: {
+            _emailHtml: "<html>cached</html>",
+            _nextRetryAt: Date.now() - 1000,
+          },
+        },
+      ]);
+
+      const result = await service.processQueuedEmails();
+      expect(result).toEqual({ processed: 1, sent: 1, failed: 0 });
+      expect(emailService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "retry@example.com",
+          html: "<html>cached</html>",
+        })
+      );
+      expect(prisma.notification.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "notif-q-1" },
+          data: expect.objectContaining({
+            status: NotifStatus.SENT,
+            attempts: 2,
+            providerRef: "msg_123",
+            error: null,
+          }),
+        })
+      );
+    });
+  });
 });
 

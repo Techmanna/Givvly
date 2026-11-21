@@ -3,11 +3,15 @@ import {
   NotFoundException,
   Logger,
 } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { EmailService } from "./email.service";
 import { Channel, NotifStatus } from "@prisma/client";
 import { UpdateNotificationPreferencesDto } from "./dto/notification-preferences.dto";
 import { formatSubunitsToDisplay } from "../orders/utils/whatsapp-order.util";
+
+const MAX_EMAIL_ATTEMPTS = 5;
+const RETRY_BACKOFF_MS = [30_000, 120_000, 480_000, 1_800_000, 3_600_000];
 
 export interface NotifyParams {
   userId?: string;
@@ -95,19 +99,22 @@ export class NotificationsService {
     }
 
     let status: NotifStatus = NotifStatus.QUEUED;
+    let attempts = 0;
     let providerRef: string | undefined;
     let error: string | undefined;
     let sentAt: Date | undefined;
+    let persistedData = params.data ? { ...params.data } : undefined;
 
     if (params.channel === Channel.EMAIL && params.toAddress) {
-      try {
-        const html =
-          params.html ||
-          this.emailService.renderTemplate(
-            params.title,
-            `<h2>${params.title}</h2><p>${params.body}</p>`
-          );
+      const html =
+        params.html ||
+        this.emailService.renderTemplate(
+          params.title,
+          `<h2>${params.title}</h2><p>${params.body}</p>`
+        );
 
+      attempts = 1;
+      try {
         const res = await this.emailService.send({
           to: params.toAddress,
           subject: params.title,
@@ -119,8 +126,16 @@ export class NotificationsService {
         providerRef = res.messageId;
         sentAt = new Date();
       } catch (err: any) {
-        status = NotifStatus.FAILED;
+        status = NotifStatus.QUEUED;
         error = err.message;
+        persistedData = {
+          ...(persistedData || {}),
+          _emailHtml: html,
+          _nextRetryAt: Date.now() + RETRY_BACKOFF_MS[0],
+        };
+        this.logger.warn(
+          `Email delivery failed on attempt 1 for '${params.toAddress}' (${params.type}); queued for automatic retry: ${err.message}`
+        );
       }
     }
 
@@ -132,13 +147,121 @@ export class NotificationsService {
         type: params.type,
         title: params.title,
         body: params.body,
-        data: params.data ? (params.data as any) : undefined,
+        data: persistedData ? (persistedData as any) : undefined,
         status,
+        attempts,
         providerRef,
         error,
         sentAt,
       },
     });
+  }
+
+  /**
+   * Durable PostgreSQL-backed email retry worker.
+   * Picks up QUEUED email notifications whose backoff window has elapsed and retries up to MAX_EMAIL_ATTEMPTS.
+   */
+  @Cron(CronExpression.EVERY_30_SECONDS)
+  async processQueuedEmails(): Promise<{ processed: number; sent: number; failed: number }> {
+    if (typeof (this.prisma.notification as any)?.findMany !== "function") {
+      return { processed: 0, sent: 0, failed: 0 };
+    }
+
+    const queued = await this.prisma.notification.findMany({
+      where: {
+        channel: Channel.EMAIL,
+        status: NotifStatus.QUEUED,
+        attempts: { lt: MAX_EMAIL_ATTEMPTS },
+      },
+      orderBy: { createdAt: "asc" },
+      take: 25,
+    });
+
+    let processed = 0;
+    let sent = 0;
+    let failed = 0;
+    const now = Date.now();
+
+    for (const notif of queued) {
+      if (!notif.toAddress) {
+        await this.prisma.notification.update({
+          where: { id: notif.id },
+          data: { status: NotifStatus.FAILED, error: "Missing recipient email address" },
+        });
+        failed += 1;
+        continue;
+      }
+
+      const meta = (notif.data as Record<string, any> | null) || {};
+      const nextRetryAt = Number(meta._nextRetryAt || 0);
+      if (nextRetryAt > now) {
+        continue;
+      }
+
+      processed += 1;
+      const html =
+        typeof meta._emailHtml === "string" && meta._emailHtml
+          ? meta._emailHtml
+          : this.emailService.renderTemplate(
+              notif.title,
+              `<h2>${notif.title}</h2><p>${notif.body}</p>`
+            );
+
+      const nextAttempt = (notif.attempts || 0) + 1;
+
+      try {
+        const res = await this.emailService.send({
+          to: notif.toAddress,
+          subject: notif.title,
+          text: notif.body,
+          html,
+        });
+
+        const cleanedData = { ...meta };
+        delete cleanedData._emailHtml;
+        delete cleanedData._nextRetryAt;
+
+        await this.prisma.notification.update({
+          where: { id: notif.id },
+          data: {
+            status: NotifStatus.SENT,
+            attempts: nextAttempt,
+            providerRef: res.messageId,
+            error: null,
+            sentAt: new Date(),
+            data: Object.keys(cleanedData).length > 0 ? (cleanedData as any) : undefined,
+          },
+        });
+        sent += 1;
+      } catch (err: any) {
+        const exhausted = nextAttempt >= MAX_EMAIL_ATTEMPTS;
+        const backoffMs =
+          RETRY_BACKOFF_MS[Math.min(nextAttempt - 1, RETRY_BACKOFF_MS.length - 1)];
+
+        await this.prisma.notification.update({
+          where: { id: notif.id },
+          data: {
+            status: exhausted ? NotifStatus.FAILED : NotifStatus.QUEUED,
+            attempts: nextAttempt,
+            error: err?.message || "Email delivery failed",
+            data: {
+              ...meta,
+              _emailHtml: html,
+              _nextRetryAt: now + backoffMs,
+            } as any,
+          },
+        });
+
+        if (exhausted) {
+          failed += 1;
+          this.logger.error(
+            `Email permanently failed after ${nextAttempt} attempts for '${notif.toAddress}' (${notif.type}): ${err?.message}`
+          );
+        }
+      }
+    }
+
+    return { processed, sent, failed };
   }
 
   // ==================== EMAIL NOTIFICATION HELPERS ====================
