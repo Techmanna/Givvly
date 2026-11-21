@@ -176,6 +176,11 @@ export type Order = {
     unitPriceKobo: number;
     priceKobo?: number;
   }[];
+  subtotalKobo?: number;
+  deliveryFeeKobo?: number;
+  vatKobo?: number;
+  packagingFeeKobo?: number;
+  feeKobo?: number;
   totalKobo: number;
   status: OrderStatus;
   timeline: { status: OrderStatus; at: string }[];

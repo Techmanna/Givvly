@@ -193,7 +193,7 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
           </span>
           <StatusBadge status={order.status} />
           {isVtu && (
-            <Badge variant="outline" className="border-purple-300 bg-purple-50 text-purple-700 text-[11px] font-semibold dark:bg-purple-950/40 dark:text-purple-300">
+            <Badge variant="outline" className="border-purple-300 bg-purple-50 text-purple-700 text-[11px] font-semibold">
               VTU Digital Gift
             </Badge>
           )}

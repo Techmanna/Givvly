@@ -23,7 +23,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { Money } from "@/components/shared/Money";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ApiClientError } from "@/lib/api-client";
-import { formatDate } from "@/lib/format";
+import { calculatePlatformFeeKobo, formatDate } from "@/lib/format";
 import { useGiveDraftStore } from "@/stores/give-draft-store";
 import {
   usePurchaseRegistryItemMutation,
@@ -403,6 +403,42 @@ export function RegistryGrid({
                 maxLength={500}
               />
             </div>
+
+            {activeItem ? (
+              (() => {
+                const itemFeeKobo = calculatePlatformFeeKobo(
+                  activeItem.priceKobo
+                );
+                const itemTotalKobo = activeItem.priceKobo + itemFeeKobo;
+                return (
+                  <div className="space-y-1.5 rounded-card border border-border bg-muted/40 p-3 text-xs">
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Item price</span>
+                      <Money
+                        amountKobo={activeItem.priceKobo}
+                        className="text-foreground"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>
+                        Processing &amp; platform fee (1.5%, max ₦2,000)
+                      </span>
+                      <Money
+                        amountKobo={itemFeeKobo}
+                        className="text-foreground"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border pt-1.5 font-semibold text-foreground">
+                      <span>Total to pay</span>
+                      <Money
+                        amountKobo={itemTotalKobo}
+                        className="text-primary"
+                      />
+                    </div>
+                  </div>
+                );
+              })()
+            ) : null}
 
             <DialogFooter className="gap-2 sm:gap-0">
               <Button

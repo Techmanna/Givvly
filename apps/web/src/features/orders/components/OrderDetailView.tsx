@@ -135,6 +135,30 @@ export function OrderDetailView({
                     />
                   </li>
                 ))}
+                {typeof order.packagingFeeKobo === "number" &&
+                order.packagingFeeKobo > 0 ? (
+                  <li className="flex items-center justify-between text-ink-muted">
+                    <span>Gift wrapping</span>
+                    <Money amountKobo={order.packagingFeeKobo} />
+                  </li>
+                ) : null}
+                {typeof order.deliveryFeeKobo === "number" &&
+                order.deliveryFeeKobo > 0 ? (
+                  <li className="flex items-center justify-between text-ink-muted">
+                    <span>Delivery &amp; shipping</span>
+                    <Money amountKobo={order.deliveryFeeKobo} />
+                  </li>
+                ) : null}
+                {typeof order.vatKobo === "number" && order.vatKobo > 0 ? (
+                  <li className="flex items-center justify-between text-ink-muted">
+                    <span>VAT (7.5%)</span>
+                    <Money amountKobo={order.vatKobo} />
+                  </li>
+                ) : null}
+                <li className="flex items-center justify-between text-ink-muted">
+                  <span>Platform fee</span>
+                  <Money amountKobo={order.feeKobo ?? 0} />
+                </li>
                 <li className="flex items-center justify-between border-t border-border pt-2 font-semibold text-ink">
                   <span>Total paid</span>
                   <Money amountKobo={order.totalKobo} />

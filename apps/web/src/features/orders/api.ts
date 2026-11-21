@@ -39,6 +39,16 @@ function normalizeOrder(raw: any): Order {
     id: raw.id || raw.number,
     number: raw.number || raw.orderNumber || raw.id,
     items,
+    subtotalKobo:
+      typeof raw.subtotalKobo === "number" ? raw.subtotalKobo : undefined,
+    deliveryFeeKobo:
+      typeof raw.deliveryFeeKobo === "number" ? raw.deliveryFeeKobo : undefined,
+    vatKobo: typeof raw.vatKobo === "number" ? raw.vatKobo : undefined,
+    packagingFeeKobo:
+      typeof raw.packagingFeeKobo === "number"
+        ? raw.packagingFeeKobo
+        : undefined,
+    feeKobo: typeof raw.feeKobo === "number" ? raw.feeKobo : undefined,
     totalKobo: Number(raw.totalKobo ?? 0),
     status: raw.status || "CONFIRMED",
     timeline,

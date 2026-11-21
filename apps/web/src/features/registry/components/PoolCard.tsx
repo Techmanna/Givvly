@@ -24,7 +24,12 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Money } from "@/components/shared/Money";
 import { ApiClientError } from "@/lib/api-client";
-import { formatDate, formatNaira, nairaToKobo } from "@/lib/format";
+import {
+  calculatePlatformFeeKobo,
+  formatDate,
+  formatNaira,
+  nairaToKobo,
+} from "@/lib/format";
 import { useGiveDraftStore } from "@/stores/give-draft-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useContributeToPoolMutation } from "../hooks/useRegistry";
@@ -101,6 +106,19 @@ export function PoolCard({
     control: form.control,
     name: "anonymous",
   });
+  const watchedAmountNaira = useWatch({
+    control: form.control,
+    name: "amountNaira",
+  });
+  const safeAmountNaira =
+    typeof watchedAmountNaira === "number" &&
+    Number.isFinite(watchedAmountNaira) &&
+    watchedAmountNaira > 0
+      ? Math.round(watchedAmountNaira)
+      : 0;
+  const previewAmountKobo = nairaToKobo(safeAmountNaira);
+  const previewFeeKobo = calculatePlatformFeeKobo(previewAmountKobo);
+  const previewTotalKobo = previewAmountKobo + previewFeeKobo;
 
   const onSubmit = form.handleSubmit(async (values) => {
     setFormAlert(null);
@@ -338,6 +356,32 @@ export function PoolCard({
                 {...form.register("message")}
               />
             </div>
+
+            {previewAmountKobo > 0 ? (
+              <div className="space-y-1.5 rounded-card border border-border bg-muted/40 p-3 text-xs">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Contribution amount</span>
+                  <Money
+                    amountKobo={previewAmountKobo}
+                    className="text-foreground"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Processing &amp; platform fee (1.5%, max ₦2,000)</span>
+                  <Money
+                    amountKobo={previewFeeKobo}
+                    className="text-foreground"
+                  />
+                </div>
+                <div className="flex items-center justify-between border-t border-border pt-1.5 font-semibold text-foreground">
+                  <span>Total to pay</span>
+                  <Money
+                    amountKobo={previewTotalKobo}
+                    className="text-primary"
+                  />
+                </div>
+              </div>
+            ) : null}
 
             <DialogFooter className="gap-2 sm:gap-0">
               <Button

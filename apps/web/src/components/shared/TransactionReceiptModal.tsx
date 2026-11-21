@@ -75,6 +75,7 @@ function buildNormalizedReceipt(
       description: walletTx.description,
       recipientLabel:
         recipientParts.length > 0 ? recipientParts.join(" • ") : undefined,
+      items: [{ label: "Givvly Platform Fee", value: formatNaira(0) }],
     };
   }
 
@@ -104,10 +105,37 @@ function buildNormalizedReceipt(
       recipientLabel:
         recipientParts.length > 0 ? recipientParts.join(" • ") : undefined,
       deliveryAddress: order.address,
-      items: order.items.map((item) => ({
-        label: `${item.qty}× ${item.name}`,
-        value: formatNaira(item.unitPriceKobo * item.qty),
-      })),
+      items: [
+        ...order.items.map((item) => ({
+          label: `${item.qty}× ${item.name}`,
+          value: formatNaira(item.unitPriceKobo * item.qty),
+        })),
+        ...(typeof order.packagingFeeKobo === "number" &&
+        order.packagingFeeKobo > 0
+          ? [
+              {
+                label: "Gift Wrapping",
+                value: formatNaira(order.packagingFeeKobo),
+              },
+            ]
+          : []),
+        ...(typeof order.deliveryFeeKobo === "number" &&
+        order.deliveryFeeKobo > 0
+          ? [
+              {
+                label: "Delivery & Shipping",
+                value: formatNaira(order.deliveryFeeKobo),
+              },
+            ]
+          : []),
+        ...(typeof order.vatKobo === "number" && order.vatKobo > 0
+          ? [{ label: "VAT (7.5%)", value: formatNaira(order.vatKobo) }]
+          : []),
+        {
+          label: "Givvly Platform Fee",
+          value: formatNaira(order.feeKobo ?? 0),
+        },
+      ],
       shareUrl: trackingUrl,
     };
   }

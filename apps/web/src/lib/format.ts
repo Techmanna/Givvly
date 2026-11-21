@@ -32,6 +32,18 @@ export function nairaToKobo(naira: number): number {
 }
 
 /**
+ * Calculates Givvly's standard processing & platform fee in kobo:
+ * 1.5% (150 bps) capped at ₦2,000 (200,000 kobo), matching the backend fee engine.
+ */
+export function calculatePlatformFeeKobo(amountKobo: number): number {
+  if (!Number.isFinite(amountKobo) || amountKobo <= 0) {
+    return 0;
+  }
+  const raw = Math.round(amountKobo * 0.015);
+  return Math.min(raw, 200_000);
+}
+
+/**
  * Formats an ISO 8601 UTC date string in Africa/Lagos timezone by default.
  * Safely falls back if the date is invalid, undefined, or missing.
  */

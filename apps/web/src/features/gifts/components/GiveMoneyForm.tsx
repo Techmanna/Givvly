@@ -21,7 +21,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Money } from "@/components/shared/Money";
 import { ApiClientError } from "@/lib/api-client";
 import { trackEvent } from "@/lib/analytics";
-import { formatNaira, nairaToKobo } from "@/lib/format";
+import {
+  formatNaira,
+  nairaToKobo,
+  calculatePlatformFeeKobo,
+} from "@/lib/format";
 import { useGiveDraftStore } from "@/stores/give-draft-store";
 import { useAuthStore } from "@/stores/auth-store";
 import type { EventType } from "@givvly/contracts";
@@ -396,7 +400,7 @@ export function GiveMoneyForm({
       : 0;
   const amountKobo = pendingPayment?.amountKobo ?? nairaToKobo(safeAmountNaira);
   const serviceFeeKobo =
-    pendingPayment?.serviceFeeKobo ?? Math.round(amountKobo * 0.015);
+    pendingPayment?.serviceFeeKobo ?? calculatePlatformFeeKobo(amountKobo);
   const totalKobo = pendingPayment?.totalKobo ?? amountKobo + serviceFeeKobo;
 
   const showProfanityWarning = hasProfanityWarning(watchedMessage);
