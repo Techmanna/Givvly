@@ -276,6 +276,8 @@ export type AdminOrderPayment = {
   amountKobo: number;
   status: string;
   provider: string;
+  channel?: string | null;
+  failureReason?: string | null;
   payerEmail?: string;
   authorizationUrl?: string;
   createdAt: string;

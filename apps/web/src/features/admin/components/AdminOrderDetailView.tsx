@@ -312,14 +312,25 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
         <Card className="border-border/80 bg-card">
           <CardContent className="p-4">
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Payment Gateway
+              Payment Method &amp; Status
             </span>
             <div className="mt-1 flex items-center gap-2">
-              <span className="font-heading text-lg font-bold uppercase text-emerald-600 dark:text-emerald-400">
+              <span
+                className={`font-heading text-lg font-bold uppercase ${
+                  order.payment?.status === "FAILED" ||
+                  order.payment?.status === "REFUNDED" ||
+                  order.status === "CANCELLED"
+                    ? "text-destructive"
+                    : order.payment?.status === "INITIATED" ||
+                      order.payment?.status === "PENDING"
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-emerald-600 dark:text-emerald-400"
+                }`}
+              >
                 {order.payment?.status ?? "CONFIRMED"}
               </span>
               <Badge variant="outline" className="text-[10px] uppercase font-mono">
-                {order.payment?.provider ?? "PAYSTACK"}
+                {order.payment?.provider ?? "FLUTTERWAVE"}
               </Badge>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground truncate font-mono">
@@ -748,9 +759,9 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
 
               <div className="flex justify-between">
                 <div>
-                  <span className="font-semibold text-muted-foreground">Gateway</span>
+                  <span className="font-semibold text-muted-foreground">Method / Gateway</span>
                   <p className="mt-0.5 uppercase font-medium text-foreground">
-                    {order.payment?.provider || "Paystack"}
+                    {order.payment?.provider || "FLUTTERWAVE"}
                   </p>
                 </div>
                 <div>
@@ -761,11 +772,28 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
                 </div>
                 <div>
                   <span className="font-semibold text-muted-foreground">Settlement</span>
-                  <p className="mt-0.5 font-semibold text-emerald-600 dark:text-emerald-400">
+                  <p
+                    className={`mt-0.5 font-semibold ${
+                      order.payment?.status === "FAILED" ||
+                      order.payment?.status === "REFUNDED"
+                        ? "text-destructive"
+                        : order.payment?.status === "INITIATED" ||
+                          order.payment?.status === "PENDING"
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-emerald-600 dark:text-emerald-400"
+                    }`}
+                  >
                     {order.payment?.status || "PAID"}
                   </p>
                 </div>
               </div>
+
+              {order.payment?.failureReason ? (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
+                  <p className="font-semibold">Failure / Reversal Reason:</p>
+                  <p className="mt-0.5">{order.payment.failureReason}</p>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 

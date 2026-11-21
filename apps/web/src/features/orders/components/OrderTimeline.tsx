@@ -24,6 +24,26 @@ export function OrderTimeline({ currentStatus, timeline }: OrderTimelineProps) {
 
   return (
     <div className="space-y-4" aria-label="Order delivery timeline">
+      {currentStatus === "CANCELLED" && (
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 rounded-xl border border-danger/30 bg-danger/10 p-3.5 text-sm text-danger"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">
+              Order cancelled — payment reversed &amp; refunded
+            </p>
+            {byStatus.get("CANCELLED") && (
+              <p className="text-xs opacity-90">
+                Reversed{" "}
+                {formatDate(byStatus.get("CANCELLED")!, "d MMM yyyy, h:mm a")}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {currentStatus === "DISPUTED" && (
         <div
           role="alert"

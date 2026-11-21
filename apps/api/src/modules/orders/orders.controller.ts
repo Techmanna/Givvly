@@ -48,6 +48,7 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Public()
+  @UseGuards(JwtAuthGuard)
   @Post("orders")
   @ApiOperation({ summary: "Direct checkout / Create gift box order" })
   @ApiCreatedResponse({
@@ -63,6 +64,7 @@ export class OrdersController {
   }
 
   @Public()
+  @UseGuards(JwtAuthGuard)
   @Post("orders/custom-quote")
   @ApiOperation({ summary: "Submit a bespoke wish package for admin quotation (no event required)" })
   @ApiCreatedResponse({ description: "Bespoke wish package registered and queued for quotation." })

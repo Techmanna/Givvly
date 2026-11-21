@@ -261,21 +261,29 @@ export class OrdersService {
 
     // Initialize Payment Gateway before DB transaction to avoid holding DB locks over HTTP I/O
     // and to eliminate post-creation update round trips
+    const isWalletCheckout =
+      (dto as any).paymentMethod === "wallet";
     const gateway = this.paymentGatewayRegistry.getGatewayForCurrency(currency);
     const callbackUrl =
       dto.callbackUrl ?? `${this.getAppUrl()}/orders?payment_ref=${paymentReference}`;
-    const paymentInit = await gateway.initializePayment({
-      reference: paymentReference,
-      amountSubunits: totalKobo,
-      customerEmail: buyerEmail,
-      customerName: user?.name,
-      currency,
-      callbackUrl,
-      metadata: {
-        orderNumber,
-        buyerUserId: user?.id,
-      },
-    });
+    const paymentInit = isWalletCheckout
+      ? {
+          authorizationUrl: "",
+          accessCode: "",
+          reference: paymentReference,
+        }
+      : await gateway.initializePayment({
+          reference: paymentReference,
+          amountSubunits: totalKobo,
+          customerEmail: buyerEmail,
+          customerName: user?.name,
+          currency,
+          callbackUrl,
+          metadata: {
+            orderNumber,
+            buyerUserId: user?.id,
+          },
+        });
 
     // Create Payment, Order, OrderItems, and OrderStatusHistory atomically in a single transaction
     const { order, payment } = await this.prisma.$transaction(async (tx) => {
@@ -286,10 +294,11 @@ export class OrdersService {
           amountKobo: totalKobo,
           feeKobo: 0,
           status: PaymentStatus.INITIATED,
-          accessCode: paymentInit.accessCode,
-          authorizationUrl: paymentInit.authorizationUrl,
+          accessCode: paymentInit.accessCode || null,
+          authorizationUrl: paymentInit.authorizationUrl || null,
           payerEmail: buyerEmail,
-          provider: gateway.providerName,
+          provider: isWalletCheckout ? "GIVVLY_WALLET" : gateway.providerName,
+          channel: isWalletCheckout ? "givvly_wallet" : null,
           metadata: {
             orderNumber,
             itemsCount: orderItemsData.length,

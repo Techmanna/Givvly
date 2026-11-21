@@ -288,7 +288,13 @@ export async function fetchAdminOrderDetail(id: string): Promise<AdminOrderDetai
           currency: o.payment.currency ?? "NGN",
           amountKobo: o.payment.amountKobo,
           status: o.payment.status,
-          provider: o.payment.provider,
+          provider:
+            o.payment.channel === "givvly_wallet" ||
+            o.payment.provider === "GIVVLY_WALLET"
+              ? "GIVVLY WALLET"
+              : o.payment.provider,
+          channel: o.payment.channel ?? null,
+          failureReason: o.payment.failureReason ?? null,
           payerEmail: o.payment.payerEmail,
           authorizationUrl: o.payment.authorizationUrl,
           createdAt:

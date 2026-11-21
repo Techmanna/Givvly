@@ -52,7 +52,11 @@ export function useCreateDirectOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: CreateDirectOrderRequest) => {
+    mutationFn: async (
+      payload: CreateDirectOrderRequest & {
+        paymentMethod?: "wallet" | "paystack" | "gateway";
+      }
+    ) => {
       const key = generateIdempotencyKey();
       return createDirectOrder(payload, key);
     },

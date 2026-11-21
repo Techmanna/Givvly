@@ -482,6 +482,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
         giftNote: values.giftNote || undefined,
         wrapping: isVtuProduct ? false : values.wrapping,
         shippingZoneId: !isVtuProduct ? selectedShippingZone?.id : undefined,
+        paymentMethod,
         ...(isVtuProduct
           ? {
             vtuType,

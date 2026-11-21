@@ -353,6 +353,7 @@ export function BagCheckoutForm() {
         wrapping: false,
         shippingZoneId: selectedShippingZone?.id,
         buyerEmail,
+        paymentMethod,
       });
 
       setCreatedOrder(result.order);

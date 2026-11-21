@@ -967,8 +967,10 @@ export class WalletService {
               where: { id: order.payment.id },
               data: {
                 status: PaymentStatus.SUCCESS,
+                provider: "GIVVLY_WALLET",
                 paidAt: new Date(),
                 channel: "givvly_wallet",
+                failureReason: null,
               },
             });
           }
@@ -981,6 +983,7 @@ export class WalletService {
             await tx.order.update({
               where: { id: order.id },
               data: {
+                buyerUserId: freshOrder.buyerUserId ?? userId,
                 status: OrderStatus.CONFIRMED,
                 history: {
                   create: [
@@ -1057,6 +1060,45 @@ export class WalletService {
             },
           ],
         });
+
+        try {
+          if (order.payment && typeof (this.prisma.payment as any)?.update === "function") {
+            await this.prisma.payment.update({
+              where: { id: order.payment.id },
+              data: {
+                provider: "GIVVLY_WALLET",
+                channel: "givvly_wallet",
+                status: PaymentStatus.REFUNDED,
+                failureReason:
+                  downstreamErr?.message ||
+                  "Downstream fulfillment failed; wallet balance automatically refunded.",
+              },
+            });
+          }
+
+          if (typeof (this.prisma.order as any)?.update === "function") {
+            await this.prisma.order.update({
+              where: { id: order.id },
+              data: {
+                buyerUserId: order.buyerUserId ?? userId,
+                status: OrderStatus.CANCELLED,
+                history: {
+                  create: [
+                    {
+                      status: OrderStatus.CANCELLED,
+                      note: `Wallet payment reversed & refunded to Givvly Wallet (${cancelRef}): ${downstreamErr?.message || "Fulfillment failed"}`,
+                      actorId: userId,
+                    },
+                  ],
+                },
+              },
+            });
+          }
+        } catch (auditErr: any) {
+          this.logger.warn(
+            `Could not update order/payment status after TC/C cancel for ${order.number}: ${auditErr?.message}`
+          );
+        }
 
         throw new BadRequestException(
           `Order fulfillment failed and your wallet balance has been restored: ${downstreamErr.message}`

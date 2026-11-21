@@ -88,7 +88,10 @@ export type CreateOrderResult = {
 };
 
 export async function createDirectOrder(
-  payload: CreateDirectOrderRequest & { callbackUrl?: string },
+  payload: CreateDirectOrderRequest & {
+    callbackUrl?: string;
+    paymentMethod?: "wallet" | "paystack" | "gateway";
+  },
   idempotencyKey: string
 ): Promise<CreateOrderResult> {
   const callbackUrl =
