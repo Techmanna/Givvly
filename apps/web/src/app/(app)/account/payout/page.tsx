@@ -3,7 +3,7 @@ import { WalletDashboardCard } from "@/features/wallet";
 
 export default function PayoutSetupPage() {
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-8 p-4 sm:p-6">
+    <main className="mx-auto w-full max-w-4xl space-y-8">
       <div>
         <h1 className="font-heading text-2xl font-bold text-foreground">
           Digital Wallet &amp; Payouts
