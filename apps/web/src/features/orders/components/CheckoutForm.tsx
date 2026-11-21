@@ -1351,7 +1351,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                         />
                       </>
                     ) : (
-                      <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-800 dark:text-amber-200">
+                      <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-[11px]text-amber-700">
                         You have not set a 4-digit Wallet PIN yet. Visit{" "}
                         <a
                           href="/account/payout"
