@@ -23,6 +23,7 @@ import { formatNaira } from "@/lib/format";
 import { openGatewayCheckout } from "@/features/gifts/monnify";
 import { useAuthStore } from "@/stores/auth-store";
 import { TransactionReceiptModal } from "@/components/shared/TransactionReceiptModal";
+import { FeedbackBanner } from "@/components/shared/FeedbackBanner";
 import type { WalletRecentRecipient, WalletTransactionItem } from "../api";
 import {
   useInitializeWalletTopUpMutation,
@@ -556,17 +557,7 @@ export function WalletDashboardCard() {
       </div>
 
       {/* Feedback Banner */}
-      {feedback && (
-        <div
-          role="status"
-          className={`rounded-xl border px-4 py-3 text-sm font-medium ${feedback.type === "success"
-            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-700"
-            : "border-destructive/30 bg-destructive/10 text-destructive"
-            }`}
-        >
-          {feedback.text}
-        </div>
-      )}
+      <FeedbackBanner feedback={feedback} onDismiss={clearFeedback} />
 
       {/* Three Balance Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
