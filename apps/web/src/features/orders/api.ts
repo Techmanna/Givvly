@@ -71,6 +71,7 @@ function normalizeOrder(raw: any): Order {
     timeline,
     recipientName: raw.recipientName || raw.recipientPhone || "Recipient",
     recipientPhone: raw.recipientPhone || vtuPhones?.[0] || undefined,
+    giftNote: raw.giftNote || undefined,
     vtuType: raw.vtuType || raw.address?.vtuType || undefined,
     vtuProvider: raw.vtuProvider || raw.address?.vtuProvider || undefined,
     vtuPhones,

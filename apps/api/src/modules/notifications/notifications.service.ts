@@ -7,6 +7,7 @@ import {
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { EmailService } from "./email.service";
+import { SmsService } from "./sms.service";
 import { EmailRecommendationService } from "./email-recommendation.service";
 import { Channel, NotifStatus } from "@prisma/client";
 import { UpdateNotificationPreferencesDto } from "./dto/notification-preferences.dto";
@@ -34,7 +35,8 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
-    @Optional() private readonly recommender?: EmailRecommendationService
+    @Optional() private readonly recommender?: EmailRecommendationService,
+    @Optional() private readonly smsService?: SmsService
   ) { }
 
   /**
@@ -286,6 +288,173 @@ export class NotificationsService {
     }
 
     return { processed, sent, failed };
+  }
+
+  /**
+   * Dispatch a paid personalized gift SMS via Termii to the recipient(s)
+   * when the sender opted in during checkout.
+   */
+  async sendOrderRecipientSms(params: {
+    orderId: string;
+    orderNumber: string;
+    phones: string[];
+    recipientName?: string;
+    senderName?: string;
+    itemSummary: string;
+    giftNote?: string;
+    trackingUrl: string;
+  }): Promise<{ sentCount: number }> {
+    if (!this.smsService || !params.phones.length) {
+      return { sentCount: 0 };
+    }
+
+    const uniquePhones = Array.from(
+      new Set(params.phones.map((p) => p.trim()).filter(Boolean))
+    );
+    const senderLabel = (params.senderName || "Someone special").trim();
+    const recipientGreeting =
+      params.recipientName && !/^\+?\d{7,}$/.test(params.recipientName.trim())
+        ? `Hi ${params.recipientName.trim()}! `
+        : "Hi! ";
+    const notePart = params.giftNote?.trim()
+      ? ` Note: "${params.giftNote.trim().slice(0, 120)}"`
+      : "";
+    const smsText = `${recipientGreeting}${senderLabel} sent you ${params.itemSummary} via Givvly!${notePart} View gift card: ${params.trackingUrl}`;
+
+    let sentCount = 0;
+    for (const phone of uniquePhones) {
+      let status: NotifStatus = NotifStatus.SENT;
+      let providerRef: string | undefined;
+      let error: string | undefined;
+      let sentAt: Date | undefined = new Date();
+
+      try {
+        const res = await this.smsService.send({
+          to: phone,
+          message: smsText,
+        });
+        providerRef = res.messageId;
+        sentCount += 1;
+      } catch (err: any) {
+        status = NotifStatus.FAILED;
+        error = err?.message || "SMS delivery failed";
+        sentAt = undefined;
+        this.logger.warn(
+          `Termii SMS failed for order ${params.orderNumber} to '${phone}': ${error}`
+        );
+      }
+
+      if (typeof (this.prisma.notification as any)?.create === "function") {
+        await this.prisma.notification
+          .create({
+            data: {
+              toAddress: phone,
+              channel: Channel.SMS,
+              type: "ORDER_RECIPIENT_SMS",
+              title: `Gift SMS for ${params.orderNumber}`,
+              body: smsText,
+              status,
+              attempts: 1,
+              providerRef,
+              error,
+              sentAt,
+              data: { orderId: params.orderId, orderNumber: params.orderNumber } as any,
+            },
+          })
+          .catch(() => {});
+      }
+    }
+
+    return { sentCount };
+  }
+
+  /**
+   * Idempotently dispatches paid recipient SMS for an order if `sendRecipientSms` was requested.
+   */
+  async dispatchOrderRecipientSmsIfRequested(orderId: string): Promise<void> {
+    if (
+      !this.smsService ||
+      typeof (this.prisma.order as any)?.findUnique !== "function"
+    ) {
+      return;
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: true,
+        buyer: { select: { name: true } },
+      } as any,
+    });
+
+    if (!order) return;
+    const addr =
+      order.address && typeof order.address === "object"
+        ? (order.address as Record<string, any>)
+        : {};
+
+    if (!addr.sendRecipientSms || addr._smsDispatched) {
+      return;
+    }
+
+    const phones: string[] =
+      Array.isArray(addr.recipientPhones) && addr.recipientPhones.length > 0
+        ? addr.recipientPhones
+        : order.recipientPhone
+          ? [order.recipientPhone]
+          : [];
+
+    if (phones.length === 0) return;
+
+    const appUrl = (
+      process.env.APP_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://www.givvly.store"
+    )
+      .trim()
+      .replace(/\/$/, "");
+    const publicBase =
+      !appUrl || appUrl.includes("localhost") || appUrl.includes("127.0.0.1")
+        ? "https://www.givvly.store"
+        : appUrl;
+    const trackingUrl = `${publicBase}/track/${encodeURIComponent(order.trackingToken || order.number)}`;
+
+    const items = (order as any).items || [];
+    const itemSummary =
+      items.length > 0
+        ? items.map((it: any) => it.title || it.name || "a gift").join(", ")
+        : "a special gift";
+
+    const senderName =
+      addr.senderName ||
+      (order as any).buyer?.name ||
+      (order.buyerEmail ? order.buyerEmail.split("@")[0] : undefined);
+
+    // Mark dispatched before sending to prevent duplicate sends across concurrent webhook/verify calls
+    if (typeof (this.prisma.order as any)?.update === "function") {
+      await this.prisma.order
+        .update({
+          where: { id: order.id },
+          data: {
+            address: {
+              ...addr,
+              _smsDispatched: true,
+            } as any,
+          },
+        })
+        .catch(() => {});
+    }
+
+    await this.sendOrderRecipientSms({
+      orderId: order.id,
+      orderNumber: order.number,
+      phones,
+      recipientName: order.recipientName,
+      senderName,
+      itemSummary,
+      giftNote: order.giftNote || undefined,
+      trackingUrl,
+    });
   }
 
   // ==================== EMAIL NOTIFICATION HELPERS ====================

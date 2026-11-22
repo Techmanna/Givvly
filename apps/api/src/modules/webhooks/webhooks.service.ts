@@ -880,6 +880,22 @@ export class WebhooksService {
         );
       }
 
+      if (pendingDigitalOrderId || orderNotifTask.orderNumber) {
+        void this.prisma.order
+          .findUnique({
+            where: { number: orderNotifTask.orderNumber },
+            select: { id: true },
+          })
+          .then((ord) => {
+            if (ord?.id) {
+              return this.notifications?.dispatchOrderRecipientSmsIfRequested?.(
+                ord.id
+              );
+            }
+          })
+          .catch(() => {});
+      }
+
       void this.notifications.notifyAdmins({
         type: "ADMIN_ORDER_PAID",
         category: "ORDERS",

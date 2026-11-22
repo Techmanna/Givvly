@@ -30,7 +30,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Money } from "@/components/shared/Money";
+import { formatNaira, SMS_FEE_PER_RECIPIENT_KOBO } from "@/lib/format";
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
 import {
@@ -197,6 +199,7 @@ export function BagCheckoutForm() {
 
   const watchedStreet = form.watch("street");
   const watchedPhone = form.watch("recipientPhone");
+  const [sendRecipientSms, setSendRecipientSms] = React.useState(false);
   const canSaveNow = Boolean(
     watchedStreet && watchedStreet.trim().length >= 3 && watchedPhone
   );
@@ -246,7 +249,8 @@ export function BagCheckoutForm() {
       }),
     [subtotalKobo, shippingFeeKobo]
   );
-  const grandTotalKobo = vatCalc.totalKobo;
+  const smsFeeKobo = sendRecipientSms ? SMS_FEE_PER_RECIPIENT_KOBO : 0;
+  const grandTotalKobo = vatCalc.totalKobo + smsFeeKobo;
 
   // Persist form changes into cart draft
   React.useEffect(() => {
@@ -353,6 +357,7 @@ export function BagCheckoutForm() {
         wrapping: false,
         shippingZoneId: selectedShippingZone?.id,
         buyerEmail,
+        sendRecipientSms,
         paymentMethod,
       });
 
@@ -991,6 +996,35 @@ export function BagCheckoutForm() {
                     Shipping ({selectedShippingZone?.name ?? "Standard"} — incl. VAT)
                   </span>
                   <Money amountKobo={shippingFeeKobo} className="font-medium text-foreground" />
+                </div>
+
+                {sendRecipientSms && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Recipient SMS Alert</span>
+                    <Money amountKobo={smsFeeKobo} className="font-medium text-foreground" />
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-border/80 bg-muted/30 p-3">
+                  <label className="flex cursor-pointer items-start gap-2.5 text-xs">
+                    <Checkbox
+                      checked={sendRecipientSms}
+                      onCheckedChange={(checked) =>
+                        setSendRecipientSms(Boolean(checked))
+                      }
+                      className="mt-0.5"
+                    />
+                    <span className="space-y-0.5">
+                      <span className="block font-semibold text-foreground">
+                        Send personalized SMS to recipient (
+                        {formatNaira(SMS_FEE_PER_RECIPIENT_KOBO)})
+                      </span>
+                      <span className="block text-[11px] text-muted-foreground">
+                        Notifies the recipient by SMS with your name, gift
+                        note, and tracking link.
+                      </span>
+                    </span>
+                  </label>
                 </div>
 
                 <div className="border-t border-border/80 pt-2 space-y-0.5">

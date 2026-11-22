@@ -66,6 +66,7 @@ export const createOrderSchema = z
     vtuProvider: z.string().trim().max(30).optional(),
     billItemIdentifier: z.string().trim().max(80).optional(),
     customAmountKobo: z.number().int().min(5000).optional(),
+    sendRecipientSms: z.boolean().optional(),
     paymentMethod: z.enum(["wallet", "paystack", "gateway"]).optional(),
     callbackUrl: z.string().url().optional(),
   })

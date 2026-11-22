@@ -1113,6 +1113,10 @@ export class WalletService {
             .catch(() => {});
         }
 
+        void this.notifications
+          ?.dispatchOrderRecipientSmsIfRequested?.(order.id)
+          ?.catch?.(() => {});
+
         return {
           status: "success",
           transaction_id: confirmRef,

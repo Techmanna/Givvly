@@ -44,6 +44,7 @@ interface NormalizedReceipt {
   recipientLabel?: string;
   deliveryAddress?: string;
   vtuNumbers?: string;
+  giftNote?: string;
   items?: Array<{ label: string; value: string }>;
   shareUrl?: string;
 }
@@ -118,6 +119,7 @@ function buildNormalizedReceipt(
         recipientParts.length > 0 ? recipientParts.join(" • ") : undefined,
       deliveryAddress: vtuNumbers ? undefined : order.address,
       vtuNumbers,
+      giftNote: order.giftNote || undefined,
       items: [
         ...order.items.map((item) => ({
           label: `${item.qty}× ${item.name}`,
@@ -145,7 +147,10 @@ function buildNormalizedReceipt(
           ? [{ label: "VAT (7.5%)", value: formatNaira(order.vatKobo) }]
           : []),
         {
-          label: "Givvly Platform Fee",
+          label:
+            typeof order.feeKobo === "number" && order.feeKobo > 0
+              ? "Recipient SMS & Platform Fee"
+              : "Givvly Platform Fee",
           value: formatNaira(order.feeKobo ?? 0),
         },
       ],
@@ -162,6 +167,7 @@ function generateReceiptCanvas(receipt: NormalizedReceipt): HTMLCanvasElement {
   const extraRows =
     (receipt.recipientLabel ? 1 : 0) +
     (receipt.vtuNumbers ? 1 : 0) +
+    (receipt.giftNote ? 1 : 0) +
     (receipt.deliveryAddress ? 1 : 0) +
     (receipt.items?.length ?? 0);
   const height = 640 + extraRows * 44;
@@ -245,6 +251,12 @@ function generateReceiptCanvas(receipt: NormalizedReceipt): HTMLCanvasElement {
     rows.push({
       label: "Number Sent To",
       value: receipt.vtuNumbers.slice(0, 48),
+    });
+  }
+  if (receipt.giftNote) {
+    rows.push({
+      label: "Gift Message",
+      value: `"${receipt.giftNote.slice(0, 40)}"`,
     });
   }
   if (receipt.deliveryAddress) {
@@ -355,6 +367,9 @@ export function TransactionReceiptModal({
     const invoiceItems = order
       ? order.items.map((item) => ({
           description: item.name || item.title || "Gift Item",
+          subtext: receipt.giftNote
+            ? `Message: "${receipt.giftNote}"`
+            : undefined,
           qty: item.qty,
           unitPrice: formatNaira(item.unitPriceKobo),
           amount: formatNaira(item.unitPriceKobo * item.qty),
@@ -590,6 +605,17 @@ export function TransactionReceiptModal({
                 </span>
                 <span className="font-mono font-semibold text-foreground text-right">
                   {receipt.vtuNumbers}
+                </span>
+              </div>
+            )}
+
+            {receipt.giftNote && (
+              <div className="flex flex-col gap-1 px-3.5 py-2.5 bg-primary/5">
+                <span className="text-muted-foreground">
+                  Personal Gift Message
+                </span>
+                <span className="italic text-foreground">
+                  &ldquo;{receipt.giftNote}&rdquo;
                 </span>
               </div>
             )}

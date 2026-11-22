@@ -85,6 +85,13 @@ export const envSchema = z.object({
   SMTP_PASS: z.string().optional().default(""),
   MAIL_FROM: z.string().default("Givvly <onboarding@resend.dev>"),
 
+  // Termii SMS
+  TERMII_API_KEY: z.string().optional().default(""),
+  TERMII_BASE_URL: z.string().url().default("https://v4.api.termii.com"),
+  TERMII_SENDER_ID: z.string().default("Givvly"),
+  TERMII_CHANNEL: z.enum(["dnd", "generic"]).default("dnd"),
+  SMS_NOTIFICATION_FEE_KOBO: z.coerce.number().int().min(0).default(2500),
+
   // File Storage (Multi-Provider: DISK, CLOUDINARY, S3)
   STORAGE_PROVIDER: z
     .enum(["DISK", "CLOUDINARY", "S3"])

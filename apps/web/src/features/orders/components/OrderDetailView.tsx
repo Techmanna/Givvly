@@ -120,6 +120,24 @@ export function OrderDetailView({
               <h3 className="mb-2 font-display text-base font-semibold text-ink">
                 Items in Order
               </h3>
+              {order.vtuPhones && order.vtuPhones.length > 0 ? (
+                <p className="mb-3 text-xs text-ink-muted">
+                  Number Sent To:{" "}
+                  <span className="font-mono font-semibold text-ink">
+                    {order.vtuPhones.join(", ")}
+                  </span>
+                </p>
+              ) : null}
+              {order.giftNote ? (
+                <div className="mb-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs">
+                  <p className="font-semibold text-ink-muted">
+                    Personal Gift Message
+                  </p>
+                  <p className="mt-1 italic text-ink">
+                    &ldquo;{order.giftNote}&rdquo;
+                  </p>
+                </div>
+              ) : null}
               <ul className="space-y-2 text-sm">
                 {order.items.map((item, idx) => (
                   <li
@@ -156,7 +174,11 @@ export function OrderDetailView({
                   </li>
                 ) : null}
                 <li className="flex items-center justify-between text-ink-muted">
-                  <span>Platform fee</span>
+                  <span>
+                    {typeof order.feeKobo === "number" && order.feeKobo > 0
+                      ? "Recipient SMS & platform fee"
+                      : "Platform fee"}
+                  </span>
                   <Money amountKobo={order.feeKobo ?? 0} />
                 </li>
                 <li className="flex items-center justify-between border-t border-border pt-2 font-semibold text-ink">

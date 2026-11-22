@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Money } from "@/components/shared/Money";
+import { formatNaira, SMS_FEE_PER_RECIPIENT_KOBO } from "@/lib/format";
 import {
   useCatalogProduct,
   useVtuPlans,
@@ -213,6 +214,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
   const [selectedPlanId, setSelectedPlanId] = React.useState<string>("");
   const [planSearch, setPlanSearch] = React.useState<string>("");
   const [multiPhoneMode, setMultiPhoneMode] = React.useState<boolean>(false);
+  const [sendRecipientSms, setSendRecipientSms] = React.useState<boolean>(false);
   const [extraPhonesInput, setExtraPhonesInput] = React.useState<string>("");
 
   React.useEffect(() => {
@@ -415,11 +417,21 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
           }),
     [isVtuProduct, giftSubtotalKobo, shippingFeeKobo]
   );
-  const totalKobo = vatCalc.totalKobo + wrappingKobo;
+  const smsFeeKobo = sendRecipientSms
+    ? SMS_FEE_PER_RECIPIENT_KOBO * (isVtuProduct ? recipientsCount : 1)
+    : 0;
+  const totalKobo = vatCalc.totalKobo + wrappingKobo + smsFeeKobo;
 
   const deliveryAddress = [watchedStreet, watchedCity, watchedState]
     .filter(Boolean)
     .join(", ");
+
+  const vtuRecipientDisplay = React.useMemo(() => {
+    const phones = parsedAllPhones.join(", ");
+    const name = (watchedRecipient || "").trim();
+    if (phones && name) return `${phones} (${name})`;
+    return phones || name || undefined;
+  }, [parsedAllPhones, watchedRecipient]);
 
   const whatsAppLink = effectiveProduct
     ? createSingleProductWhatsAppLink({
@@ -427,7 +439,9 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
       priceKobo: totalKobo,
       category: effectiveProduct.category,
       slug: effectiveProduct.slug,
-      recipientName: watchedRecipient || undefined,
+      recipientName: isVtuProduct
+        ? vtuRecipientDisplay
+        : watchedRecipient || undefined,
       deliveryAddress: isVtuProduct
         ? `Instant ${vtuType.toUpperCase()} (${selectedProvider.toUpperCase()})`
         : deliveryAddress || undefined,
@@ -482,6 +496,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
         giftNote: values.giftNote || undefined,
         wrapping: isVtuProduct ? false : values.wrapping,
         shippingZoneId: !isVtuProduct ? selectedShippingZone?.id : undefined,
+        sendRecipientSms,
         paymentMethod,
         ...(isVtuProduct
           ? {
@@ -1284,6 +1299,39 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                   <Money amountKobo={WRAPPING_FEE_KOBO} />
                 </div>
               )}
+              {sendRecipientSms && (
+                <div className="flex items-center justify-between text-ink-muted">
+                  <span>
+                    Recipient SMS Alert
+                    {isVtuProduct && recipientsCount > 1
+                      ? ` (×${recipientsCount})`
+                      : ""}
+                  </span>
+                  <Money amountKobo={smsFeeKobo} />
+                </div>
+              )}
+              <div className="rounded-xl border border-border/80 bg-muted/30 p-3">
+                <label className="flex cursor-pointer items-start gap-2.5 text-xs">
+                  <Checkbox
+                    checked={sendRecipientSms}
+                    onCheckedChange={(checked) =>
+                      setSendRecipientSms(Boolean(checked))
+                    }
+                    className="mt-0.5"
+                  />
+                  <span className="space-y-0.5">
+                    <span className="block font-semibold text-ink">
+                      Send personalized SMS to recipient (
+                      {formatNaira(SMS_FEE_PER_RECIPIENT_KOBO)}
+                      {isVtuProduct ? "/number" : ""})
+                    </span>
+                    <span className="block text-[11px] text-ink-muted">
+                      Notifies the recipient by SMS with your name, gift
+                      note, and gift card link.
+                    </span>
+                  </span>
+                </label>
+              </div>
               <div className="border-t border-border pt-3 space-y-0.5">
                 <div className="flex items-center justify-between text-base font-semibold text-ink">
                   <span>Total</span>

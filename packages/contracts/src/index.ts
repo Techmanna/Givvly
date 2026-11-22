@@ -186,6 +186,7 @@ export type Order = {
   timeline: { status: OrderStatus; at: string }[];
   recipientName: string;
   recipientPhone?: string;
+  giftNote?: string;
   vtuType?: string;
   vtuProvider?: string;
   vtuPhones?: string[];

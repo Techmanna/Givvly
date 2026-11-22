@@ -233,7 +233,28 @@ export class OrdersService {
         : 0;
     const vatKobo = giftVatKobo + shippingVatKobo;
 
-    const totalKobo = subtotalKobo + giftVatKobo + deliveryFeeKobo + packagingExtraKobo;
+    const smsFeePerRecipientKobo = Number(
+      this.config?.get("SMS_NOTIFICATION_FEE_KOBO", 2500) ?? 2500
+    );
+    const sendRecipientSms = Boolean((dto as any).sendRecipientSms);
+    const smsTargetCount = sendRecipientSms
+      ? recipientPhones.length > 0
+        ? recipientPhones.length
+        : dto.recipient?.phone || dto.recipientPhone
+          ? 1
+          : 0
+      : 0;
+    const smsFeeKobo =
+      sendRecipientSms && smsTargetCount > 0
+        ? smsFeePerRecipientKobo * smsTargetCount
+        : 0;
+
+    const totalKobo =
+      subtotalKobo +
+      giftVatKobo +
+      deliveryFeeKobo +
+      packagingExtraKobo +
+      smsFeeKobo;
     const currency = (dto.currency || "NGN").toUpperCase();
 
     // Generate unique order number and tracking token
@@ -249,15 +270,31 @@ export class OrdersService {
     const recipientEmail = dto.recipient?.email;
 
     const addressPayload =
-      dto.address || dto.vtuType || dto.vtuProvider || dto.billItemIdentifier || recipientPhones.length > 0
+      dto.address ||
+      dto.vtuType ||
+      dto.vtuProvider ||
+      dto.billItemIdentifier ||
+      recipientPhones.length > 0 ||
+      sendRecipientSms
         ? {
-          ...(dto.address ? (dto.address as any) : {}),
-          ...(dto.vtuType ? { vtuType: dto.vtuType } : {}),
-          ...(dto.vtuProvider ? { vtuProvider: dto.vtuProvider } : {}),
-          ...(dto.billItemIdentifier ? { billItemIdentifier: dto.billItemIdentifier } : {}),
-          ...(resolvedUnitVtuKobo ? { unitVtuAmountKobo: resolvedUnitVtuKobo } : {}),
-          ...(recipientPhones.length > 0 ? { recipientPhones } : {}),
-        }
+            ...(dto.address ? (dto.address as any) : {}),
+            ...(dto.vtuType ? { vtuType: dto.vtuType } : {}),
+            ...(dto.vtuProvider ? { vtuProvider: dto.vtuProvider } : {}),
+            ...(dto.billItemIdentifier
+              ? { billItemIdentifier: dto.billItemIdentifier }
+              : {}),
+            ...(resolvedUnitVtuKobo
+              ? { unitVtuAmountKobo: resolvedUnitVtuKobo }
+              : {}),
+            ...(recipientPhones.length > 0 ? { recipientPhones } : {}),
+            ...(sendRecipientSms
+              ? {
+                  sendRecipientSms: true,
+                  smsFeeKobo,
+                  ...(user?.name ? { senderName: user.name } : {}),
+                }
+              : {}),
+          }
         : undefined;
 
     // Initialize Payment Gateway before DB transaction to avoid holding DB locks over HTTP I/O
@@ -293,7 +330,7 @@ export class OrdersService {
           reference: paymentReference,
           currency,
           amountKobo: totalKobo,
-          feeKobo: 0,
+          feeKobo: smsFeeKobo,
           status: PaymentStatus.INITIATED,
           accessCode: paymentInit.accessCode || null,
           authorizationUrl: paymentInit.authorizationUrl || null,
@@ -326,6 +363,7 @@ export class OrdersService {
           vatKobo,
           shippingZoneId: selectedShippingZone?.id ?? null,
           shippingZoneName: selectedShippingZone?.name ?? null,
+          feeKobo: smsFeeKobo,
           totalKobo,
           paymentId: newPayment.id,
           trackingToken,
@@ -740,6 +778,10 @@ export class OrdersService {
         }
       }
 
+      void this.notifications
+        ?.dispatchOrderRecipientSmsIfRequested?.(order.id)
+        ?.catch?.(() => {});
+
       void this.notifications?.notifyAdmins({
         type: "ADMIN_ORDER_PAID",
         category: "ORDERS",
@@ -1057,6 +1099,7 @@ export class OrdersService {
       recipientPhone: isVtu
         ? order.recipientPhone || vtuPhones?.[0]
         : undefined,
+      giftNote: order.giftNote || undefined,
       vtuType: address?.vtuType,
       vtuProvider: address?.vtuProvider,
       vtuPhones,

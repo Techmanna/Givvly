@@ -404,6 +404,7 @@ export type CreateDirectOrderRequest = {
   vtuProvider?: string;
   billItemIdentifier?: string;
   customAmountKobo?: number;
+  sendRecipientSms?: boolean;
 };
 
 export type SavedAddress = {

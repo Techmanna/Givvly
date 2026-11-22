@@ -1,6 +1,7 @@
 import { formatInTimeZone } from "date-fns-tz";
 
 export const DEFAULT_TIMEZONE = "Africa/Lagos";
+export const SMS_FEE_PER_RECIPIENT_KOBO = 2500; // ₦25 per recipient SMS
 
 const nairaFormatter = new Intl.NumberFormat("en-NG", {
   style: "currency",
