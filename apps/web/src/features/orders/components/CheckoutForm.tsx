@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Money } from "@/components/shared/Money";
 import { formatNaira, SMS_FEE_PER_RECIPIENT_KOBO } from "@/lib/format";
+import { getDefaultGatewayDisplayName } from "@/features/gifts/monnify";
 import {
   useCatalogProduct,
   useVtuPlans,
@@ -1357,7 +1358,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                         : "border-border bg-background text-ink-muted"
                       }`}
                   >
-                    <div>Paystack</div>
+                    <div>{getDefaultGatewayDisplayName()}</div>
                     <div className="text-[10px] opacity-80">Card / Bank / USSD</div>
                   </button>
                   <button
@@ -1451,7 +1452,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
             <div className="space-y-1.5 pt-2 text-xs text-ink-muted">
               <p className="flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5 text-success" />
-                Secured by Paystack
+                Secured by {getDefaultGatewayDisplayName()}
               </p>
               <p className="flex items-center gap-1.5">
                 <Truck className="h-3.5 w-3.5 text-primary" />

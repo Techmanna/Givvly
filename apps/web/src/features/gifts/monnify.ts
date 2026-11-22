@@ -168,3 +168,32 @@ export async function openGatewayCheckout(
 
   return openFlutterwaveCheckout(params);
 }
+
+/**
+ * Resolves the human-readable payment gateway name from an explicit provider,
+ * an authorization URL, or NEXT_PUBLIC_DEFAULT_PAYMENT_GATEWAY.
+ */
+export function getDefaultGatewayDisplayName(providerOrUrl?: string): string {
+  const normalized = providerOrUrl?.toLowerCase() ?? "";
+  let resolved: string;
+
+  if (normalized.includes("paystack")) {
+    resolved = "PAYSTACK";
+  } else if (normalized.includes("monnify")) {
+    resolved = "MONNIFY";
+  } else if (normalized.includes("flutterwave")) {
+    resolved = "FLUTTERWAVE";
+  } else {
+    resolved = (env.NEXT_PUBLIC_DEFAULT_PAYMENT_GATEWAY || "FLUTTERWAVE").toUpperCase();
+  }
+
+  switch (resolved) {
+    case "PAYSTACK":
+      return "Paystack";
+    case "MONNIFY":
+      return "Monnify";
+    case "FLUTTERWAVE":
+    default:
+      return "Flutterwave";
+  }
+}

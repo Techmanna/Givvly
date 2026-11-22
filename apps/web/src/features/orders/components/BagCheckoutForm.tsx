@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Money } from "@/components/shared/Money";
 import { formatNaira, SMS_FEE_PER_RECIPIENT_KOBO } from "@/lib/format";
+import { getDefaultGatewayDisplayName } from "@/features/gifts/monnify";
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
 import {
@@ -818,7 +819,7 @@ export function BagCheckoutForm() {
                     <CreditCard className="h-5 w-5 text-primary mt-0.5" />
                     <div>
                       <p className="text-xs font-bold text-foreground">
-                        Card & Bank Transfer (Flutterwave)
+                        Card & Bank Transfer ({getDefaultGatewayDisplayName()})
                       </p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
                         Debit/Credit Card, Bank Transfer, USSD, Apple Pay
@@ -1058,7 +1059,7 @@ export function BagCheckoutForm() {
 
               <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground text-center">
                 <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                <span>Protected by Paystack 256-bit bank grade encryption</span>
+                <span>Protected by {getDefaultGatewayDisplayName()} 256-bit bank grade encryption</span>
               </div>
             </CardContent>
           </Card>

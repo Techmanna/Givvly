@@ -21,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatNaira } from "@/lib/format";
-import { openGatewayCheckout } from "@/features/gifts/monnify";
+import { openGatewayCheckout, getDefaultGatewayDisplayName } from "@/features/gifts/monnify";
 import {
   usePayOrderWithWalletMutation,
   useSetWalletPinMutation,
@@ -114,13 +114,15 @@ export function PaymentGatewayModal({
           window.location.href = paymentDetails.authorizationUrl;
         } else {
           setIsProcessing(false);
-          toast.error("Could not initialize Paystack popup. Please try again.");
+          const gatewayName = getDefaultGatewayDisplayName(paymentDetails.authorizationUrl);
+          toast.error(`Could not initialize ${gatewayName} checkout. Please try again.`);
         }
       }
     } catch {
       setIsPaystackActive(false);
       setIsProcessing(false);
-      toast.error("An error occurred launching Paystack.");
+      const gatewayName = getDefaultGatewayDisplayName(paymentDetails.authorizationUrl);
+      toast.error(`An error occurred launching ${gatewayName}.`);
     }
   };
 
@@ -441,7 +443,7 @@ export function PaymentGatewayModal({
                 {isProcessing && !payWithWalletMutation.isPending ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Opening Flutterwave...
+                    Opening {getDefaultGatewayDisplayName(paymentDetails.authorizationUrl)}...
                   </>
                 ) : (
                   <>
@@ -456,7 +458,8 @@ export function PaymentGatewayModal({
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-1">
               <ShieldCheck className="h-4 w-4 text-success" />
               <span>
-                256-bit bank-grade encryption via Givvly Wallet &amp; Flutterwave
+                256-bit bank-grade encryption via Givvly Wallet &amp;{" "}
+                {getDefaultGatewayDisplayName(paymentDetails.authorizationUrl)}
               </span>
             </div>
           </div>

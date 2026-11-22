@@ -27,6 +27,7 @@ import { StatusBadge, type StatusKind } from "@/components/shared/StatusBadge";
 import { Money } from "@/components/shared/Money";
 import { useBespokeWishDetail, usePayBespokeWishQuote } from "../hooks/useOrders";
 import { formatDate } from "@/lib/format";
+import { getDefaultGatewayDisplayName } from "@/features/gifts/monnify";
 
 export type BespokeQuoteViewProps = {
   token: string;
@@ -78,7 +79,7 @@ export function BespokeQuoteView({ token }: BespokeQuoteViewProps) {
     try {
       const res = await payMutation.mutateAsync();
       if (res.authorizationUrl) {
-        toast.info("Redirecting to Paystack secure checkout...");
+        toast.info(`Redirecting to ${getDefaultGatewayDisplayName(res.authorizationUrl)} secure checkout...`);
         window.location.href = res.authorizationUrl;
       } else {
         toast.error("Could not obtain payment link. Please try again.");
