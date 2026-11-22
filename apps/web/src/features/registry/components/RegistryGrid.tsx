@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Clock, ShoppingBag, Smartphone } from "lucide-react";
@@ -24,10 +24,13 @@ import { Money } from "@/components/shared/Money";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ApiClientError } from "@/lib/api-client";
 import { calculatePlatformFeeKobo, formatDate } from "@/lib/format";
+import { useAuthStore } from "@/stores/auth-store";
 import { useGiveDraftStore } from "@/stores/give-draft-store";
 import {
   usePurchaseRegistryItemMutation,
+  usePurchaseRegistryItemsBatchMutation,
   useReserveRegistryItemMutation,
+  useReserveRegistryItemsBatchMutation,
 } from "../hooks/useRegistry";
 import { openGatewayCheckout } from "@/features/gifts/monnify";
 import type { RegistryItem } from "../types";
@@ -48,25 +51,47 @@ export function RegistryGrid({
   isArchived = false,
 }: RegistryGridProps) {
   const router = useRouter();
+  const currentUser = useAuthStore((s) => s.user);
   const idempotencyKey = useGiveDraftStore((s) => s.draft.idempotencyKey);
   const rotateIdempotencyKey = useGiveDraftStore((s) => s.rotateIdempotencyKey);
 
-  const [activeItem, setActiveItem] = useState<RegistryItem | null>(null);
+  const [activeItems, setActiveItems] = useState<RegistryItem[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [reservationToken, setReservationToken] = useState<string | undefined>(undefined);
   const [reservedUntil, setReservedUntil] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState(() => currentUser?.name ?? "");
+  const [email, setEmail] = useState(() => currentUser?.email ?? "");
+
+  useEffect(() => {
+    if (currentUser?.name) {
+      setName((prev) => prev || currentUser.name);
+    }
+    if (currentUser?.email) {
+      setEmail((prev) => prev || currentUser.email);
+    }
+  }, [currentUser?.name, currentUser?.email]);
   const [message, setMessage] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   const reserveMutation = useReserveRegistryItemMutation(slug);
+  const reserveBatchMutation = useReserveRegistryItemsBatchMutation(slug);
   const purchaseMutation = usePurchaseRegistryItemMutation(slug);
+  const purchaseBatchMutation = usePurchaseRegistryItemsBatchMutation(slug);
+
+  const toggleSelectItem = (itemId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
 
   const handleReserveAndOpen = async (item: RegistryItem) => {
     setAlertMessage(null);
     try {
       const res = await reserveMutation.mutateAsync(item.id);
-      setActiveItem(res.item);
+      const reservedItem = res.item ?? item;
+      setActiveItems([reservedItem]);
+      setReservationToken((res as { reservationToken?: string }).reservationToken);
       setReservedUntil(res.reservedUntil);
     } catch (err) {
       if (err instanceof ApiClientError && err.code === "ITEM_ALREADY_CLAIMED") {
@@ -77,9 +102,26 @@ export function RegistryGrid({
     }
   };
 
+  const handleReserveSelectedAndOpen = async () => {
+    if (selectedIds.length === 0) return;
+    setAlertMessage(null);
+    try {
+      const res = await reserveBatchMutation.mutateAsync(selectedIds);
+      setActiveItems(res.items);
+      setReservationToken(res.reservationToken);
+      setReservedUntil(res.reservedUntil);
+    } catch (err) {
+      if (err instanceof ApiClientError) {
+        toast.error(err.message);
+        return;
+      }
+      toast.error("Could not reserve the selected items. Please try again.");
+    }
+  };
+
   const handleCompletePurchase = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeItem) return;
+    if (activeItems.length === 0) return;
     if (!anonymous && name.trim().length < 2) {
       setAlertMessage("Enter your name or tick Give anonymously.");
       return;
@@ -91,24 +133,46 @@ export function RegistryGrid({
 
     setAlertMessage(null);
     try {
-      const payment = await purchaseMutation.mutateAsync({
-        payload: {
-          itemId: activeItem.id,
-          name: anonymous ? undefined : name.trim(),
-          email: email.trim().toLowerCase(),
-          message: message.trim() || undefined,
-          anonymous,
-        },
-        idempotencyKey,
-      });
+      const payment =
+        activeItems.length > 1 || reservationToken
+          ? await purchaseBatchMutation.mutateAsync({
+              payload: {
+                itemIds: activeItems.map((i) => i.id),
+                reservationToken: reservationToken ?? "",
+                name: anonymous ? undefined : name.trim(),
+                email: email.trim().toLowerCase(),
+                message: message.trim() || undefined,
+                anonymous,
+                showOnWall: true,
+              },
+              idempotencyKey,
+            })
+          : await purchaseMutation.mutateAsync({
+              payload: {
+                itemId: activeItems[0]!.id,
+                name: anonymous ? undefined : name.trim(),
+                email: email.trim().toLowerCase(),
+                message: message.trim() || undefined,
+                anonymous,
+              },
+              idempotencyKey,
+            });
 
-      const purchasedTitle = activeItem.title;
+      const purchasedTitle =
+        activeItems.length === 1
+          ? (activeItems[0]?.title ?? "Registry gift")
+          : `${activeItems.length} registry items`;
+      const itemsSubtotalKobo = activeItems.reduce(
+        (sum, i) => sum + i.priceKobo,
+        0
+      );
       const purchasedAmountKobo =
-        payment.totalKobo ?? payment.amountKobo ?? activeItem.priceKobo;
+        payment.totalKobo ?? payment.amountKobo ?? itemsSubtotalKobo;
       const customerEmail = email.trim().toLowerCase();
       const customerName = anonymous ? undefined : name.trim() || undefined;
 
-      setActiveItem(null);
+      setActiveItems([]);
+      setSelectedIds([]);
 
       const popupResult = await openGatewayCheckout({
         email: customerEmail,
@@ -147,7 +211,8 @@ export function RegistryGrid({
         }
         if (err.code === "ITEM_ALREADY_CLAIMED") {
           toast.error("This item has been claimed by another guest.");
-          setActiveItem(null);
+          setActiveItems([]);
+          setSelectedIds([]);
           return;
         }
         if (err.code === "PAYMENT_FAILED") {
@@ -193,34 +258,66 @@ export function RegistryGrid({
     <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {items.map((item) => {
-          const isClaimed = item.status === "CLAIMED";
+          const isClaimed =
+            item.status === "CLAIMED" || item.status === "REDEEMED";
+          const isActivelyReserved =
+            item.status === "RESERVED" &&
+            (!item.reservedUntil ||
+              new Date(item.reservedUntil).getTime() > Date.now());
+          const effectiveStatus =
+            item.status === "RESERVED" && !isActivelyReserved
+              ? "AVAILABLE"
+              : item.status;
           const isAirtimeOrData = /airtime|data/i.test(item.title);
           const isFlexibleWish = item.priceKobo === 0;
+          const isSelectable =
+            !isArchived &&
+            !isOwner &&
+            !isClaimed &&
+            !isAirtimeOrData &&
+            !isFlexibleWish;
+          const isSelected = selectedIds.includes(item.id);
+
           return (
-            <Card key={item.id} className="shadow-none">
+            <Card
+              key={item.id}
+              className={`shadow-none transition ${
+                isSelected ? "border-primary ring-1 ring-primary/40" : ""
+              }`}
+            >
               <CardContent className="flex flex-col justify-between gap-4 p-4">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="font-medium text-foreground">{item.title}</p>
-                      {isAirtimeOrData ? (
-                        <span className="rounded-full bg-accent/25 px-2 py-0.5 text-[10px] font-semibold text-foreground">
-                          Airtime &amp; Data
-                        </span>
-                      ) : null}
+                  <div className="flex items-start gap-2.5">
+                    {isSelectable ? (
+                      <Checkbox
+                        aria-label={`Select ${item.title}`}
+                        checked={isSelected}
+                        onCheckedChange={() => toggleSelectItem(item.id)}
+                        className="mt-1"
+                      />
+                    ) : null}
+                    <div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="font-medium text-foreground">{item.title}</p>
+                        {isAirtimeOrData ? (
+                          <span className="rounded-full bg-accent/25 px-2 py-0.5 text-[10px] font-semibold text-foreground">
+                            Airtime &amp; Data
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-0.5 text-sm font-semibold text-primary">
+                        {isFlexibleWish ? (
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Flexible • You choose amount or bundle
+                          </span>
+                        ) : (
+                          <Money amountKobo={item.priceKobo} />
+                        )}
+                      </p>
                     </div>
-                    <p className="mt-0.5 text-sm font-semibold text-primary">
-                      {isFlexibleWish ? (
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Flexible • You choose amount or bundle
-                        </span>
-                      ) : (
-                        <Money amountKobo={item.priceKobo} />
-                      )}
-                    </p>
                   </div>
                   {!isFlexibleWish && !isAirtimeOrData ? (
-                    <StatusBadge status={item.status} />
+                    <StatusBadge status={effectiveStatus} />
                   ) : (
                     <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
                       Open Wish
@@ -228,7 +325,7 @@ export function RegistryGrid({
                   )}
                 </div>
 
-                {item.status === "RESERVED" && item.reservedUntil ? (
+                {isActivelyReserved && item.reservedUntil ? (
                   <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>
@@ -273,7 +370,7 @@ export function RegistryGrid({
                     type="button"
                     size="sm"
                     variant={isClaimed ? "secondary" : "outline"}
-                    disabled={isClaimed || reserveMutation.isPending}
+                    disabled={isClaimed || reserveMutation.isPending || item.status === "RESERVED" }
                     onClick={() => {
                       void handleReserveAndOpen(item);
                     }}
@@ -287,6 +384,47 @@ export function RegistryGrid({
           );
         })}
       </div>
+
+      {selectedIds.length > 0 ? (
+        <div className="sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-card/95 p-4 shadow-lg backdrop-blur">
+          <div className="text-sm">
+            <span className="font-semibold text-foreground">
+              {selectedIds.length}{" "}
+              {selectedIds.length === 1 ? "gift selected" : "gifts selected"}
+            </span>
+            <span className="mx-2 text-muted-foreground">·</span>
+            <Money
+              amountKobo={items
+                .filter((i) => selectedIds.includes(i.id))
+                .reduce((sum, i) => sum + i.priceKobo, 0)}
+              className="font-semibold text-primary"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelectedIds([])}
+            >
+              Clear
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={reserveBatchMutation.isPending}
+              onClick={() => void handleReserveSelectedAndOpen()}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>
+                {reserveBatchMutation.isPending
+                  ? "Reserving..."
+                  : `Gift ${selectedIds.length} ${selectedIds.length === 1 ? "item" : "items"}`}
+              </span>
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Reassurance footer: Registry items are a wishlist, not the only gifts allowed */}
       <div className="flex flex-col justify-between gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4 text-xs sm:flex-row sm:items-center">
@@ -314,23 +452,24 @@ export function RegistryGrid({
       </div>
 
       <Dialog
-        open={Boolean(activeItem)}
+        open={activeItems.length > 0}
         onOpenChange={(open) => {
-          if (!open) setActiveItem(null);
+          if (!open) setActiveItems([]);
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Buy {activeItem?.title}</DialogTitle>
+            <DialogTitle>
+              {activeItems.length === 1
+                ? `Buy ${activeItems[0]?.title}`
+                : `Gift ${activeItems.length} registry items`}
+            </DialogTitle>
             <DialogDescription>
               {reservedUntil ? (
                 <span>
                   Held for you for 10 minutes (until{" "}
-                  {formatDate(reservedUntil, "h:mm a")}). Price:{" "}
-                  <Money
-                    amountKobo={activeItem?.priceKobo ?? 0}
-                    className="font-semibold text-foreground"
-                  />
+                  {formatDate(reservedUntil, "h:mm a")}). The host will choose
+                  when and where to have these gifts delivered.
                 </span>
               ) : null}
             </DialogDescription>
@@ -343,12 +482,14 @@ export function RegistryGrid({
                 className="space-y-2 rounded-control border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive"
               >
                 <p>{alertMessage}</p>
-                {alertMessage.includes("Reservation expired") && activeItem ? (
+                {alertMessage.includes("Reservation expired") &&
+                activeItems.length === 1 &&
+                activeItems[0] ? (
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => void handleReserveAndOpen(activeItem)}
+                    onClick={() => void handleReserveAndOpen(activeItems[0]!)}
                   >
                     Reserve again
                   </Button>
@@ -356,18 +497,37 @@ export function RegistryGrid({
               </div>
             ) : null}
 
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="reg-buy-anon"
-                checked={anonymous}
-                onCheckedChange={(checked) => setAnonymous(Boolean(checked))}
-              />
-              <Label
-                htmlFor="reg-buy-anon"
-                className="cursor-pointer text-xs"
-              >
-                Give anonymously
-              </Label>
+            {activeItems.length > 1 ? (
+              <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border bg-muted/20 p-2.5 text-xs">
+                {activeItems.map((i) => (
+                  <div key={i.id} className="flex items-center justify-between gap-2">
+                    <span className="truncate font-medium text-foreground">
+                      {i.title}
+                    </span>
+                    <Money amountKobo={i.priceKobo} className="shrink-0" />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="reg-buy-anon"
+                  checked={anonymous}
+                  onCheckedChange={(checked) => setAnonymous(Boolean(checked))}
+                />
+                <Label
+                  htmlFor="reg-buy-anon"
+                  className="cursor-pointer text-xs"
+                >
+                  Give anonymously
+                </Label>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Your gift activity will appear on the celebration wall as{" "}
+                {anonymous ? "Anonymous" : "your name"} unless hidden by the host.
+              </p>
             </div>
 
             {!anonymous ? (
@@ -404,18 +564,24 @@ export function RegistryGrid({
               />
             </div>
 
-            {activeItem ? (
+            {activeItems.length > 0 ? (
               (() => {
-                const itemFeeKobo = calculatePlatformFeeKobo(
-                  activeItem.priceKobo
+                const itemsSubtotalKobo = activeItems.reduce(
+                  (sum, i) => sum + i.priceKobo,
+                  0
                 );
-                const itemTotalKobo = activeItem.priceKobo + itemFeeKobo;
+                const itemFeeKobo = calculatePlatformFeeKobo(itemsSubtotalKobo);
+                const itemTotalKobo = itemsSubtotalKobo + itemFeeKobo;
                 return (
                   <div className="space-y-1.5 rounded-card border border-border bg-muted/40 p-3 text-xs">
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span>Item price</span>
+                      <span>
+                        {activeItems.length === 1
+                          ? "Item price"
+                          : `Items subtotal (${activeItems.length} items)`}
+                      </span>
                       <Money
-                        amountKobo={activeItem.priceKobo}
+                        amountKobo={itemsSubtotalKobo}
                         className="text-foreground"
                       />
                     </div>
@@ -444,14 +610,21 @@ export function RegistryGrid({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setActiveItem(null)}
+                onClick={() => setActiveItems([])}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={purchaseMutation.isPending}>
-                {purchaseMutation.isPending
+              <Button
+                type="submit"
+                disabled={
+                  purchaseMutation.isPending || purchaseBatchMutation.isPending
+                }
+              >
+                {purchaseMutation.isPending || purchaseBatchMutation.isPending
                   ? "Confirming..."
-                  : "Pay and claim item"}
+                  : activeItems.length === 1
+                    ? "Pay and claim item"
+                    : `Pay and claim ${activeItems.length} items`}
               </Button>
             </DialogFooter>
           </form>

@@ -7,7 +7,10 @@ import {
   deleteOwnerRegistryEntry,
   fetchOwnerRegistry,
   purchaseRegistryItem,
+  purchaseRegistryItemsBatch,
+  redeemRegistryItems,
   reserveRegistryItem,
+  reserveRegistryItemsBatch,
   updateOwnerRegistryEntry,
 } from "../api";
 import { registryKeys } from "../keys";
@@ -131,6 +134,58 @@ export function useContributeToPoolMutation(slug: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events", "public", slug] });
       queryClient.invalidateQueries({ queryKey: ["gifts"] });
+    },
+  });
+}
+
+export function useReserveRegistryItemsBatchMutation(slug: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (itemIds: string[]) => reserveRegistryItemsBatch(slug, itemIds),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["events", "public", slug] });
+    },
+  });
+}
+
+export function usePurchaseRegistryItemsBatchMutation(slug: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      payload,
+      idempotencyKey,
+    }: {
+      payload: {
+        itemIds: string[];
+        reservationToken: string;
+        name?: string;
+        email: string;
+        message?: string;
+        anonymous: boolean;
+        showOnWall?: boolean;
+      };
+      idempotencyKey: string;
+    }) => purchaseRegistryItemsBatch(slug, payload, idempotencyKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events", "public", slug] });
+      queryClient.invalidateQueries({ queryKey: ["gifts"] });
+    },
+  });
+}
+
+export function useRedeemRegistryItemsMutation(eventId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof redeemRegistryItems>[1]) =>
+      redeemRegistryItems(eventId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: registryKeys.byEvent(eventId),
+      });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
   });
 }

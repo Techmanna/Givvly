@@ -148,3 +148,80 @@ export function contributeToPool(
   );
 }
 
+export function reserveRegistryItemsBatch(
+  slug: string,
+  itemIds: string[]
+): Promise<{
+  items: RegistryItem[];
+  totalKobo: number;
+  reservationToken: string;
+  reservedUntil: string;
+}> {
+  return api(`/public/events/${encodeURIComponent(slug)}/registry/reserve-batch`, {
+    method: "POST",
+    body: { itemIds },
+  });
+}
+
+export function purchaseRegistryItemsBatch(
+  slug: string,
+  payload: {
+    itemIds: string[];
+    reservationToken: string;
+    name?: string;
+    email: string;
+    message?: string;
+    anonymous: boolean;
+    showOnWall?: boolean;
+  },
+  idempotencyKey: string
+): Promise<PaymentInitResponse> {
+  return api<PaymentInitResponse>(
+    `/public/events/${encodeURIComponent(slug)}/gifts/items`,
+    {
+      method: "POST",
+      body: {
+        itemIds: payload.itemIds,
+        reservationToken: payload.reservationToken,
+        giverName: payload.anonymous ? undefined : payload.name,
+        giverEmail: payload.email,
+        message: payload.message,
+        isAnonymous: payload.anonymous,
+        showOnWall: payload.showOnWall ?? true,
+      },
+      idempotencyKey,
+    }
+  );
+}
+
+export function redeemRegistryItems(
+  eventId: string,
+  payload: {
+    itemIds: string[];
+    shippingZoneId?: string;
+    recipientName: string;
+    recipientPhone: string;
+    recipientAddress: string;
+    recipientArea?: string;
+    recipientCity: string;
+    recipientState: string;
+    deliveryNotes?: string;
+    callbackUrl?: string;
+  }
+): Promise<{
+  order: {
+    id: string;
+    number: string;
+    status: string;
+    totalKobo: number;
+    deliveryFeeKobo: number;
+  };
+  requiresPayment: boolean;
+  paymentDetails: PaymentInitResponse | null;
+}> {
+  return api(`/events/${encodeURIComponent(eventId)}/registry/redeem`, {
+    method: "POST",
+    body: payload,
+  });
+}
+

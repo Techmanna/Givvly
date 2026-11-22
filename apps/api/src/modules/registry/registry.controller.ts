@@ -23,6 +23,12 @@ import { RegistryService } from "./registry.service";
 import {
   PurchaseItemGiftDto,
   purchaseItemGiftSchema,
+  PurchaseItemsBatchDto,
+  purchaseItemsBatchSchema,
+  RedeemRegistryItemsDto,
+  redeemRegistryItemsSchema,
+  ReserveItemsBatchDto,
+  reserveItemsBatchSchema,
   ReservationResponseDto,
   RegistryGiftInitResponseDto,
   ReleasedReservationsResponseDto,
@@ -97,6 +103,22 @@ export class RegistryController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiCookieAuth("givvly_at")
+  @Post("events/:id/registry/redeem")
+  @ApiOperation({ summary: "Creator checkout for claimed registry items (sets delivery address & pays delivery fee)" })
+  @ApiParam({ name: "id", description: "Event ID or Slug" })
+  @ApiCreatedResponse({ description: "Redemption order created and delivery payment initialized if applicable." })
+  @UsePipes(new ZodValidationPipe(redeemRegistryItemsSchema))
+  async redeemRegistryItems(
+    @Param("id") eventId: string,
+    @CurrentUser("id") userId: string,
+    @Body() dto: RedeemRegistryItemsDto
+  ) {
+    return this.registryService.redeemRegistryItems(eventId, userId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiCookieAuth("givvly_at")
   @Delete("events/:id/registry/:itemId")
   @ApiOperation({ summary: "Remove registry item or pool from celebration" })
   @ApiParam({ name: "id", description: "Event ID or Slug" })
@@ -111,6 +133,33 @@ export class RegistryController {
   }
 
   // --- Public Guest Access ---
+
+  @Public()
+  @Post("public/events/:slug/registry/reserve-batch")
+  @ApiOperation({ summary: "Reserve multiple physical registry items atomically for 10 minutes" })
+  @ApiParam({ name: "slug", description: "Event slug" })
+  @ApiOkResponse({ description: "Items reserved successfully with shared hold token." })
+  @UsePipes(new ZodValidationPipe(reserveItemsBatchSchema))
+  async reserveItemsBatch(
+    @Param("slug") slug: string,
+    @Body() dto: ReserveItemsBatchDto
+  ) {
+    return this.registryService.reserveItemsBatch(slug, dto.itemIds);
+  }
+
+  @Public()
+  @Post("public/events/:slug/gifts/items")
+  @ApiOperation({ summary: "Initialize purchase payment for multiple reserved registry items" })
+  @ApiParam({ name: "slug", description: "Event slug" })
+  @ApiCreatedResponse({ description: "Batch payment initialized and holds extended." })
+  @UsePipes(new ZodValidationPipe(purchaseItemsBatchSchema))
+  async purchaseItemsBatch(
+    @Param("slug") slug: string,
+    @Body() dto: PurchaseItemsBatchDto,
+    @CurrentUser("id") userId?: string
+  ) {
+    return this.registryService.purchaseRegistryItems(slug, dto, userId);
+  }
 
   @Public()
   @Post("public/events/:slug/registry/:id/reserve")

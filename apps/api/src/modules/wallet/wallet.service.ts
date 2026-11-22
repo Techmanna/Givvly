@@ -1062,6 +1062,25 @@ export class WalletService {
                 },
               },
             });
+
+            const redemptionMeta = freshOrder.customWishData as
+              | { kind?: string; registryItemIds?: string[] }
+              | null
+              | undefined;
+            if (
+              redemptionMeta?.kind === "REGISTRY_REDEMPTION" &&
+              Array.isArray(redemptionMeta.registryItemIds) &&
+              redemptionMeta.registryItemIds.length > 0
+            ) {
+              await tx.registryItem.updateMany({
+                where: { id: { in: redemptionMeta.registryItemIds } },
+                data: {
+                  status: "REDEEMED" as any,
+                  redeemedOrderId: order.id,
+                  redeemedAt: new Date(),
+                },
+              });
+            }
           }
 
           await this.ledger.postTransaction(

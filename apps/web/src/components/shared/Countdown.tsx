@@ -43,9 +43,10 @@ function computeRemaining(targetIso: string, nowMs: number): TimeRemaining {
 }
 
 export function Countdown({ targetDate, className }: CountdownProps) {
-  const [nowMs, setNowMs] = React.useState<number>(() => Date.now());
+  const [nowMs, setNowMs] = React.useState<number | null>(null);
 
   React.useEffect(() => {
+    setNowMs(Date.now());
     const timer = window.setInterval(() => {
       setNowMs(Date.now());
     }, 1000);
@@ -54,7 +55,10 @@ export function Countdown({ targetDate, className }: CountdownProps) {
   }, []);
 
   const remaining = React.useMemo(
-    () => computeRemaining(targetDate, nowMs),
+    () =>
+      nowMs === null
+        ? { days: 0, hours: 0, minutes: 0, seconds: 0, isPast: false }
+        : computeRemaining(targetDate, nowMs),
     [targetDate, nowMs]
   );
 

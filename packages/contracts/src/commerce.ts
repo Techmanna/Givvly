@@ -320,6 +320,7 @@ export type ReserveRegistryItemResponse = {
 };
 
 export type RegistryOwnerData = {
+  eventStatus?: string;
   registry: RegistryItem[];
   pools: PoolItem[];
 };

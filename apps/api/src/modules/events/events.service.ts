@@ -966,14 +966,22 @@ export class EventsService {
               : (prodImages[0] as any)?.url
             : undefined);
 
+        const isExpiredReserve =
+          item.status === "RESERVED" &&
+          (!item.reservedUntil || item.reservedUntil < new Date());
+
         return {
           id: item.id,
           title: item.title,
           productId: item.productId,
           priceKobo: item.priceKobo,
           imageUrl,
-          status: item.status,
-          reservedUntil: item.reservedUntil ? item.reservedUntil.toISOString() : undefined,
+          status: isExpiredReserve ? "AVAILABLE" : item.status,
+          reservedUntil: isExpiredReserve
+            ? undefined
+            : item.reservedUntil
+              ? item.reservedUntil.toISOString()
+              : undefined,
         };
       }),
       pools: event.pools.map((p) => ({

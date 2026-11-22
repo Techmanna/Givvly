@@ -253,10 +253,37 @@ export function GiveReceiptView({
               : Math.max(0, totalKobo - serviceFeeKobo);
           const paymentDate =
             payment.createdAt || (payment as any).paidAt || new Date().toISOString();
+          const itemTitles = Array.isArray((payment as any).itemTitles)
+            ? ((payment as any).itemTitles as string[])
+            : (payment as any).itemTitle
+              ? [String((payment as any).itemTitle)]
+              : [];
+          const poolTitle = (payment as any).poolTitle as string | undefined;
 
           return (
             <CardContent className="space-y-6">
               <div className="space-y-2.5 rounded-card border border-border bg-muted/40 p-4 text-sm">
+                {itemTitles.length > 0 ? (
+                  <div className="space-y-1 border-b border-border pb-2.5">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {itemTitles.length === 1
+                        ? "Registry item gifted"
+                        : `Registry items gifted (${itemTitles.length})`}
+                    </span>
+                    <ul className="space-y-0.5 text-sm font-semibold text-foreground">
+                      {itemTitles.map((title, idx) => (
+                        <li key={`${title}-${idx}`}>{title}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : poolTitle ? (
+                  <div className="flex items-center justify-between border-b border-border pb-2.5">
+                    <span className="text-muted-foreground">Group gift</span>
+                    <span className="font-semibold text-foreground">
+                      {poolTitle}
+                    </span>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Gift amount</span>
                   <Money

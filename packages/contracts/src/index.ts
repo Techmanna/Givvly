@@ -76,7 +76,7 @@ export type EventSummary = {
   rsvpYesCount: number;
 };
 
-export type RegistryItemStatus = "AVAILABLE" | "RESERVED" | "CLAIMED";
+export type RegistryItemStatus = "AVAILABLE" | "RESERVED" | "CLAIMED" | "REDEEMED";
 
 export type RegistryItem = {
   id: string;
@@ -86,6 +86,12 @@ export type RegistryItem = {
   imageUrl?: string;
   status: RegistryItemStatus;
   reservedUntil?: string;
+  redeemedOrderId?: string;
+  redeemedOrderNumber?: string;
+  redeemedOrderStatus?: string;
+  redeemedTrackingToken?: string;
+  redeemedAt?: string;
+  claimedByName?: string;
 };
 
 export type PoolItem = RegistryItem & {

@@ -12,6 +12,7 @@ export type StatusKind =
   | "AVAILABLE"
   | "RESERVED"
   | "CLAIMED"
+  | "REDEEMED"
   | "PENDING"
   | "PAID"
   | "FAILED"
@@ -48,6 +49,7 @@ const STATUS_CONFIG: Record<
   AVAILABLE: { label: "Available", variant: "outline" },
   RESERVED: { label: "Reserved", variant: "warning" },
   CLAIMED: { label: "Claimed", variant: "secondary" },
+  REDEEMED: { label: "Redeemed", variant: "success" },
   PENDING: { label: "Pending", variant: "warning" },
   PAID: { label: "Paid", variant: "success" },
   FAILED: { label: "Failed", variant: "destructive" },

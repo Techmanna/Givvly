@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, RefreshCw, Search, ShoppingBag, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { Plus, RefreshCw, Search, ShoppingBag, Trash2, Truck, ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
 import { useCatalogProducts } from "@/features/catalog";
 import type { CatalogProduct } from "@/features/catalog/types";
@@ -32,11 +33,13 @@ import {
   useOwnerRegistry,
   useUpdateRegistryEntryMutation,
 } from "../hooks/useRegistry";
+import { RedeemRegistryDialog } from "./RedeemRegistryDialog";
 import { createRegistryItemSchema } from "../schemas";
 import type { CreateRegistryItemInput } from "../types";
 
 export type OwnerRegistryManagerProps = {
   eventId: string;
+  eventStatus?: string;
 };
 
 function CatalogProductPicker({
@@ -141,7 +144,10 @@ function CatalogProductPicker({
   );
 }
 
-export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
+export function OwnerRegistryManager({
+  eventId,
+  eventStatus: initialEventStatus,
+}: OwnerRegistryManagerProps) {
   const registryQuery = useOwnerRegistry(eventId);
   const createMutation = useCreateRegistryEntryMutation(eventId);
   const deleteMutation = useDeleteRegistryEntryMutation(eventId);
@@ -150,6 +156,8 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
   const [selectedProduct, setSelectedProduct] = useState<CatalogProduct | null>(
     null
   );
+  const [selectedClaimedIds, setSelectedClaimedIds] = useState<string[]>([]);
+  const [isRedeemOpen, setIsRedeemOpen] = useState(false);
 
   const form = useForm<
     {
@@ -222,7 +230,29 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
     );
   }
 
-  const { registry, pools } = registryQuery.data;
+  const { registry, pools, eventStatus: fetchedStatus } = registryQuery.data;
+  const resolvedEventStatus = (fetchedStatus ?? initialEventStatus ?? "PUBLISHED").toUpperCase();
+  const isRegistryLocked =
+    resolvedEventStatus === "ARCHIVED" || resolvedEventStatus === "CLOSED";
+  const claimedReadyItems = registry.filter(
+    (item) => item.status === "CLAIMED" && !item.redeemedOrderId
+  );
+  const redeemedItems = registry.filter(
+    (item) => item.status === "REDEEMED" || Boolean(item.redeemedOrderId)
+  );
+
+  const toggleClaimedSelection = (id: string) => {
+    setSelectedClaimedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleOpenRedeemDialog = () => {
+    if (selectedClaimedIds.length === 0) {
+      setSelectedClaimedIds(claimedReadyItems.map((i) => i.id));
+    }
+    setIsRedeemOpen(true);
+  };
 
   return (
     <div className="space-y-8">
@@ -251,6 +281,7 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
               type="button"
               size="sm"
               variant="outline"
+              disabled={isRegistryLocked}
               onClick={() => setShowCatalogPicker((prev) => !prev)}
             >
               <ShoppingBag className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
@@ -261,7 +292,18 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {showCatalogPicker ? (
+          {isRegistryLocked ? (
+            <div
+              role="status"
+              className="rounded-lg border border-amber-300/70 bg-amber-50/80 px-3.5 py-2.5 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-200"
+            >
+              This celebration is <strong>{resolvedEventStatus.toLowerCase()}</strong>.
+              Adding new registry items or group gift pools is disabled, but you
+              can still redeem and track already-claimed gifts below.
+            </div>
+          ) : null}
+
+          {showCatalogPicker && !isRegistryLocked ? (
             <CatalogProductPicker
               selectedProductId={selectedProduct?.id}
               onSelect={(product) => {
@@ -302,6 +344,7 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
                 <Input
                   id="reg-item-title"
                   maxLength={80}
+                  disabled={isRegistryLocked}
                   {...form.register("title")}
                 />
                 {form.formState.errors.title ? (
@@ -318,6 +361,7 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
                   type="number"
                   min={500}
                   max={5_000_000}
+                  disabled={isRegistryLocked}
                   {...form.register("priceNaira")}
                 />
                 {form.formState.errors.priceNaira ? (
@@ -331,6 +375,7 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
             <div className="flex items-center gap-2">
               <Checkbox
                 id="reg-is-pool"
+                disabled={isRegistryLocked}
                 checked={Boolean(watchedIsPool)}
                 onCheckedChange={(checked) =>
                   form.setValue("isPool", Boolean(checked))
@@ -342,7 +387,11 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
               </Label>
             </div>
 
-            <Button type="submit" size="sm" disabled={createMutation.isPending}>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isRegistryLocked || createMutation.isPending}
+            >
               <Plus className="h-4 w-4" aria-hidden="true" />
               <span>
                 {createMutation.isPending
@@ -355,6 +404,125 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
           </form>
         </CardContent>
       </Card>
+
+      {/* Claimed Gifts Ready for Creator Checkout & Delivery */}
+      {claimedReadyItems.length > 0 ? (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 font-heading text-lg">
+                  <Truck className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <span>
+                    Claimed Gifts Ready to Ship ({claimedReadyItems.length})
+                  </span>
+                </CardTitle>
+                <CardDescription>
+                  Guests have paid for these gifts. Select the items you want
+                  delivered, specify your location, and pay the delivery fee to
+                  ship them.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleOpenRedeemDialog}
+              >
+                <Truck className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>
+                  {selectedClaimedIds.length > 0
+                    ? `Checkout & Ship (${selectedClaimedIds.length})`
+                    : "Checkout & Ship All"}
+                </span>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {claimedReadyItems.map((item) => {
+              const checked = selectedClaimedIds.includes(item.id);
+              return (
+                <label
+                  key={item.id}
+                  className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border bg-card p-3 transition ${
+                    checked ? "border-primary ring-1 ring-primary/30" : "border-border"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleClaimedSelection(item.id)}
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {item.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Gifted by {item.claimedByName ?? "a guest"} ·{" "}
+                        <Money amountKobo={item.priceKobo} />
+                      </p>
+                    </div>
+                  </div>
+                  <StatusBadge status={item.status} />
+                </label>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Redeemed & Delivery Paid Gifts */}
+      {redeemedItems.length > 0 ? (
+        <Card className="border-success/30 bg-success/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 font-heading text-lg">
+              <Truck className="h-4 w-4 text-success" aria-hidden="true" />
+              <span>Delivery Paid &amp; Shipped ({redeemedItems.length})</span>
+            </CardTitle>
+            <CardDescription>
+              Delivery fee has been paid for these gifts. Track your order
+              progress below.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {redeemedItems.map((item) => {
+              const trackHref = item.redeemedTrackingToken
+                ? `/track/${encodeURIComponent(item.redeemedTrackingToken)}`
+                : item.redeemedOrderId
+                  ? `/orders/${encodeURIComponent(item.redeemedOrderId)}`
+                  : null;
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {item.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.redeemedOrderNumber
+                        ? `Order ${item.redeemedOrderNumber}`
+                        : "Order confirmed"}
+                      {item.claimedByName ? ` · Gifted by ${item.claimedByName}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <StatusBadge status="REDEEMED" />
+                    {trackHref ? (
+                      <Button asChild size="sm" variant="outline" className="h-7 px-2.5 text-xs">
+                        <Link href={trackHref}>
+                          <span>Track</span>
+                          <ExternalLink className="ml-1 h-3 w-3" aria-hidden="true" />
+                        </Link>
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Group Gift Pools */}
       <section className="space-y-3">
@@ -471,39 +639,74 @@ export function OwnerRegistryManager({ eventId }: OwnerRegistryManagerProps) {
           />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {registry.map((item) => (
-              <Card key={item.id}>
-                <CardContent className="flex items-center justify-between gap-3 p-4">
-                  <div>
-                    <p className="font-medium text-foreground">{item.title}</p>
-                    <p className="text-xs font-semibold text-primary">
-                      <Money amountKobo={item.priceKobo} />
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={item.status} />
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
-                      aria-label={`Remove ${item.title}`}
-                      onClick={() =>
-                        deleteMutation.mutate(item.id, {
-                          onSuccess: () =>
-                            toast.success("Registry item removed."),
-                        })
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {registry.map((item) => {
+              const isPaidOrRedeemed =
+                item.status === "CLAIMED" ||
+                item.status === "REDEEMED" ||
+                Boolean(item.redeemedOrderId);
+              const trackHref = item.redeemedTrackingToken
+                ? `/track/${encodeURIComponent(item.redeemedTrackingToken)}`
+                : item.redeemedOrderId
+                  ? `/orders/${encodeURIComponent(item.redeemedOrderId)}`
+                  : null;
+
+              return (
+                <Card key={item.id}>
+                  <CardContent className="flex items-center justify-between gap-3 p-4">
+                    <div>
+                      <p className="font-medium text-foreground">{item.title}</p>
+                      <p className="text-xs font-semibold text-primary">
+                        <Money amountKobo={item.priceKobo} />
+                      </p>
+                      {item.claimedByName ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Gifted by {item.claimedByName}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={item.status} />
+                      {trackHref ? (
+                        <Button asChild size="sm" variant="outline" className="h-7 px-2 text-xs">
+                          <Link href={trackHref}>Track order</Link>
+                        </Button>
+                      ) : null}
+                      {!isPaidOrRedeemed ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          aria-label={`Remove ${item.title}`}
+                          onClick={() =>
+                            deleteMutation.mutate(item.id, {
+                              onSuccess: () =>
+                                toast.success("Registry item removed."),
+                            })
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>
+
+      <RedeemRegistryDialog
+        eventId={eventId}
+        open={isRedeemOpen}
+        onOpenChange={setIsRedeemOpen}
+        selectedItemIds={selectedClaimedIds}
+        onRedeemed={() => {
+          setSelectedClaimedIds([]);
+          registryQuery.refetch();
+        }}
+      />
     </div>
   );
 }

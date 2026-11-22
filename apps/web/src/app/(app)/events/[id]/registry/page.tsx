@@ -14,6 +14,6 @@ export default async function EventRegistryPage({
     notFound();
   }
 
-  return <OwnerRegistryManager eventId={event.id} />;
+  return <OwnerRegistryManager eventId={event.id} eventStatus={event.status} />;
 }
 

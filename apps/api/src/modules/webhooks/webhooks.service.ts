@@ -481,7 +481,12 @@ export class WebhooksService {
             }
           }
         } else {
-          // Standard Money or Item Gift ledger capture
+          // Standard Money or Registry Item(s) Gift ledger capture
+          const isRegistryProductGift = gift.type === GiftType.PRODUCT;
+          const creditAccountCode = isRegistryProductGift
+            ? `REGISTRY_ESCROW:${targetEvent?.id ?? ownerId}:${currency}`
+            : `OWNER_PAYABLE:${ownerId}:${currency}`;
+
           await this.ledger.postTransaction(
             {
               reference: `payment:${payment.id}:capture`,
@@ -495,8 +500,8 @@ export class WebhooksService {
                   amountKobo: payment.amountKobo,
                 },
                 {
-                  accountCode: `OWNER_PAYABLE:${ownerId}:${currency}`,
-                  ownerId,
+                  accountCode: creditAccountCode,
+                  ...(isRegistryProductGift ? {} : { ownerId }),
                   direction: Direction.CREDIT,
                   amountKobo: gift.amountKobo,
                 },
@@ -510,10 +515,20 @@ export class WebhooksService {
             tx
           );
 
-          if (gift.type === GiftType.PRODUCT && gift.registryItemId) {
-            // Mark Registry Item CLAIMED
-            const registryItem = await tx.registryItem.update({
-              where: { id: gift.registryItemId },
+          const metaItemIds = Array.isArray((payment.metadata as any)?.registryItemIds)
+            ? ((payment.metadata as any).registryItemIds as string[])
+            : [];
+          const targetRegistryItemIds =
+            metaItemIds.length > 0
+              ? metaItemIds
+              : gift.registryItemId
+                ? [gift.registryItemId]
+                : [];
+
+          if (gift.type === GiftType.PRODUCT && targetRegistryItemIds.length > 0) {
+            // Mark all purchased Registry Items as CLAIMED (held in escrow for creator checkout & delivery)
+            await tx.registryItem.updateMany({
+              where: { id: { in: targetRegistryItemIds } },
               data: {
                 status: ItemStatus.CLAIMED,
                 claimedGiftId: gift.id,
@@ -522,58 +537,8 @@ export class WebhooksService {
               },
             });
 
-            // Generate unique Order number & tracking token
-            const orderYear = new Date().getFullYear();
-            const orderHex = crypto.randomBytes(3).toString("hex").toUpperCase();
-            const orderNumber = `GV-${orderYear}-${orderHex}`;
-            const trackingToken = `trk_${crypto.randomBytes(12).toString("hex")}`;
-
-            // Create Confirmed Order for fulfillment
-            const order = await tx.order.create({
-              data: {
-                number: orderNumber,
-                buyerUserId: gift.giverUserId,
-                buyerEmail: payment.payerEmail,
-                eventId: targetEvent?.id,
-                recipientName: targetEvent?.owner.name ?? "Celebration Host",
-                recipientPhone: targetEvent?.owner.phone,
-                recipientEmail: targetEvent?.owner.email,
-                giftNote: gift.message,
-                status: OrderStatus.CONFIRMED,
-                subtotalKobo: gift.amountKobo,
-                totalKobo: payment.amountKobo,
-                feeKobo: payment.feeKobo,
-                paymentId: payment.id,
-                trackingToken,
-                items: {
-                  create: [
-                    {
-                      productId: registryItem.productId ?? registryItem.id,
-                      title: registryItem.title,
-                      unitPriceKobo: gift.amountKobo,
-                      qty: 1,
-                    },
-                  ],
-                },
-                history: {
-                  create: [
-                    {
-                      status: OrderStatus.CONFIRMED,
-                      note: `Registry gift purchase captured (${payment.reference})`,
-                    },
-                  ],
-                },
-              },
-            });
-
-            // Link gift to order
-            await tx.gift.update({
-              where: { id: gift.id },
-              data: { orderId: order.id },
-            });
-
             this.logger.log(
-              `Registry gift order created: order=${order.number}, item='${registryItem.title}'`
+              `Registry gift claimed (${targetRegistryItemIds.length} item(s)) for gift=${gift.id}; awaiting creator delivery checkout`
             );
           } else if (gift.type === GiftType.MONEY && owner) {
             // For money gifts, queue host payout
@@ -603,15 +568,32 @@ export class WebhooksService {
           }
         }
 
-        // 4. Create Wall of Love post if gift has message
-        const showOnWall = (payment.metadata as any)?.showOnWall ?? true;
-        if (showOnWall && gift.message && gift.message.trim().length > 0 && targetEvent) {
+        // 4. Record every giver action on the Event Wall (respecting anonymous/public choice; creator can hide later)
+        if (targetEvent) {
+          const meta = (payment.metadata as any) || {};
+          const itemTitle = meta.itemTitle as string | undefined;
+          const poolTitle = meta.poolTitle as string | undefined;
+          const defaultActivityText =
+            gift.type === GiftType.PRODUCT
+              ? itemTitle
+                ? `Gifted ${itemTitle} from the registry`
+                : "Gifted an item from the registry"
+              : gift.type === GiftType.POOL
+                ? poolTitle
+                  ? `Contributed to ${poolTitle}`
+                  : "Contributed to a group gift"
+                : "Sent a cash gift to celebrate!";
+
+          const wallText = gift.message?.trim()
+            ? gift.message.trim()
+            : defaultActivityText;
+
           await tx.wallPost.create({
             data: {
               eventId: targetEvent.id,
               authorName: gift.anonymous ? "Anonymous" : gift.giverName ?? "A Friend",
               authorEmail: gift.giverEmail,
-              text: gift.message,
+              text: wallText,
               giftId: gift.id,
               status: PostStatus.VISIBLE,
             },
@@ -659,6 +641,25 @@ export class WebhooksService {
             },
           },
         });
+
+        const redemptionMeta = order.customWishData as
+          | { kind?: string; registryItemIds?: string[] }
+          | null
+          | undefined;
+        if (
+          redemptionMeta?.kind === "REGISTRY_REDEMPTION" &&
+          Array.isArray(redemptionMeta.registryItemIds) &&
+          redemptionMeta.registryItemIds.length > 0
+        ) {
+          await tx.registryItem.updateMany({
+            where: { id: { in: redemptionMeta.registryItemIds } },
+            data: {
+              status: ItemStatus.REDEEMED,
+              redeemedOrderId: order.id,
+              redeemedAt: new Date(),
+            },
+          });
+        }
 
         // Batch fetch and concurrently decrement stock for tracked products
         const itemProductIds = Array.from(

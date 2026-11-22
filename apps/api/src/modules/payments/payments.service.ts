@@ -4,14 +4,23 @@ import {
   Injectable,
   NotFoundException,
   Logger,
+  Optional,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "@/infra/prisma/prisma.service";
 import { PaymentGatewayRegistry } from "@/infra/payments/payment-gateway.registry";
+import { NotificationsService } from "@/modules/notifications/notifications.service";
 import { getCurrencyConfig } from "@/common/currency/currency.types";
 import { calculateGiftFee, FeeConfig } from "@/common/utils/fees";
 import { CreateMoneyGiftDto } from "./dto/create-money-gift.dto";
-import { EventStatus, GiftStatus, GiftType, PaymentStatus } from "@prisma/client";
+import {
+  EventStatus,
+  GiftStatus,
+  GiftType,
+  ItemStatus,
+  PaymentStatus,
+  PostStatus,
+} from "@prisma/client";
 import * as crypto from "node:crypto";
 
 @Injectable()
@@ -22,7 +31,8 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly gatewayRegistry: PaymentGatewayRegistry,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
+    @Optional() private readonly notifications?: NotificationsService
   ) {
     this.feeConfig = {
       feeMode: this.config.get("FEE_MODE", "GUEST_PAYS"),
@@ -216,6 +226,13 @@ export class PaymentsService {
                 id: true,
                 slug: true,
                 name: true,
+                owner: {
+                  select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                  },
+                },
               },
             },
           },
@@ -246,10 +263,70 @@ export class PaymentsService {
                 },
               });
               if (payment!.gift) {
+                const gift = payment!.gift;
                 await tx.gift.update({
-                  where: { id: payment!.gift.id },
+                  where: { id: gift.id },
                   data: { status: GiftStatus.PAID },
                 });
+
+                const meta = (payment!.metadata as any) || {};
+                const metaItemIds = Array.isArray(meta.registryItemIds)
+                  ? (meta.registryItemIds as string[])
+                  : [];
+                const targetRegistryItemIds =
+                  metaItemIds.length > 0
+                    ? metaItemIds
+                    : gift.registryItemId
+                      ? [gift.registryItemId]
+                      : [];
+
+                if (gift.type === GiftType.PRODUCT && targetRegistryItemIds.length > 0) {
+                  await tx.registryItem.updateMany({
+                    where: {
+                      id: { in: targetRegistryItemIds },
+                      status: { in: [ItemStatus.AVAILABLE, ItemStatus.RESERVED] },
+                    },
+                    data: {
+                      status: ItemStatus.CLAIMED,
+                      claimedGiftId: gift.id,
+                      reservationToken: null,
+                      reservedUntil: null,
+                    },
+                  });
+                }
+
+                if (gift.event?.id) {
+                  const existingPost = await tx.wallPost.findUnique({
+                    where: { giftId: gift.id },
+                    select: { id: true },
+                  });
+                  if (!existingPost) {
+                    const itemTitle = meta.itemTitle as string | undefined;
+                    const poolTitle = meta.poolTitle as string | undefined;
+                    const defaultActivityText =
+                      gift.type === GiftType.PRODUCT
+                        ? itemTitle
+                          ? `Gifted ${itemTitle} from the registry`
+                          : "Gifted an item from the registry"
+                        : gift.type === GiftType.POOL
+                          ? poolTitle
+                            ? `Contributed to ${poolTitle}`
+                            : "Contributed to a group gift"
+                          : "Sent a cash gift to celebrate!";
+                    await tx.wallPost.create({
+                      data: {
+                        eventId: gift.event.id,
+                        authorName: gift.anonymous
+                          ? "Anonymous"
+                          : gift.giverName ?? "A Friend",
+                        authorEmail: gift.giverEmail,
+                        text: gift.message?.trim() || defaultActivityText,
+                        giftId: gift.id,
+                        status: PostStatus.VISIBLE,
+                      },
+                    });
+                  }
+                }
               }
             });
             const refreshed = await this.prisma.payment.findUnique({
@@ -262,6 +339,13 @@ export class PaymentsService {
                         id: true,
                         slug: true,
                         name: true,
+                        owner: {
+                          select: {
+                            id: true,
+                            email: true,
+                            name: true,
+                          },
+                        },
                       },
                     },
                   },
@@ -270,6 +354,53 @@ export class PaymentsService {
             });
             if (refreshed) {
               payment = refreshed;
+            }
+
+            if (this.notifications && payment.gift) {
+              const settledGift = payment.gift;
+              const giverDisplayName = settledGift.anonymous
+                ? "A Friend"
+                : settledGift.giverName || "A Friend";
+              const eventName = settledGift.event?.name || "Celebration";
+              const eventSlug = settledGift.event?.slug;
+              const eventId = settledGift.event?.id;
+              const owner = settledGift.event?.owner;
+              const currencyCode = payment.currency || "NGN";
+
+              void Promise.allSettled([
+                ...(payment.payerEmail
+                  ? [
+                      this.notifications.sendGiftReceiptEmail(
+                        payment.payerEmail,
+                        giverDisplayName,
+                        eventName,
+                        settledGift.amountKobo,
+                        currencyCode,
+                        payment.reference
+                      ),
+                    ]
+                  : []),
+                ...(owner?.email
+                  ? [
+                      this.notifications.sendHostGiftReceivedEmail(
+                        owner.email,
+                        owner.id,
+                        owner.name || "Host",
+                        giverDisplayName,
+                        settledGift.amountKobo,
+                        currencyCode,
+                        settledGift.message || undefined,
+                        eventName,
+                        eventSlug,
+                        eventId
+                      ),
+                    ]
+                  : []),
+              ]).catch((err) => {
+                this.logger.warn(
+                  `Failed to dispatch gift notification emails for ${payment?.reference}: ${err?.message ?? err}`
+                );
+              });
             }
           }
         } else if (verifyRes.status === "failed") {
@@ -281,6 +412,35 @@ export class PaymentsService {
         }
       } catch (err) {
         // Verification call error or not yet paid, retain current status
+      }
+    }
+
+    // Idempotent repair: if payment already succeeded via on-demand verify before webhook, ensure registry items & wall post are settled
+    if (payment.status === PaymentStatus.SUCCESS && payment.gift) {
+      const meta = (payment.metadata as any) || {};
+      const metaItemIds = Array.isArray(meta.registryItemIds)
+        ? (meta.registryItemIds as string[])
+        : [];
+      const targetRegistryItemIds =
+        metaItemIds.length > 0
+          ? metaItemIds
+          : payment.gift.registryItemId
+            ? [payment.gift.registryItemId]
+            : [];
+
+      if (payment.gift.type === GiftType.PRODUCT && targetRegistryItemIds.length > 0) {
+        await this.prisma.registryItem.updateMany({
+          where: {
+            id: { in: targetRegistryItemIds },
+            status: { in: [ItemStatus.AVAILABLE, ItemStatus.RESERVED] },
+          },
+          data: {
+            status: ItemStatus.CLAIMED,
+            claimedGiftId: payment.gift.id,
+            reservationToken: null,
+            reservedUntil: null,
+          },
+        });
       }
     }
 
@@ -301,6 +461,13 @@ export class PaymentsService {
       ? null
       : payment.gift?.giverName ?? (payment.metadata as any)?.giverName ?? null;
 
+    const meta = (payment.metadata as any) || {};
+    const itemTitles: string[] | undefined = Array.isArray(meta.itemTitles)
+      ? meta.itemTitles
+      : meta.itemTitle
+        ? [String(meta.itemTitle)]
+        : undefined;
+
     return {
       reference: payment.reference,
       accessCode: payment.accessCode ?? "",
@@ -318,7 +485,11 @@ export class PaymentsService {
       eventName: payment.gift?.event?.name,
       giverName,
       anonymous: isAnonymous,
-      message: payment.gift?.message ?? (payment.metadata as any)?.message ?? null,
+      message: payment.gift?.message ?? meta.message ?? null,
+      giftType: payment.gift?.type ?? null,
+      itemTitle: (meta.itemTitle as string | undefined) ?? itemTitles?.[0] ?? null,
+      itemTitles: itemTitles ?? null,
+      poolTitle: (meta.poolTitle as string | undefined) ?? null,
       gift: payment.gift
         ? {
             id: payment.gift.id,

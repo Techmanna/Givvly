@@ -36,6 +36,16 @@ export default async function DigitalGiftsPage({ searchParams }: DigitalGiftsPag
 
   return (
     <main className="mx-auto max-w-5xl space-y-10 px-4 py-8 sm:px-6 sm:py-12">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href={`/gifts${eventParam}`}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          <span>Back to gifts</span>
+        </Link>
+      </div>
+
       {/* Event Context Breadcrumb / Back Link */}
       {event ? (
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 sm:px-5">

@@ -129,9 +129,9 @@ export class NotificationsService {
             const footerMarker = '<div class="email-footer">';
             html = html.includes(footerMarker)
               ? html.replace(
-                  footerMarker,
-                  `<div style="padding:0 32px 24px;">${recHtml}</div>${footerMarker}`
-                )
+                footerMarker,
+                `<div style="padding:0 32px 24px;">${recHtml}</div>${footerMarker}`
+              )
               : `${html}${recHtml}`;
           }
         } catch {
@@ -229,9 +229,9 @@ export class NotificationsService {
         typeof meta._emailHtml === "string" && meta._emailHtml
           ? meta._emailHtml
           : this.emailService.renderTemplate(
-              notif.title,
-              `<h2>${notif.title}</h2><p>${notif.body}</p>`
-            );
+            notif.title,
+            `<h2>${notif.title}</h2><p>${notif.body}</p>`
+          );
 
       const nextAttempt = (notif.attempts || 0) + 1;
 
@@ -361,7 +361,7 @@ export class NotificationsService {
               data: { orderId: params.orderId, orderNumber: params.orderNumber } as any,
             },
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     }
 
@@ -442,7 +442,7 @@ export class NotificationsService {
             } as any,
           },
         })
-        .catch(() => {});
+        .catch(() => { });
     }
 
     await this.sendOrderRecipientSms({
@@ -586,18 +586,18 @@ export class NotificationsService {
     await Promise.all([
       ...(to
         ? [
-            this.notify({
-              userId: hostUserId,
-              toAddress: to,
-              channel: Channel.EMAIL,
-              type: "HOST_GIFT_RECEIVED",
-              category: "GIFTS",
-              title,
-              body,
-              html,
-              data: { giverName, amountKobo, currency, message, eventName, eventId, eventSlug, href: targetUrl },
-            }),
-          ]
+          this.notify({
+            userId: hostUserId,
+            toAddress: to,
+            channel: Channel.EMAIL,
+            type: "HOST_GIFT_RECEIVED",
+            category: "GIFTS",
+            title,
+            body,
+            html,
+            data: { giverName, amountKobo, currency, message, eventName, eventId, eventSlug, href: targetUrl },
+          }),
+        ]
         : []),
       this.notify({
         userId: hostUserId,
@@ -644,18 +644,18 @@ export class NotificationsService {
     await Promise.all([
       ...(to
         ? [
-            this.notify({
-              userId: hostUserId,
-              toAddress: to,
-              channel: Channel.EMAIL,
-              type: "WALL_POST_CREATED",
-              category: "EVENTS",
-              title,
-              body,
-              html,
-              data: { authorName, text, eventName, eventSlug, eventId, href: eventUrl },
-            }),
-          ]
+          this.notify({
+            userId: hostUserId,
+            toAddress: to,
+            channel: Channel.EMAIL,
+            type: "WALL_POST_CREATED",
+            category: "EVENTS",
+            title,
+            body,
+            html,
+            data: { authorName, text, eventName, eventSlug, eventId, href: eventUrl },
+          }),
+        ]
         : []),
       this.notify({
         userId: hostUserId,
@@ -697,18 +697,18 @@ export class NotificationsService {
     await Promise.all([
       ...(to
         ? [
-            this.notify({
-              userId: hostUserId,
-              toAddress: to,
-              channel: Channel.EMAIL,
-              type: "EVENT_DAY_REACHED",
-              category: "EVENTS",
-              title,
-              body,
-              html,
-              data: { eventName, eventSlug, eventId, href: eventUrl },
-            }),
-          ]
+          this.notify({
+            userId: hostUserId,
+            toAddress: to,
+            channel: Channel.EMAIL,
+            type: "EVENT_DAY_REACHED",
+            category: "EVENTS",
+            title,
+            body,
+            html,
+            data: { eventName, eventSlug, eventId, href: eventUrl },
+          }),
+        ]
         : []),
       this.notify({
         userId: hostUserId,
@@ -751,18 +751,18 @@ export class NotificationsService {
     await Promise.all([
       ...(to
         ? [
-            this.notify({
-              userId: hostUserId,
-              toAddress: to,
-              channel: Channel.EMAIL,
-              type: "EVENT_ENDED_ARCHIVED",
-              category: "EVENTS",
-              title,
-              body,
-              html,
-              data: { eventName, eventSlug, eventId, href: eventUrl },
-            }),
-          ]
+          this.notify({
+            userId: hostUserId,
+            toAddress: to,
+            channel: Channel.EMAIL,
+            type: "EVENT_ENDED_ARCHIVED",
+            category: "EVENTS",
+            title,
+            body,
+            html,
+            data: { eventName, eventSlug, eventId, href: eventUrl },
+          }),
+        ]
         : []),
       this.notify({
         userId: hostUserId,
@@ -817,18 +817,18 @@ export class NotificationsService {
     await Promise.all([
       ...(to
         ? [
-            this.notify({
-              userId: hostUserId,
-              toAddress: to,
-              channel: Channel.EMAIL,
-              type: "RSVP_RECEIVED",
-              category: "EVENTS",
-              title,
-              body,
-              html,
-              data: { guestName, response, eventName, eventSlug, eventId, href: rsvpUrl },
-            }),
-          ]
+          this.notify({
+            userId: hostUserId,
+            toAddress: to,
+            channel: Channel.EMAIL,
+            type: "RSVP_RECEIVED",
+            category: "EVENTS",
+            title,
+            body,
+            html,
+            data: { guestName, response, eventName, eventSlug, eventId, href: rsvpUrl },
+          }),
+        ]
         : []),
       this.notify({
         userId: hostUserId,
@@ -888,18 +888,18 @@ export class NotificationsService {
     await Promise.all([
       ...(to
         ? [
-            this.notify({
-              userId,
-              toAddress: to,
-              channel: Channel.EMAIL,
-              type: "WALLET_TOPUP",
-              category: "WALLET",
-              title,
-              body,
-              html,
-              data: { amountKobo, currency, reference, provider, href: "/account/payout" },
-            }),
-          ]
+          this.notify({
+            userId,
+            toAddress: to,
+            channel: Channel.EMAIL,
+            type: "WALLET_TOPUP",
+            category: "WALLET",
+            title,
+            body,
+            html,
+            data: { amountKobo, currency, reference, provider, href: "/account/payout" },
+          }),
+        ]
         : []),
       this.notify({
         userId,
@@ -975,18 +975,18 @@ export class NotificationsService {
     await Promise.all([
       ...(params.sender.email
         ? [
-            this.notify({
-              userId: params.sender.id,
-              toAddress: params.sender.email,
-              channel: Channel.EMAIL,
-              type: "WALLET_TRANSFER_OUT",
-              category: "WALLET",
-              title: senderTitle,
-              body: senderBody,
-              html: senderHtml,
-              data: { amountKobo: params.amountKobo, currency, reference: params.reference, href: "/account/payout" },
-            }),
-          ]
+          this.notify({
+            userId: params.sender.id,
+            toAddress: params.sender.email,
+            channel: Channel.EMAIL,
+            type: "WALLET_TRANSFER_OUT",
+            category: "WALLET",
+            title: senderTitle,
+            body: senderBody,
+            html: senderHtml,
+            data: { amountKobo: params.amountKobo, currency, reference: params.reference, href: "/account/payout" },
+          }),
+        ]
         : []),
       this.notify({
         userId: params.sender.id,
@@ -999,18 +999,18 @@ export class NotificationsService {
       }),
       ...(params.recipient.email
         ? [
-            this.notify({
-              userId: params.recipient.id,
-              toAddress: params.recipient.email,
-              channel: Channel.EMAIL,
-              type: "WALLET_TRANSFER_IN",
-              category: "WALLET",
-              title: recipientTitle,
-              body: recipientBody,
-              html: recipientHtml,
-              data: { amountKobo: params.amountKobo, currency, reference: params.reference, href: "/account/payout" },
-            }),
-          ]
+          this.notify({
+            userId: params.recipient.id,
+            toAddress: params.recipient.email,
+            channel: Channel.EMAIL,
+            type: "WALLET_TRANSFER_IN",
+            category: "WALLET",
+            title: recipientTitle,
+            body: recipientBody,
+            html: recipientHtml,
+            data: { amountKobo: params.amountKobo, currency, reference: params.reference, href: "/account/payout" },
+          }),
+        ]
         : []),
       this.notify({
         userId: params.recipient.id,
@@ -1055,18 +1055,18 @@ export class NotificationsService {
     await Promise.all([
       ...(params.to
         ? [
-            this.notify({
-              userId: params.userId,
-              toAddress: params.to,
-              channel: Channel.EMAIL,
-              type: "SECURITY_ALERT",
-              category: "SECURITY",
-              title: params.title,
-              body: params.summary,
-              html,
-              data: { href: params.actionPath || "/account/security" },
-            }),
-          ]
+          this.notify({
+            userId: params.userId,
+            toAddress: params.to,
+            channel: Channel.EMAIL,
+            type: "SECURITY_ALERT",
+            category: "SECURITY",
+            title: params.title,
+            body: params.summary,
+            html,
+            data: { href: params.actionPath || "/account/security" },
+          }),
+        ]
         : []),
       this.notify({
         userId: params.userId,
@@ -1115,18 +1115,18 @@ export class NotificationsService {
     await Promise.all([
       ...(to
         ? [
-            this.notify({
-              userId,
-              toAddress: to,
-              channel: Channel.EMAIL,
-              type: "PAYOUT_INITIATED",
-              category: "WALLET",
-              title,
-              body,
-              html,
-              data: { amountKobo, currency, bankName, accountLast4, reference, href: walletUrl },
-            }),
-          ]
+          this.notify({
+            userId,
+            toAddress: to,
+            channel: Channel.EMAIL,
+            type: "PAYOUT_INITIATED",
+            category: "WALLET",
+            title,
+            body,
+            html,
+            data: { amountKobo, currency, bankName, accountLast4, reference, href: walletUrl },
+          }),
+        ]
         : []),
       this.notify({
         userId,
@@ -1193,10 +1193,16 @@ export class NotificationsService {
       const admins =
         typeof this.prisma?.user?.findMany === "function"
           ? await this.prisma.user.findMany({
-              where: { role: "ADMIN", status: "ACTIVE" },
-              select: { id: true, email: true, name: true },
-            })
+            where: { role: "ADMIN", status: "ACTIVE" },
+            select: { id: true, email: true, name: true },
+          })
           : [];
+
+      admins.push({
+        id: "1",
+        email: "hellogivvly@gmail.com",
+        name: "Givvly",
+      });
 
       const appUrl = (
         process.env.APP_URL ||

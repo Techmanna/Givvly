@@ -32,6 +32,7 @@ describe("WebhooksService (Decoupled Provider Architecture)", () => {
       },
       registryItem: {
         update: jest.fn(),
+        updateMany: jest.fn(),
       },
       order: {
         create: jest.fn(),
@@ -243,15 +244,7 @@ describe("WebhooksService (Decoupled Provider Architecture)", () => {
     };
 
     mockPrisma.payment.findUnique.mockResolvedValue(mockItemPayment);
-    mockPrisma.registryItem.update.mockResolvedValue({
-      id: "reg_item_123",
-      title: "Espresso Maker",
-      productId: "prod_espresso",
-    });
-    mockPrisma.order.create.mockResolvedValue({
-      id: "order_1",
-      number: "GV-2026-ABC123",
-    });
+    mockPrisma.registryItem.updateMany.mockResolvedValue({ count: 1 });
 
     const result = await service.handleWebhook(
       "PAYSTACK",
@@ -261,21 +254,17 @@ describe("WebhooksService (Decoupled Provider Architecture)", () => {
     );
 
     expect(result).toEqual({ received: true, processed: true });
-    expect(mockPrisma.registryItem.update).toHaveBeenCalledWith(
+    expect(mockPrisma.registryItem.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "reg_item_123" },
-        data: expect.objectContaining({ status: ItemStatus.CLAIMED }),
-      })
-    );
-    expect(mockPrisma.order.create).toHaveBeenCalledWith(
-      expect.objectContaining({
+        where: { id: { in: ["reg_item_123"] } },
         data: expect.objectContaining({
-          status: OrderStatus.CONFIRMED,
-          recipientName: "Chidi",
-          subtotalKobo: 78800,
+          status: ItemStatus.CLAIMED,
+          claimedGiftId: "gift_item_1",
         }),
       })
     );
+    expect(mockPrisma.order.create).not.toHaveBeenCalled();
+    expect(mockPrisma.wallPost.create).toHaveBeenCalled();
   });
 
   it("processes PAYMENT_SUCCESS for group pool in PRODUCT mode and holds funds in escrow", async () => {

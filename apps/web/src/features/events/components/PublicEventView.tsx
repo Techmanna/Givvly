@@ -167,7 +167,7 @@ export function PublicEventView({ event }: PublicEventViewProps) {
                 </Link>
               </Button>
               <Button asChild size="sm" variant="outline" className="text-xs rounded-full">
-                <Link href={`/events/${event.id}/rsvps`}>
+                <Link href={`/events/${event.id}/guests`}>
                   <Users className="mr-1.5 h-3.5 w-3.5" />
                   Guestlist ({event.rsvpYesCount})
                 </Link>
@@ -593,7 +593,7 @@ export function PublicEventView({ event }: PublicEventViewProps) {
                 </div>
 
                 <Button asChild size="sm" className="w-full rounded-full text-xs">
-                  <Link href={`/events/${event.id}/rsvps`}>
+                  <Link href={`/events/${event.id}/guests`}>
                     <Users className="mr-1.5 h-3.5 w-3.5" />
                     <span>Manage Guestlist &amp; View All RSVPs</span>
                   </Link>

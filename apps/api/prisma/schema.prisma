@@ -88,6 +88,7 @@ enum ItemStatus {
   AVAILABLE
   RESERVED
   CLAIMED
+  REDEEMED
 }
 
 enum PoolMode {
@@ -331,14 +332,20 @@ model RegistryItem {
   status           ItemStatus  @default(AVAILABLE)
   reservedUntil    DateTime?
   reservationToken String?
-  claimedGiftId    String?     @unique
+  claimedGiftId    String?
+  redeemedOrderId  String?
+  redeemedAt       DateTime?
   position         Int         @default(0)
   createdAt        DateTime    @default(now())
   event            Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   product          Product?    @relation(fields: [productId], references: [id])
+  claimedGift      Gift?       @relation("RegistryItemClaimedGift", fields: [claimedGiftId], references: [id])
+  redeemedOrder    Order?      @relation("RegistryItemRedeemedOrder", fields: [redeemedOrderId], references: [id])
 
   @@index([eventId, status])
   @@index([status, reservedUntil])
+  @@index([claimedGiftId])
+  @@index([redeemedOrderId])
 }
 
 model Pool {
@@ -381,10 +388,11 @@ model Gift {
   paymentId      String?     @unique
   thankedAt      DateTime?
   createdAt      DateTime    @default(now())
-  event          Event?      @relation(fields: [eventId], references: [id])
-  pool           Pool?       @relation(fields: [poolId], references: [id])
-  payment        Payment?    @relation(fields: [paymentId], references: [id])
+  event          Event?         @relation(fields: [eventId], references: [id])
+  pool           Pool?          @relation(fields: [poolId], references: [id])
+  payment        Payment?       @relation(fields: [paymentId], references: [id])
   payout         Payout?
+  claimedItems   RegistryItem[] @relation("RegistryItemClaimedGift")
 
   @@index([eventId, createdAt(sort: Desc)])
   @@index([eventId, status])
@@ -573,10 +581,11 @@ model Order {
   event           Event?               @relation(fields: [eventId], references: [id])
   vendor          Vendor?              @relation(fields: [vendorId], references: [id])
   payment         Payment?             @relation(fields: [paymentId], references: [id])
-  items           OrderItem[]
-  history         OrderStatusHistory[]
-  review          Review?
-  disputes        Dispute[]
+  items                 OrderItem[]
+  history               OrderStatusHistory[]
+  review                Review?
+  disputes              Dispute[]
+  redeemedRegistryItems RegistryItem[]       @relation("RegistryItemRedeemedOrder")
 
   @@index([buyerUserId, createdAt])
   @@index([buyerEmail, createdAt(sort: Desc)])

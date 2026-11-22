@@ -677,6 +677,25 @@ export class OrdersService {
           include: { items: true, history: true },
         });
 
+        const redemptionMeta = order.customWishData as
+          | { kind?: string; registryItemIds?: string[] }
+          | null
+          | undefined;
+        if (
+          redemptionMeta?.kind === "REGISTRY_REDEMPTION" &&
+          Array.isArray(redemptionMeta.registryItemIds) &&
+          redemptionMeta.registryItemIds.length > 0
+        ) {
+          await tx.registryItem.updateMany({
+            where: { id: { in: redemptionMeta.registryItemIds } },
+            data: {
+              status: "REDEEMED" as any,
+              redeemedOrderId: order.id,
+              redeemedAt: new Date(),
+            },
+          });
+        }
+
         // Batch fetch and concurrently decrement stock for tracked products
         const itemProductIds = Array.from(
           new Set(order.items.map((item) => item.productId))

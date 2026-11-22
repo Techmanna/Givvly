@@ -119,6 +119,9 @@ export class ReservationResponseDto {
   @ApiProperty({ example: "Delonghi Espresso Machine" })
   title: string;
 
+  @ApiProperty({ example: 15000000 })
+  priceKobo: number;
+
   @ApiProperty({ example: "res_74a7aec1c74a5e6915221531" })
   reservationToken: string;
 
@@ -138,3 +141,65 @@ export class ReleasedReservationsResponseDto {
   @ApiProperty({ example: 3, description: "Number of expired reservations released" })
   releasedCount: number;
 }
+
+export const reserveItemsBatchSchema = z.object({
+  itemIds: z
+    .array(z.string().uuid("Invalid registry item ID"))
+    .min(1, "Select at least one registry item")
+    .max(50, "Maximum 50 items per checkout"),
+});
+
+export type ReserveItemsBatchDto = z.infer<typeof reserveItemsBatchSchema>;
+
+export const purchaseItemsBatchSchema = z
+  .object({
+    itemIds: z
+      .array(z.string().uuid("Invalid registry item ID"))
+      .min(1, "Select at least one registry item")
+      .max(50, "Maximum 50 items per checkout"),
+    reservationToken: z.string().min(10, "Valid reservation token is required"),
+    giverName: z.string().trim().max(60).optional().or(z.literal("")),
+    name: z.string().trim().max(60).optional().or(z.literal("")),
+    giverEmail: z.string().trim().email("Please provide a valid email address").optional(),
+    email: z.string().trim().email("Please provide a valid email address").optional(),
+    message: z.string().trim().max(500, "Message cannot exceed 500 characters").optional(),
+    isAnonymous: z.boolean().optional(),
+    anonymous: z.boolean().optional(),
+    showOnWall: z.boolean().default(true),
+    callbackUrl: z.string().url().optional(),
+  })
+  .transform((data) => {
+    const isAnon = data.isAnonymous ?? data.anonymous ?? false;
+    const resolvedName = (data.giverName ?? data.name)?.trim() || undefined;
+    const resolvedEmail = (data.giverEmail ?? data.email)?.trim();
+    return {
+      ...data,
+      giverName: isAnon ? undefined : resolvedName,
+      giverEmail: resolvedEmail!,
+      isAnonymous: isAnon,
+    };
+  })
+  .refine((data) => Boolean(data.giverEmail), {
+    path: ["giverEmail"],
+    message: "giverEmail must be an email",
+  });
+
+export type PurchaseItemsBatchDto = z.infer<typeof purchaseItemsBatchSchema>;
+
+export const redeemRegistryItemsSchema = z.object({
+  itemIds: z
+    .array(z.string().uuid("Invalid registry item ID"))
+    .min(1, "Select at least one claimed item to ship")
+    .max(50, "Maximum 50 items per shipment"),
+  shippingZoneId: z.string().trim().max(80).optional(),
+  recipientName: z.string().trim().min(2, "Recipient name is required").max(80),
+  recipientPhone: z.string().trim().min(7, "Phone number is required").max(25),
+  recipientAddress: z.string().trim().min(5, "Delivery address is required").max(250),
+  recipientArea: z.string().trim().max(120).optional(),
+  recipientCity: z.string().trim().min(2, "City is required").max(80),
+  recipientState: z.string().trim().min(2, "State is required").max(80),
+  deliveryNotes: z.string().trim().max(300).optional(),
+  callbackUrl: z.string().url().optional(),
+});
+
+export type RedeemRegistryItemsDto = z.infer<typeof redeemRegistryItemsSchema>;
