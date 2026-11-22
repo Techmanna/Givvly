@@ -110,7 +110,7 @@ export function InviteEditor({ initialEvent }: InviteEditorProps) {
   );
   const updateInviteMutation = useUpdateEventInviteMutation(event.id);
   const qrContainerRef = useRef<HTMLDivElement | null>(null);
-  const [origin, setOrigin] = useState("https://givvly.com");
+  const [origin, setOrigin] = useState("https://givvly.store");
 
   useEffect(() => {
     setOrigin(window.location.origin);

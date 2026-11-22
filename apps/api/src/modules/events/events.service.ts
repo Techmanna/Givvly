@@ -968,7 +968,8 @@ export class EventsService {
 
         const isExpiredReserve =
           item.status === "RESERVED" &&
-          (!item.reservedUntil || item.reservedUntil < new Date());
+          Boolean(item.reservedUntil) &&
+          item.reservedUntil! < new Date();
 
         return {
           id: item.id,
