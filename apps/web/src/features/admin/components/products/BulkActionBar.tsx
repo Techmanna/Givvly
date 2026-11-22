@@ -135,7 +135,7 @@ export function BulkActionBar({
         title={`Delete ${selectedCount} ${selectedCount === 1 ? "Product" : "Products"}?`}
         description={`Are you sure you want to delete ${selectedCount} selected ${
           selectedCount === 1 ? "product" : "products"
-        }? This will deactivate them and remove them from public event registries and the gift catalog.`}
+        }? This will permanently delete them from the catalog.`}
         confirmLabel={isDeleting ? "Deleting..." : `Delete ${selectedCount} Products`}
         cancelLabel="Cancel"
         variant="destructive"

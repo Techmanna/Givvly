@@ -114,7 +114,7 @@ export function ProductManagementView() {
     if (ids.length === 0) return;
 
     try {
-      const res = await bulkDeleteMutation.mutateAsync({ ids });
+      const res = await bulkDeleteMutation.mutateAsync({ ids, permanent: true });
       const count = res.count ?? ids.length;
       toast.success(
         `Successfully deleted ${count} ${count === 1 ? "product" : "products"}`

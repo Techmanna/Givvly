@@ -280,6 +280,7 @@ export function useBulkDeleteAdminProducts() {
       bulkDeleteAdminProducts(ids, permanent),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.products() });
+      queryClient.invalidateQueries({ queryKey: ["catalog"] });
     },
   });
 }
@@ -292,6 +293,7 @@ export function useBulkUpdateAdminProductStock() {
       bulkUpdateAdminProductStock(ids, inStock),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.products() });
+      queryClient.invalidateQueries({ queryKey: ["catalog"] });
     },
   });
 }

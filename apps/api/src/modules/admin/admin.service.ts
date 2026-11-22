@@ -84,10 +84,9 @@ export class AdminService {
     limit?: number;
     offset?: number;
   }) {
-    const where: any = {};
-    if (query.active !== undefined) {
-      where.active = query.active;
-    }
+    const where: any = {
+      active: query.active !== undefined ? query.active : true,
+    };
     if (query.search && query.search.trim()) {
       const term = query.search.trim();
       where.OR = [
