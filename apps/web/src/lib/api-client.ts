@@ -121,22 +121,29 @@ async function getServerCookieHeader(): Promise<string | undefined> {
 
 async function refreshSession(baseUrl: string): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
+  const runRefresh = async (): Promise<boolean> => {
+    const csrfToken = readCookie("givvly_csrf");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Request-Id": crypto.randomUUID(),
+    };
+    if (csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
+    }
+    const res = await fetch(`${baseUrl}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+    });
+    return res.ok;
+  };
+
   refreshPromise = (async () => {
     try {
-      const csrfToken = readCookie("givvly_csrf");
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "X-Request-Id": crypto.randomUUID(),
-      };
-      if (csrfToken) {
-        headers["X-CSRF-Token"] = csrfToken;
+      if (typeof navigator !== "undefined" && navigator.locks?.request) {
+        return await navigator.locks.request("givvly_auth_refresh", runRefresh);
       }
-      const res = await fetch(`${baseUrl}/auth/refresh`, {
-        method: "POST",
-        credentials: "include",
-        headers,
-      });
-      return res.ok;
+      return await runRefresh();
     } catch {
       return false;
     } finally {

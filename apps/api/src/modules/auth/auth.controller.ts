@@ -229,7 +229,7 @@ export class AuthController {
 
   private setAuthCookies(
     res: Response,
-    tokens: { accessToken: string; refreshToken: string; csrfToken: string }
+    tokens: { accessToken: string; refreshToken?: string; csrfToken?: string }
   ) {
     const isProd = this.configService.get("NODE_ENV") === "production";
     const domain = this.configService.get("COOKIE_DOMAIN");
@@ -243,23 +243,27 @@ export class AuthController {
       path: "/",
     });
 
-    res.cookie("givvly_rt", tokens.refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      domain: domain || undefined,
-      path: "/",
-    });
+    if (tokens.refreshToken) {
+      res.cookie("givvly_rt", tokens.refreshToken, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        domain: domain || undefined,
+        path: "/",
+      });
+    }
 
-    res.cookie("givvly_csrf", tokens.csrfToken, {
-      httpOnly: false,
-      secure: isProd,
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      domain: domain || undefined,
-      path: "/",
-    });
+    if (tokens.csrfToken) {
+      res.cookie("givvly_csrf", tokens.csrfToken, {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        domain: domain || undefined,
+        path: "/",
+      });
+    }
   }
 
   private clearAuthCookies(res: Response) {

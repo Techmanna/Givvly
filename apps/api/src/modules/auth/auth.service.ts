@@ -178,12 +178,44 @@ export class AuthService {
       },
     });
 
-    if (!session || session.revokedAt || session.expiresAt < new Date()) {
-      // If a revoked session is reused, revoke entire session family for security
+    const now = new Date();
+    if (!session || session.revokedAt || session.expiresAt < now) {
+      // Allow a 30s grace window for concurrent/multi-tab refresh races on a newly rotated token
+      if (
+        session?.revokedAt &&
+        session.replacedById &&
+        session.expiresAt >= now &&
+        now.getTime() - session.revokedAt.getTime() < 30_000
+      ) {
+        const replacement = await this.prisma.session.findUnique({
+          where: { id: session.replacedById },
+        });
+        if (replacement && !replacement.revokedAt && replacement.expiresAt >= now) {
+          const accessToken = await this.signAccessToken(
+            session.user.id,
+            session.user.email,
+            session.user.role,
+            replacement.id
+          );
+          return {
+            accessToken,
+            refreshToken: undefined,
+            csrfToken: undefined,
+            user: {
+              id: session.user.id,
+              email: session.user.email,
+              name: session.user.name,
+              role: session.user.role,
+            },
+          };
+        }
+      }
+
+      // If a revoked session is reused outside the grace window, revoke entire session family
       if (session) {
         await this.prisma.session.updateMany({
           where: { familyId: session.familyId },
-          data: { revokedAt: new Date() },
+          data: { revokedAt: now },
         });
       }
       throw new UnauthorizedException("Invalid or revoked session");
