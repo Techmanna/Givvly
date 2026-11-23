@@ -218,11 +218,12 @@ export function WalletDashboardCard() {
   async function handleStartTopUp(e: React.FormEvent) {
     e.preventDefault();
     clearFeedback();
-    const amountKobo = Math.round(Number(topUpNaira) * 100);
-    if (!Number.isFinite(amountKobo) || amountKobo < 10_000) {
+    const rawNaira = Number(topUpNaira);
+    const amountKobo = Math.round(rawNaira * 100);
+    if (!Number.isFinite(rawNaira) || rawNaira <= 0 || amountKobo < 10_000) {
       setFeedback({
         type: "error",
-        text: "Minimum wallet top-up is ₦100.",
+        text: "Enter a positive top-up amount (minimum ₦100).",
       });
       return;
     }
@@ -326,11 +327,19 @@ export function WalletDashboardCard() {
   async function handleWithdraw(e: React.FormEvent) {
     e.preventDefault();
     clearFeedback();
-    const amountKobo = Math.round(Number(withdrawNaira) * 100);
-    if (!Number.isFinite(amountKobo) || amountKobo < 50_000) {
+    const rawNaira = Number(withdrawNaira);
+    const amountKobo = Math.round(rawNaira * 100);
+    if (!Number.isFinite(rawNaira) || rawNaira <= 0 || amountKobo < 50_000) {
       setFeedback({
         type: "error",
-        text: "Minimum bank withdrawal is ₦500.",
+        text: "Enter a positive withdrawal amount (minimum ₦500).",
+      });
+      return;
+    }
+    if (wallet && amountKobo > wallet.availableBalanceKobo) {
+      setFeedback({
+        type: "error",
+        text: "Insufficient available wallet balance for this withdrawal.",
       });
       return;
     }
@@ -359,11 +368,44 @@ export function WalletDashboardCard() {
   async function handleTransfer(e: React.FormEvent) {
     e.preventDefault();
     clearFeedback();
-    const amountKobo = Math.round(Number(transferNaira) * 100);
-    if (!Number.isFinite(amountKobo) || amountKobo < 10_000) {
+    const rawTarget = recipientAccount.trim();
+    const normalizedTarget = rawTarget.toLowerCase();
+    const targetDigits = rawTarget.replace(/\D/g, "");
+    const userDigits = (user?.phone ?? "").replace(/\D/g, "");
+    const normalizeNgDigits = (d: string) =>
+      d.startsWith("234") && d.length === 13 ? `0${d.slice(3)}` : d;
+
+    const isSelfTarget =
+      Boolean(user?.id && rawTarget === user.id) ||
+      Boolean(user?.email && normalizedTarget === user.email.toLowerCase()) ||
+      Boolean(
+        targetDigits.length >= 10 &&
+          userDigits.length >= 10 &&
+          normalizeNgDigits(targetDigits) === normalizeNgDigits(userDigits)
+      );
+
+    if (isSelfTarget) {
       setFeedback({
         type: "error",
-        text: "Minimum P2P wallet transfer is ₦100.",
+        text: "You cannot transfer funds to your own wallet.",
+      });
+      return;
+    }
+
+    const rawNaira = Number(transferNaira);
+    const amountKobo = Math.round(rawNaira * 100);
+    if (!Number.isFinite(rawNaira) || rawNaira <= 0 || amountKobo < 10_000) {
+      setFeedback({
+        type: "error",
+        text: "Enter a positive transfer amount (minimum ₦100).",
+      });
+      return;
+    }
+
+    if (wallet && amountKobo > wallet.availableBalanceKobo) {
+      setFeedback({
+        type: "error",
+        text: "Insufficient available wallet balance for this transfer.",
       });
       return;
     }
@@ -1017,7 +1059,9 @@ export function WalletDashboardCard() {
                     <span>Sent to in the past (click to select):</span>
                   </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {combinedRecentRecipients.map((r) => {
+                    {combinedRecentRecipients
+                      .filter((r) => !user?.id || r.id !== user.id)
+                      .map((r) => {
                       const identifier = r.phone || r.email || r.id;
                       const isSelected = recipientAccount === identifier;
                       return (

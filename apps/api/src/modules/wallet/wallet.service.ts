@@ -598,6 +598,12 @@ export class WalletService {
     user: { id: string; email: string; name?: string },
     dto: WalletTopUpDto
   ) {
+    if (!Number.isSafeInteger(dto.amountKobo) || dto.amountKobo < 10_000) {
+      throw new BadRequestException(
+        "Top-up amount must be a positive integer of at least ₦100 (10000 kobo)."
+      );
+    }
+
     const [{ policy }, currentBal] = await Promise.all([
       this.resolveCbnTier(user.id),
       this.ledger.getAccountBalance(this.walletAccountCode(user.id)),
@@ -678,7 +684,7 @@ export class WalletService {
     }
 
     const meta = (payment.metadata as Record<string, any>) || {};
-    if (meta.userId && meta.userId !== userId) {
+    if (meta.kind !== "WALLET_TOPUP" || meta.userId !== userId) {
       throw new ForbiddenException("This top-up belongs to a different user");
     }
 
@@ -776,6 +782,12 @@ export class WalletService {
    * Executes with deterministic lock ordering and atomic double-entry ledger entries.
    */
   async transferBalance(senderUserId: string, dto: WalletBalanceTransferDto) {
+    if (dto.from_account && dto.from_account.trim() !== senderUserId) {
+      throw new ForbiddenException(
+        "Cannot transfer funds from another user's wallet"
+      );
+    }
+
     const amountKobo = Number(dto.amount);
     if (!Number.isSafeInteger(amountKobo) || amountKobo < 10_000) {
       throw new BadRequestException(
@@ -1223,6 +1235,12 @@ export class WalletService {
    * Disburses wallet funds exclusively to the user's verified Nigerian PayoutAccount.
    */
   async withdrawToBank(userId: string, dto: WalletWithdrawDto) {
+    if (!Number.isSafeInteger(dto.amountKobo) || dto.amountKobo < 50_000) {
+      throw new BadRequestException(
+        "Withdrawal amount must be a positive integer of at least ₦500 (50000 kobo)."
+      );
+    }
+
     await this.verifyTransactionPin(userId, dto.pin);
     const { policy } = await this.enforceCbnOutflowPolicy(userId, dto.amountKobo);
 
