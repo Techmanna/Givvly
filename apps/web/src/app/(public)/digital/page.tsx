@@ -183,9 +183,9 @@ export default async function DigitalGiftsPage({ searchParams }: DigitalGiftsPag
           </div>
           <div className="space-y-1">
             <p className="text-xs font-semibold text-foreground">Instant Automated VTU</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            {/* <p className="text-xs text-muted-foreground leading-relaxed">
               Powered by BillSpot enterprise APIs. Real-time fulfillment 24 hours a day, 7 days a week.
-            </p>
+            </p> */}
           </div>
         </div>
 

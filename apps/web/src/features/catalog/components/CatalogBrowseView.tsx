@@ -186,7 +186,7 @@ export function CatalogBrowseView() {
             Gift Instant Airtime or Data Bundles (Single or up to 50 Numbers)
           </h2>
           <p className="text-xs text-muted-foreground">
-            Powered by BillSpot VTU — choose any data plan (110MB to 1.5TB) or custom airtime top-up with instant delivery.
+            Powered by Givvly VTU — choose any data plan (110MB to 1.5TB) or custom airtime top-up with instant delivery.
           </p>
         </div>
 
