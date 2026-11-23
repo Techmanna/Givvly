@@ -29,8 +29,10 @@ export async function generateMetadata({
     event.story?.slice(0, 160) ||
     `Celebrate ${event.name} hosted by ${hostName} on Givvly. View the gift registry, contribute to cash funds, and send your congratulations.`;
 
-  const previewImage =
-    event.coverUrl || `${baseUrl}/images/og-preview.jpg`;
+  const hasInviteCard = Boolean(event.template?.templateId);
+  const previewImage = hasInviteCard
+    ? `${baseUrl}/e/${encodeURIComponent(event.slug)}/opengraph-image`
+    : event.coverUrl || `${baseUrl}/images/og-preview.jpg`;
 
   return {
     title: `${event.name} — ${hostName}'s Celebration`,

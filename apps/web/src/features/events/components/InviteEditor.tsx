@@ -1,16 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { QRCodeCanvas } from "qrcode.react";
 import {
-  Calendar,
-  Clock,
   Copy,
   Download,
-  ExternalLink,
-  MapPin,
   MessageCircle,
   Plus,
   Trash2,
@@ -26,81 +22,36 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/format";
 import { useEventDetail, useUpdateEventInviteMutation } from "../hooks/useEvents";
 import { INVITE_TEMPLATE_IDS, inviteEditorSchema } from "../schemas";
 import type { EventDetail, InviteEditorInput, InviteTemplateId } from "../types";
+import { InviteTemplatePicker } from "./InviteTemplatePicker";
 import {
-  INVITE_TEMPLATE_OPTIONS,
-  InviteTemplatePicker,
-} from "./InviteTemplatePicker";
+  INVITE_CARD_HEIGHT,
+  INVITE_CARD_WIDTH,
+  renderInviteCard,
+} from "../lib/inviteCardRenderer";
+import { WhatsAppIcon } from "@/components/shared/WhatsAppOrderSection";
 
 export type InviteEditorProps = {
   initialEvent: EventDetail;
 };
 
-const TEMPLATE_CANVAS_PALETTE: Record<
-  InviteTemplateId,
-  { bg: string; border: string; accent: string; text: string; muted: string }
-> = {
-  "blush-minimal": {
-    bg: "#FDF8F6",
-    border: "#E6C2B5",
-    accent: "#B4654A",
-    text: "#2A1C18",
-    muted: "#6E5852",
-  },
-  "royal-gold": {
-    bg: "#191510",
-    border: "#D4AF37",
-    accent: "#E5C158",
-    text: "#FAF5EA",
-    muted: "#C8BCA4",
-  },
-  "lagos-botanical": {
-    bg: "#F3F8F4",
-    border: "#89AE8E",
-    accent: "#2D5A37",
-    text: "#18281C",
-    muted: "#4F6B55",
-  },
-  "modern-editorial": {
-    bg: "#FAFAFA",
-    border: "#18181B",
-    accent: "#18181B",
-    text: "#18181B",
-    muted: "#52525B",
-  },
-};
-
-function drawWrappedText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  maxWidth: number,
-  lineHeight: number
-): number {
-  const words = text.split(/\s+/).filter(Boolean);
-  let line = "";
-  let currentY = y;
-
-  for (const word of words) {
-    const testLine = line ? `${line} ${word}` : word;
-    if (ctx.measureText(testLine).width > maxWidth && line) {
-      ctx.fillText(line, x, currentY);
-      line = word;
-      currentY += lineHeight;
-    } else {
-      line = testLine;
-    }
-  }
-  if (line) {
-    ctx.fillText(line, x, currentY);
-    currentY += lineHeight;
-  }
-  return currentY;
+/**
+ * Canvas needs the real font-family stack (next/font hashes family names), so
+ * read it from the live DOM instead of hard-coding it. Falls back to the
+ * renderer defaults (Fraunces / Inter → Georgia / system) if nothing resolves.
+ */
+function computedFamily(className: string): string | undefined {
+  const el = document.createElement("span");
+  el.className = className;
+  el.textContent = "Aa";
+  el.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;";
+  document.body.appendChild(el);
+  const family = getComputedStyle(el).fontFamily;
+  el.remove();
+  return family || undefined;
 }
 
 export function InviteEditor({ initialEvent }: InviteEditorProps) {
@@ -110,11 +61,13 @@ export function InviteEditor({ initialEvent }: InviteEditorProps) {
   );
   const updateInviteMutation = useUpdateEventInviteMutation(event.id);
   const qrContainerRef = useRef<HTMLDivElement | null>(null);
-  const [origin, setOrigin] = useState("https://givvly.store");
-
-  useEffect(() => {
-    setOrigin(window.location.origin);
-  }, []);
+  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const origin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => "https://givvly.store"
+  );
+  const [isExporting, setIsExporting] = useState(false);
 
   const publicEventUrl = `${origin}/e/${event.slug}`;
 
@@ -169,15 +122,71 @@ export function InviteEditor({ initialEvent }: InviteEditorProps) {
       name: "scheduleItems",
     }) ?? [];
 
-  const activeTemplateOption =
-    INVITE_TEMPLATE_OPTIONS.find((t) => t.id === watchedTemplateId) ??
-    INVITE_TEMPLATE_OPTIONS[0]!;
+  const buildCardData = () => {
+    const qrCanvas = qrContainerRef.current?.querySelector("canvas") ?? null;
+    const schedule = watchedScheduleItems
+      .filter((item) => item?.title?.trim() && item?.time?.trim())
+      .map((item) => ({
+        title: item.title.trim(),
+        time: item.time.trim(),
+        ...(item.venue?.trim() ? { venue: item.venue.trim() } : {}),
+      }));
 
-  const resolvedMapHref =
-    watchedMapUrl?.trim() ||
-    (watchedVenue?.trim()
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(watchedVenue.trim())}`
-      : "");
+    return {
+      templateId: watchedTemplateId,
+      eventName: event.name,
+      eventDate: String(event.date),
+      dateLabel: formatDate(event.date),
+      hostLine: watchedHostLine?.trim(),
+      time: watchedTime?.trim(),
+      venue: watchedVenue?.trim(),
+      dressCode: watchedDressCode?.trim(),
+      schedule,
+      publicUrl: publicEventUrl,
+      qr: qrCanvas,
+    };
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      const targetCanvas = previewCanvasRef.current;
+      if (!targetCanvas) return;
+
+      void renderInviteCard(buildCardData(), {
+        scale: 1,
+        fonts: {
+          display: computedFamily("font-heading"),
+          body: computedFamily("font-sans"),
+        },
+        createCanvas: (w, h) => {
+          if (!cancelled) {
+            targetCanvas.width = w;
+            targetCanvas.height = h;
+          }
+          return targetCanvas;
+        },
+      }).catch(() => {
+        // Ignore canvas context errors in non-browser test environments
+      });
+    }, 60);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    watchedTemplateId,
+    watchedHostLine,
+    watchedTime,
+    watchedVenue,
+    watchedDressCode,
+    watchedScheduleItems,
+    event.name,
+    event.date,
+    publicEventUrl,
+  ]);
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
@@ -231,140 +240,62 @@ export function InviteEditor({ initialEvent }: InviteEditorProps) {
     window.open(shareUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handleDownloadCard = () => {
-    const palette = TEMPLATE_CANVAS_PALETTE[watchedTemplateId];
-    const canvas = document.createElement("canvas");
-    canvas.width = 1080;
-    canvas.height = 1350;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      toast.error("Could not generate invite image in this browser.");
-      return;
-    }
+  const handleDownloadCard = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const qrCanvas = qrContainerRef.current?.querySelector("canvas") ?? null;
 
-    // Background & double stationery border
-    ctx.fillStyle = palette.bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const schedule = watchedScheduleItems
+        .filter((item) => item?.title?.trim() && item?.time?.trim())
+        .map((item) => ({
+          title: item.title.trim(),
+          time: item.time.trim(),
+          ...(item.venue?.trim() ? { venue: item.venue.trim() } : {}),
+        }));
 
-    ctx.strokeStyle = palette.border;
-    ctx.lineWidth = 8;
-    ctx.strokeRect(48, 48, canvas.width - 96, canvas.height - 96);
-
-    ctx.lineWidth = 2;
-    ctx.strokeRect(72, 72, canvas.width - 144, canvas.height - 144);
-
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-
-    let cursorY = 140;
-
-    // Host line
-    ctx.fillStyle = palette.muted;
-    ctx.font = "600 24px sans-serif";
-    const hostLineText = (
-      watchedHostLine?.trim() || "YOU ARE CORDIALLY INVITED"
-    ).toUpperCase();
-    cursorY = drawWrappedText(ctx, hostLineText, 540, cursorY, 820, 34);
-    cursorY += 28;
-
-    // Event title
-    ctx.fillStyle = palette.text;
-    ctx.font = "bold 60px Georgia, serif";
-    cursorY = drawWrappedText(ctx, event.name, 540, cursorY, 840, 74);
-    cursorY += 24;
-
-    // Divider
-    ctx.fillStyle = palette.accent;
-    ctx.fillRect(460, cursorY, 160, 4);
-    cursorY += 44;
-
-    // Date & Time
-    ctx.fillStyle = palette.text;
-    ctx.font = "600 30px sans-serif";
-    ctx.fillText(formatDate(event.date), 540, cursorY);
-    cursorY += 48;
-
-    if (watchedTime?.trim()) {
-      ctx.fillStyle = palette.muted;
-      ctx.font = "500 28px sans-serif";
-      ctx.fillText(watchedTime.trim(), 540, cursorY);
-      cursorY += 48;
-    }
-
-    // Venue
-    if (watchedVenue?.trim()) {
-      ctx.fillStyle = palette.text;
-      ctx.font = "500 28px sans-serif";
-      cursorY = drawWrappedText(
-        ctx,
-        watchedVenue.trim(),
-        540,
-        cursorY + 6,
-        820,
-        38
+      const card = await renderInviteCard(
+        {
+          templateId: watchedTemplateId,
+          eventName: event.name,
+          eventDate: String(event.date),
+          dateLabel: formatDate(event.date),
+          hostLine: watchedHostLine?.trim(),
+          time: watchedTime?.trim(),
+          venue: watchedVenue?.trim(),
+          dressCode: watchedDressCode?.trim(),
+          schedule,
+          publicUrl: publicEventUrl,
+          qr: qrCanvas,
+        },
+        {
+          scale: 2, // 2160 x 2700 px, crisp for WhatsApp and print
+          fonts: {
+            display: computedFamily("font-heading"),
+            body: computedFamily("font-sans"),
+          },
+        }
       );
-      cursorY += 16;
-    }
 
-    // Dress code
-    if (watchedDressCode?.trim()) {
-      ctx.fillStyle = palette.accent;
-      ctx.font = "600 24px sans-serif";
-      cursorY = drawWrappedText(
-        ctx,
-        `Dress Code: ${watchedDressCode.trim()}`,
-        540,
-        cursorY + 8,
-        820,
-        34
+      const blob = await new Promise<Blob | null>((resolve) =>
+        card.toBlob((result) => resolve(result), "image/png")
       );
-      cursorY += 18;
-    }
-
-    // Optional schedule preview (up to 3 items to fit cleanly above QR)
-    const validSchedule = watchedScheduleItems.filter(
-      (item) => item?.title?.trim() && item?.time?.trim()
-    );
-    if (validSchedule.length > 0) {
-      cursorY += 14;
-      ctx.fillStyle = palette.muted;
-      ctx.font = "600 20px sans-serif";
-      ctx.fillText("CELEBRATION SCHEDULE", 540, cursorY);
-      cursorY += 34;
-
-      for (const item of validSchedule.slice(0, 3)) {
-        ctx.fillStyle = palette.text;
-        ctx.font = "500 24px sans-serif";
-        ctx.fillText(`${item.time.trim()} • ${item.title.trim()}`, 540, cursorY);
-        cursorY += 34;
+      if (!blob) {
+        toast.error("Could not generate invite image in this browser.");
+        return;
       }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = `${event.slug || "givvly"}-invite.png`;
+      link.href = url;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("E-invite card downloaded.");
+    } catch {
+      toast.error("Could not generate invite image in this browser.");
+    } finally {
+      setIsExporting(false);
     }
-
-    // QR Code section pinned near bottom
-    const qrCanvas = qrContainerRef.current?.querySelector("canvas");
-    const qrBoxY = 980;
-    if (qrCanvas) {
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(430, qrBoxY, 220, 220);
-      ctx.drawImage(qrCanvas, 440, qrBoxY + 10, 200, 200);
-    }
-
-    ctx.fillStyle = palette.muted;
-    ctx.font = "500 22px sans-serif";
-    ctx.fillText(
-      "Scan to RSVP, get directions & send gifts",
-      540,
-      qrBoxY + 236
-    );
-    ctx.fillStyle = palette.accent;
-    ctx.font = "600 20px sans-serif";
-    ctx.fillText(publicEventUrl.replace(/^https?:\/\//, ""), 540, qrBoxY + 268);
-
-    const link = document.createElement("a");
-    link.download = `${event.slug || "givvly"}-invite.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-    toast.success("E-invite card downloaded.");
   };
 
   return (
@@ -617,99 +548,14 @@ export function InviteEditor({ initialEvent }: InviteEditorProps) {
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Live invitation preview
               </p>
-              <div
-                className={cn(
-                  "rounded-card border-2 p-6 text-center shadow-sm",
-                  activeTemplateOption.cardClassName
-                )}
-              >
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                  {watchedHostLine || "You are cordially invited"}
-                </p>
-                <h3 className="mt-3 font-heading text-2xl font-bold text-foreground">
-                  {event.name}
-                </h3>
-
-                <div className="mx-auto my-5 h-px w-16 bg-border" />
-
-                <div className="space-y-2.5 text-sm text-foreground">
-                  <div className="flex items-center justify-center gap-2">
-                    <Calendar
-                      className="h-4 w-4 text-primary"
-                      aria-hidden="true"
-                    />
-                    <span>{formatDate(event.date)}</span>
-                  </div>
-
-                  {watchedTime ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <Clock
-                        className="h-4 w-4 text-primary"
-                        aria-hidden="true"
-                      />
-                      <span>{watchedTime}</span>
-                    </div>
-                  ) : null}
-
-                  {watchedVenue ? (
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="flex items-center justify-center gap-2">
-                        <MapPin
-                          className="h-4 w-4 shrink-0 text-primary"
-                          aria-hidden="true"
-                        />
-                        <span>{watchedVenue}</span>
-                      </div>
-                      {resolvedMapHref ? (
-                        <a
-                          href={resolvedMapHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                        >
-                          <span>Get directions</span>
-                          <ExternalLink
-                            className="h-3 w-3"
-                            aria-hidden="true"
-                          />
-                        </a>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {watchedDressCode ? (
-                    <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/80 px-3 py-1 text-xs font-medium text-foreground">
-                      <span>Dress code: {watchedDressCode}</span>
-                    </div>
-                  ) : null}
-
-                  {watchedScheduleItems.some(
-                    (i) => i?.title?.trim() || i?.time?.trim()
-                  ) ? (
-                    <div className="mt-4 border-t border-border/70 pt-3 text-left">
-                      <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Schedule
-                      </p>
-                      <ul className="space-y-1.5 text-xs">
-                        {watchedScheduleItems.map((item, idx) =>
-                          item?.title?.trim() || item?.time?.trim() ? (
-                            <li
-                              key={idx}
-                              className="flex items-baseline justify-between gap-2"
-                            >
-                              <span className="font-medium text-foreground">
-                                {item.title || "Untitled"}
-                              </span>
-                              <span className="shrink-0 text-muted-foreground">
-                                {item.time}
-                              </span>
-                            </li>
-                          ) : null
-                        )}
-                      </ul>
-                    </div>
-                  ) : null}
-                </div>
+              <div className="overflow-hidden rounded-2xl border border-border bg-muted/20 shadow-sm">
+                <canvas
+                  ref={previewCanvasRef}
+                  width={INVITE_CARD_WIDTH}
+                  height={INVITE_CARD_HEIGHT}
+                  aria-label={`Live invitation card preview for ${event.name}`}
+                  className="block h-auto w-full aspect-[4/5]"
+                />
               </div>
             </div>
 
@@ -723,10 +569,11 @@ export function InviteEditor({ initialEvent }: InviteEditorProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2.5">
+                {/* Rendered large so the QR stays sharp on the 2x export */}
                 <div className="sr-only" aria-hidden="true" ref={qrContainerRef}>
                   <QRCodeCanvas
                     value={publicEventUrl}
-                    size={220}
+                    size={480}
                     level="M"
                     includeMargin
                   />
@@ -736,10 +583,11 @@ export function InviteEditor({ initialEvent }: InviteEditorProps) {
                   type="button"
                   variant="default"
                   className="w-full"
+                  disabled={isExporting}
                   onClick={handleDownloadCard}
                 >
                   <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Download E-Invite Card (PNG)
+                  {isExporting ? "Preparing card..." : "Download E-Invite Card (PNG)"}
                 </Button>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -748,10 +596,7 @@ export function InviteEditor({ initialEvent }: InviteEditorProps) {
                     variant="outline"
                     onClick={handleShareWhatsApp}
                   >
-                    <MessageCircle
-                      className="mr-1.5 h-4 w-4 text-emerald-600"
-                      aria-hidden="true"
-                    />
+                    <WhatsAppIcon className="h-4 w-4" aria-hidden="true" />
                     WhatsApp
                   </Button>
                   <Button
@@ -771,4 +616,3 @@ export function InviteEditor({ initialEvent }: InviteEditorProps) {
     </div>
   );
 }
-
