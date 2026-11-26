@@ -104,7 +104,7 @@ services:
       NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY: ${NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY}
       NEXT_PUBLIC_USE_MOCK_API: "false"
     ports:
-      - "127.0.0.1:${PORT:-3000}:3000"
+      - "3000:3000"
     networks:
       - givvly-network
 
