@@ -7,8 +7,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-givvly}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-givvly_secure_prod_password}
       POSTGRES_DB: ${POSTGRES_DB:-givvly_prod}
-    ports:
-      # - "5432:5432"
+    # ports:
+    #   - "5432:5432"
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
     healthcheck:
@@ -28,8 +28,8 @@ services:
     container_name: givvly-redis-prod
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    ports:
-      # - "6379:6379"
+    # ports:
+    #   - "6379:6379"
     volumes:
       - redis_prod_data:/data
     healthcheck:
