@@ -407,6 +407,7 @@ export async function fetchAdminProducts(): Promise<AdminProduct[]> {
     name: p.name ?? p.title ?? "Gift Item",
     description: p.description ?? "",
     priceKobo: p.priceKobo ?? 0,
+    costPriceKobo: p.costPriceKobo ?? null,
     category: p.category ?? (Array.isArray(p.occasions) && p.occasions[0]) ?? "Wedding Gifts",
     giftType: p.giftType,
     mainCategories: p.mainCategories ?? [],

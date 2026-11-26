@@ -57,6 +57,16 @@ export function ProductOverviewTab({ product }: ProductOverviewTabProps) {
                 {product.packagingIncluded || "Luxury Gift Box & Ribbon"}
               </p>
             </div>
+            {product.costPriceKobo !== null && product.costPriceKobo !== undefined && (
+              <div>
+                <span className="text-muted-foreground">
+                  Vendor / Buying Price (Admin Only)
+                </span>
+                <p className="font-semibold text-foreground text-sm">
+                  ₦{Math.round(product.costPriceKobo / 100).toLocaleString()}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Occasions & Relationships */}

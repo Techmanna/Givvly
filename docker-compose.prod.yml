@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-givvly_secure_prod_password}
       POSTGRES_DB: ${POSTGRES_DB:-givvly_prod}
     ports:
-      - "5432:5432"
+      # - "5432:5432"
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
     healthcheck:
@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
-      - "6379:6379"
+      # - "6379:6379"
     volumes:
       - redis_prod_data:/data
     healthcheck:
@@ -77,7 +77,7 @@ services:
       TERMII_CHANNEL: ${TERMII_CHANNEL:-dnd}
       SMS_NOTIFICATION_FEE_KOBO: ${SMS_NOTIFICATION_FEE_KOBO:-2500}
     ports:
-      - "4000:4000"
+      - "127.0.0.1:${PORT:-4000}:4000"
     networks:
       - givvly-network
 
@@ -104,7 +104,7 @@ services:
       NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY: ${NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY}
       NEXT_PUBLIC_USE_MOCK_API: "false"
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${PORT:-3000}:3000"
     networks:
       - givvly-network
 

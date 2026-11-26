@@ -519,6 +519,7 @@ model Product {
   title         String
   description   String
   priceKobo     Int
+  costPriceKobo Int?
   images        Json
   occasions     String[]
   relationships String[]

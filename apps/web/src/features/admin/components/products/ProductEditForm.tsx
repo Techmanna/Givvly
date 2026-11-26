@@ -52,6 +52,7 @@ export function ProductEditForm({
     name: "",
     slug: "",
     priceNaira: "",
+    costPriceNaira: "",
     mainCategory: "WEDDING",
     category: "Curated Combos & Boxes",
     giftType: "LUXURY",
@@ -132,6 +133,10 @@ export function ProductEditForm({
         name: product.name || "",
         slug: product.slug || "",
         priceNaira: String(Math.round(product.priceKobo / 100)),
+        costPriceNaira:
+          product.costPriceKobo !== null && product.costPriceKobo !== undefined
+            ? String(Math.round(product.costPriceKobo / 100))
+            : "",
         mainCategory: initialMain,
         category: dept,
         giftType: product.giftType || "LUXURY",
@@ -379,6 +384,10 @@ export function ProductEditForm({
           active: v.active !== false,
         }));
 
+      const costPriceNum = editFormData.costPriceNaira.trim()
+        ? parseFloat(editFormData.costPriceNaira)
+        : null;
+
       await updateProductMutation.mutateAsync({
         productId: product.id,
         patch: {
@@ -393,6 +402,10 @@ export function ProductEditForm({
           vendorName: editFormData.vendorName.trim(),
           packagingIncluded: editFormData.packagingIncluded.trim(),
           priceKobo: Math.round(priceNum * 100),
+          costPriceKobo:
+            costPriceNum !== null && !isNaN(costPriceNum) && costPriceNum >= 0
+              ? Math.round(costPriceNum * 100)
+              : null,
           imageUrl: editFormData.imageUrl.trim() || undefined,
           inStock: editFormData.inStock,
           stock: editFormData.inStock ? editFormData.stock : 0,
@@ -539,6 +552,40 @@ export function ProductEditForm({
                 Catalog Value: <strong className="text-foreground">₦{parseFloat(editFormData.priceNaira).toLocaleString()}</strong>
               </p>
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground">
+              Vendor / Buying Price (₦, Admin Only)
+            </label>
+            <Input
+              type="number"
+              min="0"
+              value={editFormData.costPriceNaira}
+              onChange={(e) =>
+                setEditFormData((prev) => ({
+                  ...prev,
+                  costPriceNaira: e.target.value,
+                }))
+              }
+              placeholder="Optional (not visible to customers)"
+              className="text-xs"
+            />
+            {editFormData.costPriceNaira &&
+              !isNaN(parseFloat(editFormData.costPriceNaira)) &&
+              editFormData.priceNaira &&
+              !isNaN(parseFloat(editFormData.priceNaira)) && (
+                <p className="text-[11px] text-muted-foreground">
+                  Margin:{" "}
+                  <strong className="text-foreground">
+                    ₦
+                    {(
+                      parseFloat(editFormData.priceNaira) -
+                      parseFloat(editFormData.costPriceNaira)
+                    ).toLocaleString()}
+                  </strong>
+                </p>
+              )}
           </div>
         </div>
 

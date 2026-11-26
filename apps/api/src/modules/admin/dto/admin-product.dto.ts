@@ -84,6 +84,11 @@ export class CreateProductDto {
   @IsPositive()
   priceKobo: number;
 
+  @ApiPropertyOptional({ example: 3500000, nullable: true, description: "Optional vendor/buying cost price in kobo (admin-only)" })
+  @IsOptional()
+  @IsInt()
+  costPriceKobo?: number | null;
+
   @ApiPropertyOptional({ example: ["BIRTHDAY", "ANNIVERSARY"], default: [] })
   @IsOptional()
   @IsArray()
@@ -229,6 +234,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsInt()
   priceKobo?: number;
+
+  @ApiPropertyOptional({ example: 3500000, nullable: true })
+  @IsOptional()
+  @IsInt()
+  costPriceKobo?: number | null;
 
   @ApiPropertyOptional({ example: "Wedding Gifts" })
   @IsOptional()

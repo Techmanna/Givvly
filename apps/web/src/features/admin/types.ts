@@ -187,6 +187,7 @@ export type AdminProduct = {
   name: string;
   description: string;
   priceKobo: number;
+  costPriceKobo?: number | null;
   category: string;
   giftType?: string;
   mainCategories?: string[];
@@ -218,6 +219,7 @@ export type UpdateProductInput = {
   slug?: string;
   description?: string;
   priceKobo?: number;
+  costPriceKobo?: number | null;
   category?: string;
   giftType?: string;
   mainCategories?: string[];
@@ -244,6 +246,7 @@ export type CreateProductInput = {
   name: string;
   description: string;
   priceKobo: number;
+  costPriceKobo?: number | null;
   category: string;
   giftType?: string;
   mainCategories?: string[];

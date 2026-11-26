@@ -55,6 +55,7 @@ export function AddProductDialog({
     name: "",
     description: "",
     priceNaira: "",
+    costPriceNaira: "",
     mainCategory: "WEDDING",
     category: "Curated Combos & Boxes",
     giftType: "LUXURY",
@@ -79,6 +80,7 @@ export function AddProductDialog({
       name: "",
       description: "",
       priceNaira: "",
+      costPriceNaira: "",
       mainCategory: "WEDDING",
       category: "Curated Combos & Boxes",
       giftType: "LUXURY",
@@ -173,10 +175,18 @@ export function AddProductDialog({
       else if (formData.gender === "FEMALE") relationships.push("WIFE", "GIRLFRIEND", "FRIEND", "SISTER");
       else relationships.push("COUPLE", "FRIEND", "COLLEAGUE");
 
+      const costPriceNum = formData.costPriceNaira.trim()
+        ? parseFloat(formData.costPriceNaira)
+        : null;
+
       const input: CreateProductInput = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         priceKobo: Math.round(priceNum * 100),
+        costPriceKobo:
+          costPriceNum !== null && !isNaN(costPriceNum) && costPriceNum >= 0
+            ? Math.round(costPriceNum * 100)
+            : null,
         category: isGiftBox ? "Gift Boxes" : formData.category,
         mainCategories: mainCats,
         giftType: isGiftBox ? "PACKAGING" : dept?.giftType || formData.giftType || "LUXURY",
@@ -397,6 +407,24 @@ export function AddProductDialog({
                     setFormData((prev) => ({
                       ...prev,
                       priceNaira: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  Vendor / Buying Price (₦, Admin Only)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="Optional (e.g. 35000)"
+                  value={formData.costPriceNaira}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      costPriceNaira: e.target.value,
                     }))
                   }
                 />

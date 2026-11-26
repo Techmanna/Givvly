@@ -145,37 +145,37 @@ export function ProductDetailModal({
                 Slug: {product.slug}
               </p>
             </div>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="text-xs gap-1.5"
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1.5"
+            >
+              <Link
+                href={`/gifts/${product.slug}`}
+                target="_blank"
               >
-                <Link
-                  href={`/gifts/${product.slug}`}
-                  target="_blank"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  <span>Live Catalog Page</span>
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="text-xs gap-1.5"
+                <ExternalLink className="h-3.5 w-3.5" />
+                <span>Live Catalog Page</span>
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1.5"
+            >
+              <Link
+                href={`/checkout/${product.slug}`}
+                target="_blank"
               >
-                <Link
-                  href={`/checkout/${product.slug}`}
-                  target="_blank"
-                >
-                  <ShoppingCart className="h-3.5 w-3.5" />
-                  <span>Direct Checkout</span>
-                </Link>
-              </Button>
-            </div>
+                <ShoppingCart className="h-3.5 w-3.5" />
+                <span>Direct Checkout</span>
+              </Link>
+            </Button>
           </div>
 
           {/* 4 Stat / KPI Cards */}
