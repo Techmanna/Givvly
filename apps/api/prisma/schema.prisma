@@ -495,6 +495,8 @@ model Vendor {
   contactEmail  String
   phone         String?
   city          String?
+  location      String?
+  logoUrl       String?
   active        Boolean        @default(true)
   commissionBps Int            @default(0)
   createdAt     DateTime       @default(now())

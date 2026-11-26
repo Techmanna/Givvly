@@ -31,6 +31,12 @@ import {
   bulkUpdateStockSchema,
   CreateCollectionDto,
   createCollectionSchema,
+  CreateAdminVendorDto,
+  createAdminVendorSchema,
+  UpdateAdminVendorDto,
+  updateAdminVendorSchema,
+  ForwardOrderToVendorDto,
+  forwardOrderToVendorSchema,
 } from "./dto/admin-product.dto";
 import {
   CreateShippingZoneDto,
@@ -421,8 +427,8 @@ export class AdminController {
   // ==================== VENDORS (LEGACY PARTNERS) ====================
 
   @Get("vendors")
-  @ApiOperation({ summary: "List legacy vendor partners for audit" })
-  @ApiOkResponse({ description: "Legacy vendors." })
+  @ApiOperation({ summary: "List vendors" })
+  @ApiOkResponse({ description: "Vendors." })
   async getVendors(
     @Query("limit") limit?: string,
     @Query("offset") offset?: string
@@ -431,6 +437,47 @@ export class AdminController {
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     });
+  }
+
+  @Post("vendors")
+  @ApiOperation({ summary: "Create a new vendor" })
+  @UsePipes(new ZodValidationPipe(createAdminVendorSchema))
+  async createVendor(
+    @Body() dto: CreateAdminVendorDto,
+    @CurrentUser() admin: { id: string }
+  ) {
+    return this.adminService.createVendor(dto, admin.id);
+  }
+
+  @Patch("vendors/:id")
+  @ApiOperation({ summary: "Update an existing vendor" })
+  @UsePipes(new ZodValidationPipe(updateAdminVendorSchema))
+  async updateVendor(
+    @Param("id") id: string,
+    @Body() dto: UpdateAdminVendorDto,
+    @CurrentUser() admin: { id: string }
+  ) {
+    return this.adminService.updateVendor(id, dto, admin.id);
+  }
+
+  @Delete("vendors/:id")
+  @ApiOperation({ summary: "Delete a vendor" })
+  async deleteVendor(
+    @Param("id") id: string,
+    @CurrentUser() admin: { id: string }
+  ) {
+    return this.adminService.deleteVendor(id, admin.id);
+  }
+
+  @Post("orders/:id/forward-vendor")
+  @ApiOperation({ summary: "Forward order details to a vendor via email or WhatsApp" })
+  @UsePipes(new ZodValidationPipe(forwardOrderToVendorSchema))
+  async forwardOrderToVendor(
+    @Param("id") id: string,
+    @Body() dto: ForwardOrderToVendorDto,
+    @CurrentUser() admin: { id: string }
+  ) {
+    return this.adminService.forwardOrderToVendor(id, dto, admin.id);
   }
 
   // ==================== SHIPPING ZONES ====================

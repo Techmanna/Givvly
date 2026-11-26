@@ -151,10 +151,26 @@ export type AdminLedgerReport = {
 export type AdminVendorSummary = {
   id: string;
   name: string;
+  slug?: string;
   email: string;
+  phone?: string;
+  location?: string;
+  logoUrl?: string;
+  active?: boolean;
   productCount: number;
   status: "VERIFIED" | "PENDING_REVIEW";
 };
+
+export type CreateAdminVendorInput = {
+  name: string;
+  email: string;
+  phone: string;
+  location?: string;
+  logoUrl?: string;
+  active?: boolean;
+};
+
+export type UpdateAdminVendorInput = Partial<CreateAdminVendorInput>;
 
 export type ProductVariant = {
   id: string;
@@ -177,6 +193,7 @@ export type AdminProduct = {
   occasions: string[];
   relationships?: string[];
   gender?: "MALE" | "FEMALE" | "UNISEX";
+  vendorId?: string | null;
   vendorName: string;
   inStock: boolean;
   stock?: number | null;
@@ -207,6 +224,7 @@ export type UpdateProductInput = {
   occasions?: string[];
   relationships?: string[];
   gender?: "MALE" | "FEMALE" | "UNISEX";
+  vendorId?: string | null;
   vendorName?: string;
   packagingIncluded?: string;
   imageUrl?: string;
@@ -232,6 +250,7 @@ export type CreateProductInput = {
   occasions: string[];
   relationships?: string[];
   gender?: "MALE" | "FEMALE" | "UNISEX";
+  vendorId?: string | null;
   inStock: boolean;
   isCombo?: boolean;
   comboItems?: Array<{ name: string; qty: number; tag?: string }>;
@@ -249,6 +268,9 @@ export type AdminOrderItem = {
   title?: string;
   name?: string;
   qty: number;
+  size?: string;
+  vendorId?: string;
+  vendorName?: string;
   unitPriceKobo: number;
   totalPriceKobo?: number;
   vtuMetadata?: {
@@ -317,6 +339,14 @@ export type AdminOrderDetail = {
   createdAt: string;
   updatedAt?: string;
   items: AdminOrderItem[];
+  vendor?: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    location?: string;
+    logoUrl?: string;
+  } | null;
   payment?: AdminOrderPayment | null;
   history?: AdminOrderStatusHistory[];
   review?: any;

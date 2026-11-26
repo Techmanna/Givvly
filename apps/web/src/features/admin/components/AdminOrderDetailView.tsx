@@ -14,12 +14,14 @@ import {
   Gift,
   Mail,
   MapPin,
+  MessageCircle,
   Package,
   Phone,
   RefreshCw,
   Send,
   ShieldCheck,
   Sparkles,
+  Store,
   Truck,
   User,
   AlertTriangle,
@@ -28,6 +30,22 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Money } from "@/components/shared/Money";
@@ -35,6 +53,8 @@ import { formatDate } from "@/lib/format";
 import type { OrderStatus } from "@givvly/contracts";
 import {
   useAdminOrderDetail,
+  useAdminVendors,
+  useForwardOrderToVendor,
   useUpdateAdminOrderStatus,
 } from "../hooks/useAdmin";
 import type { AdminAddressPayload } from "../types";
@@ -47,8 +67,12 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
   const { data: order, isLoading, isError, error, refetch, isRefetching } =
     useAdminOrderDetail(orderId);
   const updateStatusMutation = useUpdateAdminOrderStatus();
+  const vendorsQuery = useAdminVendors();
+  const forwardMutation = useForwardOrderToVendor();
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [isForwardOpen, setIsForwardOpen] = useState(false);
+  const [selectedVendorId, setSelectedVendorId] = useState<string>("");
 
   const handleCopy = (text: string, key: string, label: string) => {
     if (typeof window !== "undefined") {
@@ -232,6 +256,24 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
                 <span>Copy #</span>
               </>
             )}
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const defaultVendorId =
+                order.vendor?.id ??
+                order.items.find((i) => i.vendorId)?.vendorId ??
+                vendorsQuery.data?.[0]?.id ??
+                "";
+              setSelectedVendorId(defaultVendorId);
+              setIsForwardOpen(true);
+            }}
+            className="text-xs"
+          >
+            <Store className="mr-1.5 h-3.5 w-3.5 text-primary" />
+            <span>Forward order info to vendor</span>
           </Button>
 
           {/* Quick Lifecycle Action Buttons */}
@@ -819,6 +861,171 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
           )}
         </div>
       </div>
+
+      {(() => {
+        const vendors = vendorsQuery.data ?? [];
+        const activeVendor =
+          vendors.find((v) => v.id === selectedVendorId) ??
+          (order.vendor
+            ? {
+                id: order.vendor.id,
+                name: order.vendor.name,
+                email: order.vendor.email ?? "",
+                phone: order.vendor.phone,
+                location: order.vendor.location,
+              }
+            : null);
+
+        const addrObj =
+          typeof order.address === "object" && order.address !== null
+            ? (order.address as AdminAddressPayload)
+            : null;
+        const addressText =
+          typeof order.address === "string"
+            ? order.address
+            : [addrObj?.address || addrObj?.street, addrObj?.area, addrObj?.city, addrObj?.state]
+                .filter(Boolean)
+                .join(", ");
+
+        const itemLines = order.items.map((item) => {
+          const sizePart = item.size ? ` | Size: ${item.size}` : "";
+          return `• ${item.name || item.title || "Product"} — Qty: ${item.qty}${sizePart}`;
+        });
+
+        const dispatchMessage = [
+          `*Givvly Order Dispatch: ${order.number}*`,
+          "",
+          "*Items:*",
+          ...itemLines,
+          "",
+          "*Customer Info:*",
+          `Name: ${order.recipientName}`,
+          order.recipientPhone ? `Phone: ${order.recipientPhone}` : null,
+          order.recipientEmail || order.buyerEmail
+            ? `Email: ${order.recipientEmail || order.buyerEmail}`
+            : null,
+          addressText ? `Address: ${addressText}` : null,
+          order.giftNote ? `Note: ${order.giftNote}` : null,
+        ]
+          .filter((l) => l !== null)
+          .join("\n");
+
+        const handleForwardEmail = async () => {
+          if (!activeVendor?.id) {
+            toast.error("Please select a vendor first.");
+            return;
+          }
+          try {
+            await forwardMutation.mutateAsync({
+              orderId: order.id,
+              vendorId: activeVendor.id,
+              channel: "EMAIL",
+            });
+            toast.success(`Order info emailed to ${activeVendor.name} (${activeVendor.email}).`);
+            setIsForwardOpen(false);
+          } catch (err) {
+            toast.error(
+              err instanceof Error ? err.message : "Failed to email vendor."
+            );
+          }
+        };
+
+        const handleForwardWhatsApp = async () => {
+          if (!activeVendor?.phone) {
+            toast.error("Selected vendor does not have a WhatsApp/phone number.");
+            return;
+          }
+          let digits = activeVendor.phone.replace(/\D/g, "");
+          if (digits.startsWith("0") && digits.length === 11) {
+            digits = `234${digits.slice(1)}`;
+          }
+          window.open(
+            `https://wa.me/${digits}?text=${encodeURIComponent(dispatchMessage)}`,
+            "_blank",
+            "noopener,noreferrer"
+          );
+          if (activeVendor.id) {
+            void forwardMutation
+              .mutateAsync({
+                orderId: order.id,
+                vendorId: activeVendor.id,
+                channel: "WHATSAPP",
+              })
+              .catch(() => undefined);
+          }
+          setIsForwardOpen(false);
+        };
+
+        return (
+          <Dialog open={isForwardOpen} onOpenChange={setIsForwardOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Forward Order Info to Vendor</DialogTitle>
+                <DialogDescription>
+                  Send product, quantity, size, customer details, and delivery
+                  address for {order.number} via WhatsApp or Email.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="forward-vendor-select">Select Vendor</Label>
+                  <Select
+                    value={selectedVendorId}
+                    onValueChange={setSelectedVendorId}
+                  >
+                    <SelectTrigger id="forward-vendor-select">
+                      <SelectValue placeholder="Choose a vendor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vendors.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.name} {v.location ? `(${v.location})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {activeVendor ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Email: {activeVendor.email || "—"} · WhatsApp:{" "}
+                      {activeVendor.phone || "—"}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Order Info Preview</Label>
+                  <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 font-sans text-xs text-foreground">
+                    {dispatchMessage}
+                  </pre>
+                </div>
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleForwardWhatsApp()}
+                  disabled={!activeVendor?.phone || forwardMutation.isPending}
+                >
+                  <MessageCircle className="mr-1.5 h-4 w-4 text-emerald-600" />
+                  <span>Send via WhatsApp</span>
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => void handleForwardEmail()}
+                  disabled={!activeVendor?.email || forwardMutation.isPending}
+                >
+                  <Mail className="mr-1.5 h-4 w-4" />
+                  <span>
+                    {forwardMutation.isPending ? "Sending..." : "Send via Email"}
+                  </span>
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }

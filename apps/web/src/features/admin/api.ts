@@ -9,11 +9,13 @@ import type {
   AdminUserDetail,
   AdminUserListItem,
   AdminVendorSummary,
+  CreateAdminVendorInput,
   CreateProductInput,
   DisputeRecord,
   EventSummary,
   LedgerEntry,
   Order,
+  UpdateAdminVendorInput,
   User,
 } from "./types";
 
@@ -276,11 +278,15 @@ export async function fetchAdminOrderDetail(id: string): Promise<AdminOrderDetai
         productId: it.productId ?? null,
         name: it.name ?? it.title ?? "Gift Item",
         qty,
+        size: it.size ?? undefined,
+        vendorId: it.vendorId ?? undefined,
+        vendorName: it.vendorName ?? undefined,
         unitPriceKobo: price,
         totalPriceKobo: it.totalPriceKobo ?? price * qty,
         vtuMetadata: it.vtuMetadata ?? null,
       };
     }),
+    vendor: o.vendor ?? null,
     payment: o.payment
       ? {
           id: o.payment.id,
@@ -323,6 +329,54 @@ export async function fetchAdminVendors(): Promise<AdminVendorSummary[]> {
   return Array.isArray(res) ? res : (res?.vendors ?? []);
 }
 
+export function createAdminVendor(
+  payload: CreateAdminVendorInput
+): Promise<AdminVendorSummary> {
+  return api<AdminVendorSummary>("/admin/vendors", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function updateAdminVendor(
+  vendorId: string,
+  payload: UpdateAdminVendorInput
+): Promise<AdminVendorSummary> {
+  return api<AdminVendorSummary>(
+    `/admin/vendors/${encodeURIComponent(vendorId)}`,
+    {
+      method: "PATCH",
+      body: payload,
+    }
+  );
+}
+
+export function deleteAdminVendor(
+  vendorId: string
+): Promise<{ deleted: boolean; id: string }> {
+  return api<{ deleted: boolean; id: string }>(
+    `/admin/vendors/${encodeURIComponent(vendorId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+export function forwardOrderToVendor(
+  orderId: string,
+  payload: { vendorId?: string; channel: "EMAIL" | "WHATSAPP" }
+): Promise<{
+  sent: boolean;
+  channel: "EMAIL" | "WHATSAPP";
+  vendor: { id: string; name: string; email: string; phone?: string };
+  message: string;
+}> {
+  return api(`/admin/orders/${encodeURIComponent(orderId)}/forward-vendor`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export async function fetchAdminUsers(): Promise<AdminUserListItem[]> {
   const res = await api<any>("/admin/users");
   return Array.isArray(res) ? res : (res?.users ?? []);
@@ -359,6 +413,7 @@ export async function fetchAdminProducts(): Promise<AdminProduct[]> {
     occasions: p.occasions ?? [],
     relationships: p.relationships ?? [],
     gender: p.gender,
+    vendorId: p.vendorId ?? null,
     vendorName: p.vendorName ?? p.vendor?.name ?? "Givvly Curated",
     inStock: typeof p.inStock === "boolean" ? p.inStock : (p.stock === null || p.stock > 0),
     rating: p.rating ?? p.ratingAvg ?? 4.9,

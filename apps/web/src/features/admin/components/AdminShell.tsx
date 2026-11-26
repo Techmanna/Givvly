@@ -68,7 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/audit-logs", label: "Audit Logs", icon: ShieldCheck },
       { href: "/admin/moderation", label: "Moderation Queue", icon: Shield },
       { href: "/admin/disputes", label: "Disputes & Claims", icon: AlertCircle },
-      { href: "/admin/vendors", label: "Legacy Vendors", icon: Store },
+      { href: "/admin/vendors", label: "Vendors", icon: Store },
       { href: "/admin/settings", label: "Platform Settings", icon: Settings },
     ],
   },
@@ -118,15 +118,15 @@ export function AdminShell({
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Logo & Brand Header */}
           <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/80 px-6">
-            <Link href="/admin" className="flex items-center gap-2.5">
-              <BrandLogo />
+            <div className="flex items-center gap-2.5">
+              <BrandLogo href="/admin" />
               <Badge
                 variant="outline"
                 className="border-primary/30 bg-primary/10 text-[10px] font-semibold text-primary uppercase"
               >
                 Admin
               </Badge>
-            </Link>
+            </div>
           </div>
 
           {/* Navigation Groups (independent internal scroll) */}

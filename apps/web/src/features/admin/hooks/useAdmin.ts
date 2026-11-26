@@ -33,6 +33,10 @@ import {
   createAdminShippingZone,
   updateAdminShippingZone,
   deleteAdminShippingZone,
+  createAdminVendor,
+  updateAdminVendor,
+  deleteAdminVendor,
+  forwardOrderToVendor,
 } from "../api";
 import { adminKeys } from "../keys";
 
@@ -389,6 +393,59 @@ export function useDeleteAdminShippingZone() {
       queryClient.invalidateQueries({ queryKey: adminKeys.shippingZones() });
       queryClient.invalidateQueries({ queryKey: ["catalog", "shipping-zones"] });
     },
+  });
+}
+
+export function useCreateAdminVendor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof createAdminVendor>[0]) =>
+      createAdminVendor(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.vendors() });
+    },
+  });
+}
+
+export function useUpdateAdminVendor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      vendorId,
+      payload,
+    }: {
+      vendorId: string;
+      payload: Parameters<typeof updateAdminVendor>[1];
+    }) => updateAdminVendor(vendorId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.vendors() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.products() });
+    },
+  });
+}
+
+export function useDeleteAdminVendor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vendorId: string) => deleteAdminVendor(vendorId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.vendors() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.products() });
+    },
+  });
+}
+
+export function useForwardOrderToVendor() {
+  return useMutation({
+    mutationFn: ({
+      orderId,
+      vendorId,
+      channel,
+    }: {
+      orderId: string;
+      vendorId?: string;
+      channel: "EMAIL" | "WHATSAPP";
+    }) => forwardOrderToVendor(orderId, { vendorId, channel }),
   });
 }
 

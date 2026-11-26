@@ -29,7 +29,7 @@ import {
   PRODUCT_DEPARTMENTS,
   RECIPIENT_GENDER_OPTIONS,
 } from "@/features/catalog";
-import { useCreateAdminProduct } from "../../hooks/useAdmin";
+import { useAdminVendors, useCreateAdminProduct } from "../../hooks/useAdmin";
 import type { CreateProductInput } from "../../types";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -48,6 +48,8 @@ export function AddProductDialog({
   const setIsOpen = isControlled ? (controlledOnOpenChange || (() => { })) : setInternalOpen;
 
   const createProductMutation = useCreateAdminProduct();
+  const vendorsQuery = useAdminVendors();
+  const vendors = vendorsQuery.data ?? [];
 
   const [formData, setFormData] = useState({
     name: "",
@@ -57,6 +59,7 @@ export function AddProductDialog({
     category: "Curated Combos & Boxes",
     giftType: "LUXURY",
     gender: "UNISEX" as "UNISEX" | "MALE" | "FEMALE",
+    vendorId: "",
     imageUrl: "",
     inStock: true,
     isCombo: false,
@@ -80,6 +83,7 @@ export function AddProductDialog({
       category: "Curated Combos & Boxes",
       giftType: "LUXURY",
       gender: "UNISEX",
+      vendorId: "",
       imageUrl: "",
       inStock: true,
       isCombo: false,
@@ -177,6 +181,7 @@ export function AddProductDialog({
         mainCategories: mainCats,
         giftType: isGiftBox ? "PACKAGING" : dept?.giftType || formData.giftType || "LUXURY",
         gender: isGiftBox ? "UNISEX" : formData.gender,
+        vendorId: formData.vendorId || null,
         occasions,
         relationships,
         imageUrl: formData.imageUrl.trim() || "/images/gifts/box-luxury.jpg",
@@ -255,6 +260,36 @@ export function AddProductDialog({
                     <SelectItem value="ITEM">Standard Gift Item (Selectable in Step 2)</SelectItem>
                     <SelectItem value="GIFT_BOX">Gift Box / Packaging (Selectable in Step 1)</SelectItem>
                     <SelectItem value="EXCLUDED">Exclude from Box Builder</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground">
+                  Source / Vendor (Optional)
+                </label>
+                <Select
+                  value={formData.vendorId || "__NONE__"}
+                  onValueChange={(val) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      vendorId: val === "__NONE__" ? "" : val,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="h-9 text-xs bg-card">
+                    <SelectValue placeholder="Givvly Curated (No specific vendor)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__NONE__">
+                      Givvly Curated (No specific vendor)
+                    </SelectItem>
+                    {vendors.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.name}
+                        {v.location ? ` (${v.location})` : ""}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

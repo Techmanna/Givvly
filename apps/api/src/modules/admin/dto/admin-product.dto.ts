@@ -118,6 +118,11 @@ export class CreateProductDto {
   @IsBoolean()
   isCombo?: boolean;
 
+  @ApiPropertyOptional({ example: "uuid-of-vendor", nullable: true })
+  @IsOptional()
+  @IsString()
+  vendorId?: string | null;
+
   @ApiPropertyOptional({ example: [{ name: "Artisan Chocolate", qty: 1 }] })
   @IsOptional()
   comboItems?: any;
@@ -264,6 +269,11 @@ export class UpdateProductDto {
   @IsBoolean()
   isCombo?: boolean;
 
+  @ApiPropertyOptional({ example: "uuid-of-vendor", nullable: true })
+  @IsOptional()
+  @IsString()
+  vendorId?: string | null;
+
   @ApiPropertyOptional({ example: [{ name: "Artisan Chocolate", qty: 1 }] })
   @IsOptional()
   comboItems?: any;
@@ -367,3 +377,25 @@ export class CreateCollectionDto {
   @IsArray()
   productIds: string[] = [];
 }
+
+export const createAdminVendorSchema = z.object({
+  name: z.string().trim().min(2, "Vendor name is required").max(100),
+  email: z.string().trim().email("Valid vendor email is required"),
+  phone: z.string().trim().min(7, "Phone / WhatsApp number is required").max(25),
+  location: z.string().trim().max(160).optional().nullable(),
+  logoUrl: z.string().trim().max(500).optional().nullable(),
+  active: z.boolean().optional().default(true),
+});
+
+export type CreateAdminVendorDto = z.infer<typeof createAdminVendorSchema>;
+
+export const updateAdminVendorSchema = createAdminVendorSchema.partial();
+
+export type UpdateAdminVendorDto = z.infer<typeof updateAdminVendorSchema>;
+
+export const forwardOrderToVendorSchema = z.object({
+  vendorId: z.string().uuid().optional(),
+  channel: z.enum(["EMAIL", "WHATSAPP"]).default("EMAIL"),
+});
+
+export type ForwardOrderToVendorDto = z.infer<typeof forwardOrderToVendorSchema>;

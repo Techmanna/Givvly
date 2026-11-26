@@ -21,7 +21,11 @@ import {
   PRODUCT_DEPARTMENTS,
   RECIPIENT_GENDER_OPTIONS,
 } from "@/features/catalog";
-import { useUpdateAdminProduct, useDeleteAdminProduct } from "../../hooks/useAdmin";
+import {
+  useAdminVendors,
+  useUpdateAdminProduct,
+  useDeleteAdminProduct,
+} from "../../hooks/useAdmin";
 import { COMMON_OCCASIONS, COMMON_RELATIONSHIPS } from "./constants";
 import type { AdminProduct } from "../../types";
 
@@ -40,6 +44,8 @@ export function ProductEditForm({
 }: ProductEditFormProps) {
   const updateProductMutation = useUpdateAdminProduct();
   const deleteProductMutation = useDeleteAdminProduct();
+  const vendorsQuery = useAdminVendors();
+  const vendors = vendorsQuery.data ?? [];
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);
 
   const [editFormData, setEditFormData] = useState({
@@ -50,6 +56,7 @@ export function ProductEditForm({
     category: "Curated Combos & Boxes",
     giftType: "LUXURY",
     gender: "UNISEX" as "UNISEX" | "MALE" | "FEMALE",
+    vendorId: "",
     vendorName: "Givvly Curated",
     packagingIncluded: "Luxury Gift Box & Ribbon",
     description: "",
@@ -129,6 +136,7 @@ export function ProductEditForm({
         category: dept,
         giftType: product.giftType || "LUXURY",
         gender: product.gender || "UNISEX",
+        vendorId: product.vendorId || "",
         vendorName: product.vendorName || "Givvly Curated",
         packagingIncluded: product.packagingIncluded || "Luxury Gift Box & Ribbon",
         description: product.description || "",
@@ -381,6 +389,7 @@ export function ProductEditForm({
           giftType: dept?.giftType || editFormData.giftType || product.giftType || "LUXURY",
           gender: editFormData.gender,
           description: editFormData.description.trim(),
+          vendorId: editFormData.vendorId || null,
           vendorName: editFormData.vendorName.trim(),
           packagingIncluded: editFormData.packagingIncluded.trim(),
           priceKobo: Math.round(priceNum * 100),
@@ -536,16 +545,34 @@ export function ProductEditForm({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-foreground">
-              Sourcing Vendor Name
+              Source / Vendor (Optional)
             </label>
-            <Input
-              value={editFormData.vendorName}
-              onChange={(e) =>
-                setEditFormData((prev) => ({ ...prev, vendorName: e.target.value }))
-              }
-              placeholder="e.g. Givvly Curated, Artisan Bakery"
-              className="text-xs"
-            />
+            <Select
+              value={editFormData.vendorId || "__NONE__"}
+              onValueChange={(val) => {
+                const chosen = vendors.find((v) => v.id === val);
+                setEditFormData((prev) => ({
+                  ...prev,
+                  vendorId: val === "__NONE__" ? "" : val,
+                  vendorName: chosen ? chosen.name : "Givvly Curated",
+                }));
+              }}
+            >
+              <SelectTrigger className="h-9 text-xs bg-card">
+                <SelectValue placeholder="Givvly Curated (No specific vendor)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__NONE__">
+                  Givvly Curated (No specific vendor)
+                </SelectItem>
+                {vendors.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.name}
+                    {v.location ? ` (${v.location})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1.5">

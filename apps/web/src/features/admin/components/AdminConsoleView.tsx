@@ -40,6 +40,7 @@ import { EventManagementView } from "./EventManagementView";
 import { PaymentManagementView } from "./PaymentManagementView";
 import { PayoutManagementView } from "./PayoutManagementView";
 import { LedgerManagementView } from "./LedgerManagementView";
+import { VendorManagementView } from "./VendorManagementView";
 import { AuditLogsView } from "./AuditLogsView";
 
 export type AdminSection =
@@ -364,37 +365,8 @@ export function AdminConsoleView({
       {/* Section: Ledger */}
       {section === "ledger" && <LedgerManagementView />}
 
-      {/* Section: Vendors (Unified notice + Legacy Audit) */}
-      {section === "vendors" && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs text-foreground space-y-1">
-            <p className="font-semibold text-primary">
-              Unified Admin Operations Notice
-            </p>
-            <p className="text-muted-foreground">
-              External vendor portals have been consolidated directly into the Givvly Operations Console. All product catalogs, combo curation, and fulfillment logistics are now operated directly by Givvly Administrators. Legacy vendor partners are retained below for historical audit trails.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {(vendorsQuery.data ?? []).map((v) => (
-              <Card key={v.id} className="border border-border/80 bg-card">
-                <CardContent className="flex items-center justify-between p-4">
-                  <div>
-                    <p className="font-heading text-base font-semibold text-foreground">
-                      {v.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {v.email} • {v.productCount} catalog products
-                    </p>
-                  </div>
-                  <StatusBadge status={v.status} />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Section: Vendors */}
+      {section === "vendors" && <VendorManagementView />}
 
       {/* Section: Disputes */}
       {section === "disputes" && (() => {

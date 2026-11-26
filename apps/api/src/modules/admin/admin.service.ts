@@ -23,12 +23,16 @@ import {
   CreateProductDto,
   UpdateProductDto,
   CreateCollectionDto,
+  CreateAdminVendorDto,
+  UpdateAdminVendorDto,
+  ForwardOrderToVendorDto,
 } from "./dto/admin-product.dto";
 import { UpdateOrderStatusDto } from "./dto/admin-orders.dto";
 import { ResolveDisputeDto, IssueRefundDto } from "./dto/admin-disputes.dto";
 import { canOrderTransition } from "../orders/order-state-machine";
 import { ProvideBespokeQuoteInput } from "../orders/dto/bespoke-wish.dto";
 import { NotificationsService } from "../notifications/notifications.service";
+import { EmailService } from "../notifications/email.service";
 
 import { ensureShippingZonesSeeded } from "../catalog/shipping-zones.seed";
 import type {
@@ -46,7 +50,8 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
     @Optional() slugService?: SlugService,
-    @Optional() private readonly notifications?: NotificationsService
+    @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly emailService?: EmailService
   ) {
     this.slugService = slugService ?? new SlugService(this.prisma);
   }
@@ -125,6 +130,7 @@ export class AdminService {
         category: p.occasions[0] || "Wedding Gifts",
         occasions: p.occasions,
         relationships: p.relationships,
+        vendorId: p.vendorId ?? null,
         vendorName: p.vendor?.name || "Givvly Curated",
         stock: p.stock,
         inStock,
@@ -201,6 +207,7 @@ export class AdminService {
         boxRole: dto.boxRole || (dto.isDigital ? "EXCLUDED" : "ITEM"),
         boxMaxItems: dto.boxMaxItems ?? null,
         boxSizeTier: dto.boxSizeTier ?? null,
+        vendorId: dto.vendorId || null,
         active: true,
       },
     });
@@ -269,8 +276,10 @@ export class AdminService {
         ...(dto.boxRole !== undefined && { boxRole: dto.boxRole }),
         ...(dto.boxMaxItems !== undefined && { boxMaxItems: dto.boxMaxItems }),
         ...(dto.boxSizeTier !== undefined && { boxSizeTier: dto.boxSizeTier }),
+        ...(dto.vendorId !== undefined && { vendorId: dto.vendorId || null }),
         ...(dto.active !== undefined && { active: dto.active }),
       },
+      include: { vendor: { select: { name: true } } },
     });
 
     await this.logAudit(adminId, "PRODUCT_UPDATE", "Product", id, {
@@ -295,7 +304,8 @@ export class AdminService {
       name: effectiveTitle,
       category: effectiveOccasions[0] || dto.category || "Wedding Gifts",
       occasions: effectiveOccasions,
-      vendorName: "Givvly Curated",
+      vendorId: updated.vendorId ?? null,
+      vendorName: (updated as any).vendor?.name || "Givvly Curated",
       inStock,
       rating: updated.ratingAvg ?? 5.0,
       reviewCount: updated.ratingCount ?? 0,
@@ -569,6 +579,17 @@ export class AdminService {
       include: {
         items: true,
         payment: true,
+        vendor: {
+          select: {
+            id: true,
+            name: true,
+            contactEmail: true,
+            phone: true,
+            location: true,
+            city: true,
+            logoUrl: true,
+          },
+        },
         history: { orderBy: { createdAt: "asc" } },
         review: true,
         disputes: true,
@@ -579,7 +600,55 @@ export class AdminService {
       throw new NotFoundException(`Order '${id}' not found`);
     }
 
-    return order;
+    const productIds = Array.from(new Set(order.items.map((i) => i.productId)));
+    const products =
+      productIds.length > 0 && typeof this.prisma.product?.findMany === "function"
+        ? await this.prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: {
+              id: true,
+              boxSizeTier: true,
+              vendor: {
+                select: {
+                  id: true,
+                  name: true,
+                  contactEmail: true,
+                  phone: true,
+                  location: true,
+                  city: true,
+                  logoUrl: true,
+                },
+              },
+            },
+          })
+        : [];
+    const productMap = new Map(products.map((p: any) => [p.id, p]));
+
+    const firstProductVendor = products.find((p: any) => p.vendor)?.vendor ?? null;
+    const resolvedVendor = order.vendor ?? firstProductVendor;
+
+    return {
+      ...order,
+      items: order.items.map((item) => {
+        const prod = productMap.get(item.productId) as any;
+        return {
+          ...item,
+          size: prod?.boxSizeTier ?? undefined,
+          vendorId: prod?.vendor?.id ?? undefined,
+          vendorName: prod?.vendor?.name ?? undefined,
+        };
+      }),
+      vendor: resolvedVendor
+        ? {
+            id: resolvedVendor.id,
+            name: resolvedVendor.name,
+            email: resolvedVendor.contactEmail,
+            phone: resolvedVendor.phone ?? undefined,
+            location: resolvedVendor.location ?? resolvedVendor.city ?? undefined,
+            logoUrl: resolvedVendor.logoUrl ?? undefined,
+          }
+        : null,
+    };
   }
 
   async updateOrderStatus(id: string, dto: UpdateOrderStatusDto, adminId?: string) {
@@ -2025,12 +2094,242 @@ export class AdminService {
     return vendors.map((v: any) => ({
       id: v.id,
       name: v.name,
+      slug: v.slug,
       email: v.contactEmail,
+      phone: v.phone ?? undefined,
+      location: v.location ?? v.city ?? undefined,
+      logoUrl: v.logoUrl ?? undefined,
+      active: Boolean(v.active),
       productCount: v._count?.products ?? v.products?.length ?? 0,
       status: v.active
         ? ("VERIFIED" as const)
         : ("PENDING_REVIEW" as const),
     }));
+  }
+
+  async createVendor(dto: CreateAdminVendorDto, adminId?: string) {
+    const slug = await this.slugService.generateSlug({
+      title: dto.name.trim(),
+      model: "vendor",
+    });
+
+    const vendor = await this.prisma.vendor.create({
+      data: {
+        name: dto.name.trim(),
+        slug,
+        contactEmail: dto.email.trim().toLowerCase(),
+        phone: dto.phone.trim(),
+        location: dto.location?.trim() || null,
+        city: dto.location?.trim() || null,
+        logoUrl: dto.logoUrl?.trim() || null,
+        active: dto.active ?? true,
+      },
+    });
+
+    await this.logAudit(adminId, "VENDOR_CREATE", "Vendor", vendor.id, {
+      name: vendor.name,
+      email: vendor.contactEmail,
+    });
+
+    return {
+      id: vendor.id,
+      name: vendor.name,
+      slug: vendor.slug,
+      email: vendor.contactEmail,
+      phone: vendor.phone ?? undefined,
+      location: vendor.location ?? vendor.city ?? undefined,
+      logoUrl: vendor.logoUrl ?? undefined,
+      active: Boolean(vendor.active),
+      productCount: 0,
+      status: vendor.active ? ("VERIFIED" as const) : ("PENDING_REVIEW" as const),
+    };
+  }
+
+  async updateVendor(id: string, dto: UpdateAdminVendorDto, adminId?: string) {
+    const existing = await this.prisma.vendor.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Vendor '${id}' not found`);
+    }
+
+    const updated = await this.prisma.vendor.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name.trim() }),
+        ...(dto.email !== undefined && {
+          contactEmail: dto.email.trim().toLowerCase(),
+        }),
+        ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
+        ...(dto.location !== undefined && {
+          location: dto.location?.trim() || null,
+          city: dto.location?.trim() || null,
+        }),
+        ...(dto.logoUrl !== undefined && {
+          logoUrl: dto.logoUrl?.trim() || null,
+        }),
+        ...(dto.active !== undefined && { active: dto.active }),
+      },
+      include: { _count: { select: { products: true } } },
+    });
+
+    await this.logAudit(adminId, "VENDOR_UPDATE", "Vendor", id, {
+      name: updated.name,
+      email: updated.contactEmail,
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      slug: updated.slug,
+      email: updated.contactEmail,
+      phone: updated.phone ?? undefined,
+      location: updated.location ?? updated.city ?? undefined,
+      logoUrl: updated.logoUrl ?? undefined,
+      active: Boolean(updated.active),
+      productCount: updated._count?.products ?? 0,
+      status: updated.active ? ("VERIFIED" as const) : ("PENDING_REVIEW" as const),
+    };
+  }
+
+  async deleteVendor(id: string, adminId?: string) {
+    const existing = await this.prisma.vendor.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Vendor '${id}' not found`);
+    }
+
+    await this.prisma.$transaction(async (tx: any) => {
+      await tx.product.updateMany({
+        where: { vendorId: id },
+        data: { vendorId: null },
+      });
+      await tx.order.updateMany({
+        where: { vendorId: id },
+        data: { vendorId: null },
+      });
+      await tx.vendor.delete({ where: { id } });
+    });
+
+    await this.logAudit(adminId, "VENDOR_DELETE", "Vendor", id, {
+      name: existing.name,
+    });
+
+    return { deleted: true, id };
+  }
+
+  async forwardOrderToVendor(
+    orderId: string,
+    dto: ForwardOrderToVendorDto,
+    adminId?: string
+  ) {
+    const order = await this.getOrderById(orderId);
+    const targetVendor = dto.vendorId
+      ? await this.prisma.vendor.findUnique({ where: { id: dto.vendorId } })
+      : order.vendor
+        ? await this.prisma.vendor.findUnique({ where: { id: order.vendor.id } })
+        : null;
+
+    if (!targetVendor) {
+      throw new BadRequestException(
+        "Please select a vendor to forward this order to."
+      );
+    }
+
+    const addr = (order.address as Record<string, any>) || {};
+    const addressParts = [
+      addr.address || addr.street,
+      addr.area,
+      addr.city,
+      addr.state,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    const itemLines = order.items.map((item: any) => {
+      const sizeText = item.size ? ` | Size: ${item.size}` : "";
+      return `• ${item.title} — Qty: ${item.qty}${sizeText}`;
+    });
+
+    const plainText = [
+      `Order Dispatch: ${order.number}`,
+      ``,
+      `Items:`,
+      ...itemLines,
+      ``,
+      `Customer Info:`,
+      `Name: ${order.recipientName}`,
+      order.recipientPhone ? `Phone: ${order.recipientPhone}` : null,
+      order.recipientEmail || order.buyerEmail
+        ? `Email: ${order.recipientEmail || order.buyerEmail}`
+        : null,
+      addressParts ? `Delivery Address: ${addressParts}` : null,
+      order.giftNote ? `Note: ${order.giftNote}` : null,
+    ]
+      .filter((line) => line !== null)
+      .join("\n");
+
+    if (dto.channel === "EMAIL") {
+      if (!targetVendor.contactEmail) {
+        throw new BadRequestException("Selected vendor does not have an email address.");
+      }
+      if (!this.emailService) {
+        throw new BadRequestException("Email service is unavailable.");
+      }
+
+      const itemsHtml = order.items
+        .map((item: any) => {
+          const sizeBadge = item.size ? ` (Size: ${item.size})` : "";
+          return `<li><strong>${item.title}</strong> — Qty: ${item.qty}${sizeBadge}</li>`;
+        })
+        .join("");
+
+      const html = `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#222;">
+          <h2 style="color:#B5495B;">New Order Dispatch: ${order.number}</h2>
+          <p>Hello ${targetVendor.name},</p>
+          <p>Please find the order details below for fulfillment:</p>
+          <h3>Order Items</h3>
+          <ul>${itemsHtml}</ul>
+          <h3>Customer &amp; Delivery Info</h3>
+          <p>
+            <strong>Recipient:</strong> ${order.recipientName}<br/>
+            ${order.recipientPhone ? `<strong>Phone:</strong> ${order.recipientPhone}<br/>` : ""}
+            ${order.recipientEmail || order.buyerEmail ? `<strong>Email:</strong> ${order.recipientEmail || order.buyerEmail}<br/>` : ""}
+            ${addressParts ? `<strong>Address:</strong> ${addressParts}<br/>` : ""}
+            ${order.giftNote ? `<strong>Gift Note:</strong> ${order.giftNote}` : ""}
+          </p>
+        </div>
+      `;
+
+      await this.emailService.send({
+        to: targetVendor.contactEmail,
+        subject: `Givvly Order Dispatch: ${order.number}`,
+        html,
+        text: plainText,
+      });
+    }
+
+    await this.logAudit(
+      adminId,
+      "ORDER_FORWARDED_TO_VENDOR",
+      "Order",
+      orderId,
+      {
+        vendorId: targetVendor.id,
+        vendorName: targetVendor.name,
+        channel: dto.channel,
+      }
+    );
+
+    return {
+      sent: true,
+      channel: dto.channel,
+      vendor: {
+        id: targetVendor.id,
+        name: targetVendor.name,
+        email: targetVendor.contactEmail,
+        phone: targetVendor.phone,
+      },
+      message: plainText,
+    };
   }
 
   // ==================== SHIPPING ZONES ====================
