@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Eye,
+  FilterX,
   KeyRound,
   Mail,
   Phone,
@@ -34,6 +35,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
 import {
@@ -44,8 +52,11 @@ import {
 } from "../hooks/useAdmin";
 import type { AdminUserListItem } from "../types";
 
-const ROLE_FILTERS = ["ALL", "USER", "ADMIN"] as const;
-const STATUS_FILTERS = ["ALL", "ACTIVE", "SUSPENDED"] as const;
+const STATUS_FILTERS = [
+  { value: "ALL", label: "All Accounts", dotClass: "bg-foreground/40" },
+  { value: "ACTIVE", label: "Active", dotClass: "bg-emerald-500" },
+  { value: "SUSPENDED", label: "Suspended", dotClass: "bg-destructive" },
+] as const;
 const PAGE_SIZE = 9;
 
 export function UserManagementView() {
@@ -55,6 +66,8 @@ export function UserManagementView() {
 
   const [search, setSearch] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("ALL");
+  const [selectedKyc, setSelectedKyc] = useState<string>("ALL");
+  const [selectedVerified, setSelectedVerified] = useState<string>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [page, setPage] = useState(1);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -67,18 +80,69 @@ export function UserManagementView() {
 
   const users = usersQuery.data ?? [];
 
-  const filteredUsers = users.filter((u) => {
+  const hasActiveFilters =
+    search.trim() !== "" ||
+    selectedRole !== "ALL" ||
+    selectedKyc !== "ALL" ||
+    selectedVerified !== "ALL" ||
+    selectedStatus !== "ALL";
+
+  const resetFilters = () => {
+    setSearch("");
+    setSelectedRole("ALL");
+    setSelectedKyc("ALL");
+    setSelectedVerified("ALL");
+    setSelectedStatus("ALL");
+    setPage(1);
+  };
+
+  const filteredWithoutStatus = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      u.name.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      (u.phone?.toLowerCase().includes(q) ?? false);
-    const matchesRole = selectedRole === "ALL" || u.role === selectedRole;
-    const status = u.status ?? "ACTIVE";
-    const matchesStatus = selectedStatus === "ALL" || status === selectedStatus;
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+    return users.filter((u) => {
+      const matchesSearch =
+        !q ||
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.phone?.toLowerCase().includes(q) ?? false);
+      const matchesRole = selectedRole === "ALL" || u.role === selectedRole;
+      const kycTier = u.kycTier ?? 1;
+      const matchesKyc =
+        selectedKyc === "ALL" ||
+        (selectedKyc === "TIER_1" && kycTier <= 1) ||
+        (selectedKyc === "TIER_2_PLUS" && kycTier >= 2) ||
+        (selectedKyc === "TIER_3" && kycTier >= 3);
+      const isVerified = Boolean(u.emailVerifiedAt);
+      const matchesVerified =
+        selectedVerified === "ALL" ||
+        (selectedVerified === "VERIFIED" && isVerified) ||
+        (selectedVerified === "UNVERIFIED" && !isVerified);
+
+      return matchesSearch && matchesRole && matchesKyc && matchesVerified;
+    });
+  }, [users, search, selectedRole, selectedKyc, selectedVerified]);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      ALL: filteredWithoutStatus.length,
+      ACTIVE: 0,
+      SUSPENDED: 0,
+    };
+    for (const u of filteredWithoutStatus) {
+      const st = u.status ?? "ACTIVE";
+      counts[st] = (counts[st] ?? 0) + 1;
+    }
+    return counts;
+  }, [filteredWithoutStatus]);
+
+  const filteredUsers = useMemo(
+    () =>
+      selectedStatus === "ALL"
+        ? filteredWithoutStatus
+        : filteredWithoutStatus.filter(
+            (u) => (u.status ?? "ACTIVE") === selectedStatus
+          ),
+    [filteredWithoutStatus, selectedStatus]
+  );
 
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -87,9 +151,15 @@ export function UserManagementView() {
     currentPage * PAGE_SIZE
   );
 
-  const activeCount = users.filter((u) => (u.status ?? "ACTIVE") === "ACTIVE").length;
-  const suspendedCount = users.filter((u) => u.status === "SUSPENDED").length;
-  const kycTier2PlusCount = users.filter((u) => (u.kycTier ?? 1) >= 2).length;
+  const activeCount = filteredUsers.filter(
+    (u) => (u.status ?? "ACTIVE") === "ACTIVE"
+  ).length;
+  const suspendedCount = filteredUsers.filter(
+    (u) => u.status === "SUSPENDED"
+  ).length;
+  const kycTier2PlusCount = filteredUsers.filter(
+    (u) => (u.kycTier ?? 1) >= 2
+  ).length;
 
   const handleConfirmAccountAction = async () => {
     if (!pendingStatusAction) return;
@@ -126,20 +196,27 @@ export function UserManagementView() {
         </div>
 
         <Badge variant="outline" className="self-start text-xs font-mono sm:self-auto">
-          {users.length} Registered Accounts
+          {hasActiveFilters
+            ? `${filteredUsers.length} of ${users.length} Accounts`
+            : `${users.length} Registered Accounts`}
         </Badge>
       </div>
 
-      {/* Summary KPIs */}
+      {/* Summary KPIs — driven by active filters */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="border-border/80">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Total Accounts
+              {hasActiveFilters ? "Matching Accounts" : "Total Accounts"}
             </p>
             <p className="mt-1 font-heading text-2xl font-bold text-foreground">
-              {users.length}
+              {filteredUsers.length}
             </p>
+            {hasActiveFilters && (
+              <p className="text-[11px] text-muted-foreground">
+                of {users.length} registered
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card className="border-border/80">
@@ -176,12 +253,12 @@ export function UserManagementView() {
 
       {/* Filter and Search */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
+          <div className="relative sm:col-span-2 lg:col-span-5">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by user name, email, or phone..."
-              className="pl-9 text-xs"
+              className="h-9 pl-9 text-xs"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -190,43 +267,108 @@ export function UserManagementView() {
             />
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
-            {ROLE_FILTERS.map((role) => (
-              <button
-                key={role}
-                type="button"
-                onClick={() => {
-                  setSelectedRole(role);
-                  setPage(1);
-                }}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  selectedRole === role
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                {role}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          {STATUS_FILTERS.map((st) => (
-            <Button
-              key={st}
-              type="button"
-              size="sm"
-              variant={selectedStatus === st ? "secondary" : "ghost"}
-              className="h-7 text-[11px]"
-              onClick={() => {
-                setSelectedStatus(st);
+          <div className="lg:col-span-2">
+            <Select
+              value={selectedRole}
+              onValueChange={(val) => {
+                setSelectedRole(val);
                 setPage(1);
               }}
             >
-              {st === "ALL" ? "All Statuses" : st}
-            </Button>
-          ))}
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Roles</SelectItem>
+                <SelectItem value="USER">Standard Users</SelectItem>
+                <SelectItem value="ADMIN">Admins</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="lg:col-span-2">
+            <Select
+              value={selectedKyc}
+              onValueChange={(val) => {
+                setSelectedKyc(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="KYC Tier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All KYC Tiers</SelectItem>
+                <SelectItem value="TIER_1">Tier 1 (Basic)</SelectItem>
+                <SelectItem value="TIER_2_PLUS">Tier 2+ (Verified)</SelectItem>
+                <SelectItem value="TIER_3">Tier 3 (Unlimited)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-2 lg:col-span-3">
+            <Select
+              value={selectedVerified}
+              onValueChange={(val) => {
+                setSelectedVerified(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 flex-1 text-xs">
+                <SelectValue placeholder="Email Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Emails</SelectItem>
+                <SelectItem value="VERIFIED">Verified Email</SelectItem>
+                <SelectItem value="UNVERIFIED">Unverified Email</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {hasActiveFilters && (
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                className="h-9 w-9 shrink-0"
+                title="Reset all filters"
+                onClick={resetFilters}
+              >
+                <FilterX className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3">
+          {STATUS_FILTERS.map((st) => {
+            const count = statusCounts[st.value] ?? 0;
+            const active = selectedStatus === st.value;
+            return (
+              <button
+                key={st.value}
+                type="button"
+                onClick={() => {
+                  setSelectedStatus(st.value);
+                  setPage(1);
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border/70 bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${st.dotClass}`} />
+                <span>{st.label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                    active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
