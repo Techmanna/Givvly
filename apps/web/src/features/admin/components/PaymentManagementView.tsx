@@ -6,6 +6,7 @@ import {
   CreditCard,
   ExternalLink,
   Eye,
+  FilterX,
   Gift,
   Package,
   Search,
@@ -35,38 +36,140 @@ import {
   VolumeBreakdownCard,
 } from "./FinanceCharts";
 
-const STATUS_FILTERS = ["ALL", "SUCCESS", "INITIATED", "FAILED", "ABANDONED"] as const;
-const SOURCE_FILTERS = ["ALL", "GIFT", "ORDER"] as const;
+const STATUS_FILTERS = [
+  "ALL",
+  "SUCCESS",
+  "REFUNDED",
+  "INITIATED",
+  "FAILED",
+  "ABANDONED",
+] as const;
+const SOURCE_FILTERS = ["ALL", "GIFT", "ORDER", "DIRECT"] as const;
+const DATE_FILTERS = [
+  { value: "ALL", label: "All Time", days: null },
+  { value: "TODAY", label: "Today", days: 1 },
+  { value: "7D", label: "7 Days", days: 7 },
+  { value: "30D", label: "30 Days", days: 30 },
+  { value: "90D", label: "90 Days", days: 90 },
+] as const;
 const PAGE_SIZE = 10;
+
+function normalizeChannel(channel?: string | null): string {
+  const trimmed = channel?.trim();
+  return trimmed ? trimmed.toLowerCase() : "unspecified";
+}
+
+function formatChannelLabel(channel?: string | null): string {
+  const normalized = normalizeChannel(channel);
+  if (normalized === "unspecified") return "Unspecified (Uncompleted)";
+  return normalized
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function PaymentManagementView() {
   const paymentsQuery = useAdminPayments();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
   const [sourceFilter, setSourceFilter] = React.useState<string>("ALL");
+  const [providerFilter, setProviderFilter] = React.useState<string>("ALL");
+  const [channelFilter, setChannelFilter] = React.useState<string>("ALL");
+  const [dateFilter, setDateFilter] = React.useState<string>("ALL");
   const [page, setPage] = React.useState(1);
   const [selectedPayment, setSelectedPayment] =
     React.useState<AdminPaymentRecord | null>(null);
 
   const payments = paymentsQuery.data ?? [];
 
-  const filtered = payments.filter((pay) => {
+  const providerOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const p of payments) {
+      if (p.provider) set.add(p.provider.toUpperCase());
+    }
+    return ["ALL", ...Array.from(set).sort()];
+  }, [payments]);
+
+  const channelOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const p of payments) {
+      set.add(normalizeChannel(p.channel));
+    }
+    return ["ALL", ...Array.from(set).sort()];
+  }, [payments]);
+
+  const hasActiveFilters =
+    search.trim() !== "" ||
+    statusFilter !== "ALL" ||
+    sourceFilter !== "ALL" ||
+    providerFilter !== "ALL" ||
+    channelFilter !== "ALL" ||
+    dateFilter !== "ALL";
+
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter("ALL");
+    setSourceFilter("ALL");
+    setProviderFilter("ALL");
+    setChannelFilter("ALL");
+    setDateFilter("ALL");
+    setPage(1);
+  };
+
+  const filtered = React.useMemo(() => {
+    const now = Date.now();
+    const selectedDateOption = DATE_FILTERS.find((d) => d.value === dateFilter);
+    const cutoffMs =
+      selectedDateOption?.days != null
+        ? selectedDateOption.value === "TODAY"
+          ? new Date().setHours(0, 0, 0, 0)
+          : now - selectedDateOption.days * 24 * 60 * 60 * 1000
+        : null;
+
     const q = search.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      pay.reference.toLowerCase().includes(q) ||
-      (pay.payerEmail?.toLowerCase().includes(q) ?? false) ||
-      (pay.order?.number?.toLowerCase().includes(q) ?? false) ||
-      (pay.order?.recipientName?.toLowerCase().includes(q) ?? false) ||
-      (pay.gift?.event?.name?.toLowerCase().includes(q) ?? false) ||
-      (pay.gift?.event?.slug?.toLowerCase().includes(q) ?? false);
-    const matchesStatus = statusFilter === "ALL" || pay.status === statusFilter;
-    const matchesSource =
-      sourceFilter === "ALL" ||
-      (sourceFilter === "GIFT" && Boolean(pay.gift)) ||
-      (sourceFilter === "ORDER" && Boolean(pay.order));
-    return matchesSearch && matchesStatus && matchesSource;
-  });
+
+    return payments.filter((pay) => {
+      const matchesSearch =
+        !q ||
+        pay.reference.toLowerCase().includes(q) ||
+        (pay.payerEmail?.toLowerCase().includes(q) ?? false) ||
+        (pay.provider?.toLowerCase().includes(q) ?? false) ||
+        (pay.channel?.toLowerCase().includes(q) ?? false) ||
+        (pay.order?.number?.toLowerCase().includes(q) ?? false) ||
+        (pay.order?.recipientName?.toLowerCase().includes(q) ?? false) ||
+        (pay.gift?.event?.name?.toLowerCase().includes(q) ?? false) ||
+        (pay.gift?.event?.slug?.toLowerCase().includes(q) ?? false);
+      const matchesStatus = statusFilter === "ALL" || pay.status === statusFilter;
+      const matchesSource =
+        sourceFilter === "ALL" ||
+        (sourceFilter === "GIFT" && Boolean(pay.gift)) ||
+        (sourceFilter === "ORDER" && Boolean(pay.order)) ||
+        (sourceFilter === "DIRECT" && !pay.gift && !pay.order);
+      const matchesProvider =
+        providerFilter === "ALL" ||
+        (pay.provider?.toUpperCase() ?? "") === providerFilter;
+      const matchesChannel =
+        channelFilter === "ALL" || normalizeChannel(pay.channel) === channelFilter;
+      const matchesDate =
+        cutoffMs == null || new Date(pay.createdAt).getTime() >= cutoffMs;
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesSource &&
+        matchesProvider &&
+        matchesChannel &&
+        matchesDate
+      );
+    });
+  }, [
+    payments,
+    search,
+    statusFilter,
+    sourceFilter,
+    providerFilter,
+    channelFilter,
+    dateFilter,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -75,32 +178,57 @@ export function PaymentManagementView() {
     currentPage * PAGE_SIZE
   );
 
-  const successful = payments.filter((p) => p.status === "SUCCESS");
-  const failedOrPending = payments.filter((p) => p.status !== "SUCCESS");
-  const grossSettledKobo = successful.reduce((s, p) => s + p.totalKobo, 0);
-  const totalServiceFeesKobo = successful.reduce(
+  // Truth-first financial metrics computed strictly from the filtered slice:
+  // Initiated, Failed, and Abandoned attempts NEVER count as settled inflow.
+  const settled = filtered.filter((p) => p.status === "SUCCESS");
+  const refunded = filtered.filter((p) => p.status === "REFUNDED");
+  const unsettled = filtered.filter(
+    (p) => p.status !== "SUCCESS" && p.status !== "REFUNDED"
+  );
+
+  const grossSettledKobo = settled.reduce((s, p) => s + p.totalKobo, 0);
+  const totalServiceFeesKobo = settled.reduce(
     (s, p) => s + p.serviceFeeKobo,
     0
   );
+  const totalProviderFeesKobo = settled.reduce(
+    (s, p) => s + (p.providerFeeKobo ?? 0),
+    0
+  );
+  const refundedKobo = refunded.reduce((s, p) => s + p.totalKobo, 0);
+  const unsettledAttemptedKobo = unsettled.reduce((s, p) => s + p.totalKobo, 0);
   const successRate =
-    payments.length > 0
-      ? Math.round((successful.length / payments.length) * 100)
+    filtered.length > 0
+      ? Math.round((settled.length / filtered.length) * 100)
       : 0;
 
+  const isViewingNonSettledStatus =
+    statusFilter === "INITIATED" ||
+    statusFilter === "FAILED" ||
+    statusFilter === "ABANDONED" ||
+    statusFilter === "REFUNDED";
+
+  const chartSourceRecords = isViewingNonSettledStatus ? filtered : settled;
+  const chartDays = dateFilter === "30D" ? 30 : dateFilter === "90D" ? 30 : 7;
+
   const dailySeries = buildDailyVolumeSeries(
-    successful.map((p) => ({ createdAt: p.createdAt, amountKobo: p.totalKobo })),
-    7
+    chartSourceRecords.map((p) => ({
+      createdAt: p.createdAt,
+      amountKobo: p.totalKobo,
+    })),
+    chartDays
   );
 
-  const giftTotalKobo = successful
+  const chartTotalKobo = chartSourceRecords.reduce((s, p) => s + p.totalKobo, 0);
+  const giftTotalKobo = chartSourceRecords
     .filter((p) => Boolean(p.gift))
     .reduce((s, p) => s + p.totalKobo, 0);
-  const orderTotalKobo = successful
+  const orderTotalKobo = chartSourceRecords
     .filter((p) => Boolean(p.order))
     .reduce((s, p) => s + p.totalKobo, 0);
   const otherTotalKobo = Math.max(
     0,
-    grossSettledKobo - giftTotalKobo - orderTotalKobo
+    chartTotalKobo - giftTotalKobo - orderTotalKobo
   );
 
   return (
@@ -111,26 +239,30 @@ export function PaymentManagementView() {
             Payments & Inflow Traceability
           </h2>
           <p className="text-xs text-muted-foreground">
-            Audit Paystack settlements, platform service fees, failure reasons, and trace each reference to its gift or order.
+            Only verified <span className="font-medium text-foreground">SUCCESS</span> settlements count toward inflow &amp; fee totals. Uncompleted, failed, and refunded attempts are isolated and never inflated into revenue.
           </p>
         </div>
         <Badge variant="outline" className="self-start font-mono text-xs sm:self-auto">
-          {payments.length} Payment Records
+          {hasActiveFilters
+            ? `${filtered.length} of ${payments.length} Records`
+            : `${payments.length} Payment Records`}
         </Badge>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs — driven by active filters, truth-only for settled money */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="border-border/80">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Gross Settled
+              True Settled Inflow
             </p>
             <p className="mt-1 font-heading text-2xl font-bold text-primary">
               <Money amountKobo={grossSettledKobo} />
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {successful.length} successful transactions
+              {settled.length} settled{refunded.length > 0 ? ` · ${refunded.length} refunded (` : ""}
+              {refunded.length > 0 ? <Money amountKobo={refundedKobo} /> : null}
+              {refunded.length > 0 ? ")" : ""}
             </p>
           </CardContent>
         </Card>
@@ -145,6 +277,12 @@ export function PaymentManagementView() {
             <p className="text-[11px] text-muted-foreground">
               Net principal:{" "}
               <Money amountKobo={grossSettledKobo - totalServiceFeesKobo} />
+              {totalProviderFeesKobo > 0 ? (
+                <>
+                  {" · Provider fees: "}
+                  <Money amountKobo={totalProviderFeesKobo} />
+                </>
+              ) : null}
             </p>
           </CardContent>
         </Card>
@@ -157,50 +295,62 @@ export function PaymentManagementView() {
               {successRate}%
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {successful.length} of {payments.length} attempts
+              {settled.length} of {filtered.length} filtered attempts
             </p>
           </CardContent>
         </Card>
         <Card className="border-border/80">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Pending / Failed
+              Unsettled / Failed
             </p>
             <p className="mt-1 font-heading text-2xl font-bold text-amber-700 dark:text-amber-400">
-              {failedOrPending.length}
+              {unsettled.length}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              Requires review if stuck
+              <Money amountKobo={unsettledAttemptedKobo} /> never received
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts */}
+      {/* Charts — driven by active filters */}
       <div className="grid gap-4 lg:grid-cols-2">
         <DailyVolumeChart
-          title="7-Day Settled Inflow"
-          subtitle="Successful payments"
+          title={
+            isViewingNonSettledStatus
+              ? `${chartDays}-Day ${statusFilter} Volume (Not Settled)`
+              : `${chartDays}-Day Settled Inflow`
+          }
+          subtitle={
+            isViewingNonSettledStatus
+              ? `Filtered ${statusFilter.toLowerCase()} records`
+              : "Verified SUCCESS payments only"
+          }
           points={dailySeries}
         />
         <VolumeBreakdownCard
-          title="Settled Volume by Source"
+          title={
+            isViewingNonSettledStatus
+              ? `${statusFilter} Volume by Source`
+              : "Settled Volume by Source"
+          }
           segments={[
             {
               label: "Celebration Gifts",
-              count: successful.filter((p) => Boolean(p.gift)).length,
+              count: chartSourceRecords.filter((p) => Boolean(p.gift)).length,
               amountKobo: giftTotalKobo,
               colorClass: "bg-primary",
             },
             {
               label: "Gift Box & Store Orders",
-              count: successful.filter((p) => Boolean(p.order)).length,
+              count: chartSourceRecords.filter((p) => Boolean(p.order)).length,
               amountKobo: orderTotalKobo,
               colorClass: "bg-emerald-600",
             },
             {
-              label: "Other / Direct",
-              count: successful.filter((p) => !p.gift && !p.order).length,
+              label: "Wallet / Direct",
+              count: chartSourceRecords.filter((p) => !p.gift && !p.order).length,
               amountKobo: otherTotalKobo,
               colorClass: "bg-amber-500",
             },
@@ -214,7 +364,7 @@ export function PaymentManagementView() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Trace by reference, payer email, order #, or celebration..."
+              placeholder="Trace by reference, payer email, provider, channel, order #, or celebration..."
               className="pl-9 text-xs"
               value={search}
               onChange={(e) => {
@@ -236,27 +386,110 @@ export function PaymentManagementView() {
                   setPage(1);
                 }}
               >
-                {src === "ALL" ? "All Sources" : src === "GIFT" ? "Gifts" : "Orders"}
+                {src === "ALL"
+                  ? "All Sources"
+                  : src === "GIFT"
+                    ? "Gifts"
+                    : src === "ORDER"
+                      ? "Orders"
+                      : "Wallet / Direct"}
+              </Button>
+            ))}
+          </div>
+          {hasActiveFilters && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 text-xs text-muted-foreground"
+              onClick={resetFilters}
+            >
+              <FilterX className="mr-1.5 h-3.5 w-3.5" />
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_FILTERS.map((st) => (
+              <Button
+                key={st}
+                type="button"
+                size="sm"
+                variant={statusFilter === st ? "secondary" : "ghost"}
+                className="h-7 text-[11px]"
+                onClick={() => {
+                  setStatusFilter(st);
+                  setPage(1);
+                }}
+              >
+                {st === "ALL" ? "All Statuses" : st}
+              </Button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {DATE_FILTERS.map((d) => (
+              <Button
+                key={d.value}
+                type="button"
+                size="sm"
+                variant={dateFilter === d.value ? "secondary" : "ghost"}
+                className="h-7 text-[11px]"
+                onClick={() => {
+                  setDateFilter(d.value);
+                  setPage(1);
+                }}
+              >
+                {d.label}
               </Button>
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {STATUS_FILTERS.map((st) => (
-            <Button
-              key={st}
-              type="button"
-              size="sm"
-              variant={statusFilter === st ? "secondary" : "ghost"}
-              className="h-7 text-[11px]"
-              onClick={() => {
-                setStatusFilter(st);
-                setPage(1);
-              }}
-            >
-              {st === "ALL" ? "All Statuses" : st}
-            </Button>
-          ))}
+
+        <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-2.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              Provider:
+            </span>
+            {providerOptions.map((prov) => (
+              <Button
+                key={prov}
+                type="button"
+                size="sm"
+                variant={providerFilter === prov ? "secondary" : "ghost"}
+                className="h-6 px-2 text-[11px]"
+                onClick={() => {
+                  setProviderFilter(prov);
+                  setPage(1);
+                }}
+              >
+                {prov === "ALL" ? "All" : prov}
+              </Button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              Channel:
+            </span>
+            {channelOptions.map((ch) => (
+              <Button
+                key={ch}
+                type="button"
+                size="sm"
+                variant={channelFilter === ch ? "secondary" : "ghost"}
+                className="h-6 px-2 text-[11px]"
+                onClick={() => {
+                  setChannelFilter(ch);
+                  setPage(1);
+                }}
+              >
+                {ch === "ALL" ? "All" : formatChannelLabel(ch)}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -299,7 +532,7 @@ export function PaymentManagementView() {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {pay.payerEmail ? `${pay.payerEmail} · ` : ""}
-                    Channel: {pay.channel || "Card/Transfer"} ({pay.provider || "PAYSTACK"})
+                    Channel: {formatChannelLabel(pay.channel)} ({pay.provider || "PAYSTACK"})
                     {" · "}
                     {formatDate(pay.createdAt, "d MMM yyyy, h:mm a")}
                   </p>
@@ -326,9 +559,23 @@ export function PaymentManagementView() {
                 <div className="flex items-center justify-between gap-3 sm:justify-end">
                   <div className="text-left sm:text-right">
                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Total Settled
+                      {pay.status === "SUCCESS"
+                        ? "Settled"
+                        : pay.status === "REFUNDED"
+                          ? "Refunded"
+                          : pay.status === "INITIATED"
+                            ? "Initiated (Unpaid)"
+                            : "Attempted (Unpaid)"}
                     </span>
-                    <p className="font-heading text-base font-bold text-primary">
+                    <p
+                      className={`font-heading text-base font-bold ${
+                        pay.status === "SUCCESS"
+                          ? "text-primary"
+                          : pay.status === "REFUNDED"
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-muted-foreground"
+                      }`}
+                    >
                       <Money amountKobo={pay.totalKobo} />
                     </p>
                     <p className="text-[11px] text-muted-foreground">

@@ -1457,7 +1457,7 @@ export class AdminService {
       const creditEntry =
         destination === "WALLET" && targetUserId
           ? {
-              accountCode: `USER_WALLET:${targetUserId}:${currency}`,
+              accountCode: `OWNER_PAYABLE:${targetUserId}`,
               ownerId: targetUserId,
               direction: Direction.CREDIT,
               amountKobo: refundAmount,
