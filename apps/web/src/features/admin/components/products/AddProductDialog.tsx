@@ -292,47 +292,6 @@ export function AddProductDialog({
                 </Select>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-foreground">
-                  Source / Vendor (Optional)
-                </label>
-                <Select
-                  value={formData.vendorId || "__NONE__"}
-                  onValueChange={(val) => {
-                    const nextVendorId = val === "__NONE__" ? "" : val;
-                    setFormData((prev) => {
-                      const suggested =
-                        nextVendorId && !prev.priceOverridden
-                          ? computeSuggestedPriceNaira(
-                              nextVendorId,
-                              prev.costPriceNaira
-                            )
-                          : null;
-                      return {
-                        ...prev,
-                        vendorId: nextVendorId,
-                        ...(suggested !== null && { priceNaira: suggested }),
-                      };
-                    });
-                  }}
-                >
-                  <SelectTrigger className="h-9 text-xs bg-card">
-                    <SelectValue placeholder="Givvly Curated (No specific vendor)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__NONE__">
-                      Givvly Curated (No specific vendor)
-                    </SelectItem>
-                    {vendors.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.name}
-                        {v.location ? ` (${v.location})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               {formData.boxRole === "ITEM" && (
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-foreground">
@@ -422,6 +381,75 @@ export function AddProductDialog({
                 />
               </div>
 
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">
+                    Source / Vendor (Optional)
+                  </label>
+                  <Select
+                    value={formData.vendorId || "__NONE__"}
+                    onValueChange={(val) => {
+                      const nextVendorId = val === "__NONE__" ? "" : val;
+                      setFormData((prev) => {
+                        const suggested =
+                          nextVendorId && !prev.priceOverridden
+                            ? computeSuggestedPriceNaira(
+                                nextVendorId,
+                                prev.costPriceNaira
+                              )
+                            : null;
+                        return {
+                          ...prev,
+                          vendorId: nextVendorId,
+                          ...(suggested !== null && { priceNaira: suggested }),
+                        };
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="text-xs bg-card">
+                      <SelectValue placeholder="Givvly Curated (No specific vendor)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__NONE__">
+                        Givvly Curated (No specific vendor)
+                      </SelectItem>
+                      {vendors.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.name}
+                          {v.location ? ` (${v.location})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">
+                    Vendor / Buying Price (₦, Admin Only)
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="Optional (e.g. 35000)"
+                    value={formData.costPriceNaira}
+                    onChange={(e) => {
+                      const nextCost = e.target.value;
+                      setFormData((prev) => {
+                        const suggested =
+                          prev.vendorId && !prev.priceOverridden
+                            ? computeSuggestedPriceNaira(prev.vendorId, nextCost)
+                            : null;
+                        return {
+                          ...prev,
+                          costPriceNaira: nextCost,
+                          ...(suggested !== null && { priceNaira: suggested }),
+                        };
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-foreground">
                   Price in Naira (₦) *
@@ -439,32 +467,6 @@ export function AddProductDialog({
                       priceOverridden: Boolean(prev.vendorId),
                     }))
                   }
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Vendor / Buying Price (₦, Admin Only)
-                </label>
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder="Optional (e.g. 35000)"
-                  value={formData.costPriceNaira}
-                  onChange={(e) => {
-                    const nextCost = e.target.value;
-                    setFormData((prev) => {
-                      const suggested =
-                        prev.vendorId && !prev.priceOverridden
-                          ? computeSuggestedPriceNaira(prev.vendorId, nextCost)
-                          : null;
-                      return {
-                        ...prev,
-                        costPriceNaira: nextCost,
-                        ...(suggested !== null && { priceNaira: suggested }),
-                      };
-                    });
-                  }}
                 />
               </div>
 

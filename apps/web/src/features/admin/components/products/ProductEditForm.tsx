@@ -537,27 +537,66 @@ export function ProductEditForm({
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-foreground">
-              Price in Naira (₦) *
+              Packaging Details
             </label>
             <Input
-              type="number"
-              min="100"
-              value={editFormData.priceNaira}
+              value={editFormData.packagingIncluded}
               onChange={(e) =>
-                setEditFormData((prev) => ({
-                  ...prev,
-                  priceNaira: e.target.value,
-                  priceOverridden: Boolean(prev.vendorId),
-                }))
+                setEditFormData((prev) => ({ ...prev, packagingIncluded: e.target.value }))
               }
-              required
+              placeholder="e.g. Luxury Velvet Box & Silk Ribbon"
               className="text-xs"
             />
-            {editFormData.priceNaira && !isNaN(parseFloat(editFormData.priceNaira)) && (
-              <p className="text-[11px] text-muted-foreground">
-                Catalog Value: <strong className="text-foreground">₦{parseFloat(editFormData.priceNaira).toLocaleString()}</strong>
-              </p>
-            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground">
+              Source / Vendor (Optional)
+            </label>
+            <Select
+              value={editFormData.vendorId || "__NONE__"}
+              onValueChange={(val) => {
+                const nextVendorId = val === "__NONE__" ? "" : val;
+                const chosen = vendors.find((v) => v.id === nextVendorId);
+                setEditFormData((prev) => {
+                  const costNum = parseFloat(prev.costPriceNaira);
+                  const suggested =
+                    chosen && !prev.priceOverridden && !isNaN(costNum) && costNum > 0
+                      ? String(
+                          Math.round(
+                            calculateVendorSellingPrice(
+                              Math.round(costNum * 100),
+                              chosen
+                            ).sellingPriceKobo / 100
+                          )
+                        )
+                      : null;
+                  return {
+                    ...prev,
+                    vendorId: nextVendorId,
+                    vendorName: chosen ? chosen.name : "Givvly Curated",
+                    ...(suggested !== null && { priceNaira: suggested }),
+                  };
+                });
+              }}
+            >
+              <SelectTrigger className="text-xs bg-card">
+                <SelectValue placeholder="Givvly Curated (No specific vendor)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__NONE__">
+                  Givvly Curated (No specific vendor)
+                </SelectItem>
+                {vendors.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.name}
+                    {v.location ? ` (${v.location})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1.5">
@@ -597,6 +636,31 @@ export function ProductEditForm({
           </div>
         </div>
 
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-foreground">
+            Price in Naira (₦) *
+          </label>
+          <Input
+            type="number"
+            min="100"
+            value={editFormData.priceNaira}
+            onChange={(e) =>
+              setEditFormData((prev) => ({
+                ...prev,
+                priceNaira: e.target.value,
+                priceOverridden: Boolean(prev.vendorId),
+              }))
+            }
+            required
+            className="text-xs"
+          />
+          {editFormData.priceNaira && !isNaN(parseFloat(editFormData.priceNaira)) && (
+            <p className="text-[11px] text-muted-foreground">
+              Catalog Value: <strong className="text-foreground">₦{parseFloat(editFormData.priceNaira).toLocaleString()}</strong>
+            </p>
+          )}
+        </div>
+
         <VendorPricingPreview
           vendor={vendors.find((v) => v.id === editFormData.vendorId) ?? null}
           costPriceNaira={editFormData.costPriceNaira}
@@ -617,70 +681,6 @@ export function ProductEditForm({
             }));
           }}
         />
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">
-              Source / Vendor (Optional)
-            </label>
-            <Select
-              value={editFormData.vendorId || "__NONE__"}
-              onValueChange={(val) => {
-                const nextVendorId = val === "__NONE__" ? "" : val;
-                const chosen = vendors.find((v) => v.id === nextVendorId);
-                setEditFormData((prev) => {
-                  const costNum = parseFloat(prev.costPriceNaira);
-                  const suggested =
-                    chosen && !prev.priceOverridden && !isNaN(costNum) && costNum > 0
-                      ? String(
-                          Math.round(
-                            calculateVendorSellingPrice(
-                              Math.round(costNum * 100),
-                              chosen
-                            ).sellingPriceKobo / 100
-                          )
-                        )
-                      : null;
-                  return {
-                    ...prev,
-                    vendorId: nextVendorId,
-                    vendorName: chosen ? chosen.name : "Givvly Curated",
-                    ...(suggested !== null && { priceNaira: suggested }),
-                  };
-                });
-              }}
-            >
-              <SelectTrigger className="h-9 text-xs bg-card">
-                <SelectValue placeholder="Givvly Curated (No specific vendor)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__NONE__">
-                  Givvly Curated (No specific vendor)
-                </SelectItem>
-                {vendors.map((v) => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {v.name}
-                    {v.location ? ` (${v.location})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">
-              Packaging Details
-            </label>
-            <Input
-              value={editFormData.packagingIncluded}
-              onChange={(e) =>
-                setEditFormData((prev) => ({ ...prev, packagingIncluded: e.target.value }))
-              }
-              placeholder="e.g. Luxury Velvet Box & Silk Ribbon"
-              className="text-xs"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Section 2: Categorization & Department */}

@@ -33,6 +33,57 @@ export const vendorPricingRuleSchema = z.object({
 
 export type VendorPricingRule = z.infer<typeof vendorPricingRuleSchema>;
 
+export type GatewayFeeConfig = {
+  id: string;
+  label: string;
+  rateBps: number;
+  flatFeeKobo: number;
+  flatFeeWaiveBelowKobo?: number;
+  capKobo?: number | null;
+  isDefault?: boolean;
+};
+
+/**
+ * Extensible registry of supported payment gateway local NGN fee structures.
+ * Add new gateways here as they are enabled in PaymentGatewayRegistry.
+ */
+export const GATEWAY_FEE_CONFIGS: Record<string, GatewayFeeConfig> = {
+  FLUTTERWAVE: {
+    id: "FLUTTERWAVE",
+    label: "Flutterwave (Default)",
+    rateBps: 140, // 1.4%
+    flatFeeKobo: 0,
+    capKobo: 200_000, // ₦2,000 cap
+    isDefault: true,
+  },
+  MONNIFY: {
+    id: "MONNIFY",
+    label: "Monnify",
+    rateBps: 150, // 1.5%
+    flatFeeKobo: 0,
+    capKobo: 200_000, // ₦2,000 cap
+  },
+  PAYSTACK: {
+    id: "PAYSTACK",
+    label: "Paystack",
+    rateBps: 150, // 1.5%
+    flatFeeKobo: 10_000, // ₦100
+    flatFeeWaiveBelowKobo: 250_000, // waived < ₦2,500
+    capKobo: 200_000, // ₦2,000 cap
+  },
+};
+
+export const DEFAULT_GATEWAY_ID = "FLUTTERWAVE";
+
+const DEFAULT_GATEWAY_FEE_CONFIG: GatewayFeeConfig = {
+  id: "FLUTTERWAVE",
+  label: "Flutterwave (Default)",
+  rateBps: 140,
+  flatFeeKobo: 0,
+  capKobo: 200_000,
+  isDefault: true,
+};
+
 export type PricingCalculationResult = {
   costPriceKobo: number;
   rawSellingPriceKobo: number;
@@ -40,23 +91,45 @@ export type PricingCalculationResult = {
   appliedMarkupBps: number;
   grossProfitKobo: number;
   grossMarginPct: number;
-  estimatedPaystackFeeKobo: number;
+  gatewayId: string;
+  estimatedGatewayFeeKobo: number;
   netContributionKobo: number;
   netMarginPct: number;
   pricingMode: VendorPricingMode;
 };
 
 /**
- * Standard Nigeria Paystack local transaction fee estimate:
- * 1.5% + ₦100 (₦100 waived for transactions under ₦2,500), capped at ₦2,000.
+ * Estimate transaction processing fee in kobo for any configured gateway.
+ */
+export function estimateGatewayFeeKobo(
+  amountKobo: number,
+  gatewayOrConfig: string | GatewayFeeConfig = DEFAULT_GATEWAY_ID
+): number {
+  if (amountKobo <= 0) return 0;
+
+  const cfg: GatewayFeeConfig =
+    typeof gatewayOrConfig === "string"
+      ? (GATEWAY_FEE_CONFIGS[gatewayOrConfig.toUpperCase()] ??
+        DEFAULT_GATEWAY_FEE_CONFIG)
+      : gatewayOrConfig;
+
+  const percentageFee = Math.round(amountKobo * (cfg.rateBps / 10_000));
+  const shouldWaiveFlat =
+    typeof cfg.flatFeeWaiveBelowKobo === "number" &&
+    amountKobo < cfg.flatFeeWaiveBelowKobo;
+  const totalFee = percentageFee + (shouldWaiveFlat ? 0 : cfg.flatFeeKobo);
+
+  if (typeof cfg.capKobo === "number" && cfg.capKobo > 0) {
+    return Math.min(cfg.capKobo, totalFee);
+  }
+  return totalFee;
+}
+
+/**
+ * Backwards-compatible Paystack fee helper.
  */
 export function estimatePaystackFeeKobo(amountKobo: number): number {
-  if (amountKobo <= 0) return 0;
-  const percentageFee = Math.round(amountKobo * 0.015);
-  if (amountKobo < 250_000) {
-    return percentageFee;
-  }
-  return Math.min(200_000, percentageFee + 10_000);
+  return estimateGatewayFeeKobo(amountKobo, "PAYSTACK");
 }
 
 /**
@@ -100,7 +173,8 @@ export function resolveTieredMarkupBps(
  */
 export function calculateVendorSellingPrice(
   costPriceKobo: number,
-  rule?: Partial<VendorPricingRule> | null
+  rule?: Partial<VendorPricingRule> | null,
+  gatewayId: string = DEFAULT_GATEWAY_ID
 ): PricingCalculationResult {
   const pricingMode: VendorPricingMode = rule?.pricingMode ?? "PUBLIC_MARKUP";
   const markupBps = rule?.markupBps ?? 1500;
@@ -116,7 +190,8 @@ export function calculateVendorSellingPrice(
       appliedMarkupBps: 0,
       grossProfitKobo: 0,
       grossMarginPct: 0,
-      estimatedPaystackFeeKobo: 0,
+      gatewayId,
+      estimatedGatewayFeeKobo: 0,
       netContributionKobo: 0,
       netMarginPct: 0,
       pricingMode,
@@ -180,8 +255,11 @@ export function calculateVendorSellingPrice(
       ? Number(((grossProfitKobo / sellingPriceKobo) * 100).toFixed(2))
       : 0;
 
-  const estimatedPaystackFeeKobo = estimatePaystackFeeKobo(sellingPriceKobo);
-  const netContributionKobo = grossProfitKobo - estimatedPaystackFeeKobo;
+  const estimatedGatewayFeeKobo = estimateGatewayFeeKobo(
+    sellingPriceKobo,
+    gatewayId
+  );
+  const netContributionKobo = grossProfitKobo - estimatedGatewayFeeKobo;
   const netMarginPct =
     sellingPriceKobo > 0
       ? Number(((netContributionKobo / sellingPriceKobo) * 100).toFixed(2))
@@ -194,7 +272,8 @@ export function calculateVendorSellingPrice(
     appliedMarkupBps,
     grossProfitKobo,
     grossMarginPct,
-    estimatedPaystackFeeKobo,
+    gatewayId,
+    estimatedGatewayFeeKobo,
     netContributionKobo,
     netMarginPct,
     pricingMode,
