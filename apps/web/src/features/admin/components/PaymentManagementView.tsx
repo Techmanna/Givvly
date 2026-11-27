@@ -26,6 +26,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
 import { useAdminPayments } from "../hooks/useAdmin";
@@ -37,20 +44,19 @@ import {
 } from "./FinanceCharts";
 
 const STATUS_FILTERS = [
-  "ALL",
-  "SUCCESS",
-  "REFUNDED",
-  "INITIATED",
-  "FAILED",
-  "ABANDONED",
+  { value: "ALL", label: "All", dotClass: "bg-foreground/40" },
+  { value: "SUCCESS", label: "Settled", dotClass: "bg-emerald-500" },
+  { value: "REFUNDED", label: "Refunded", dotClass: "bg-amber-500" },
+  { value: "INITIATED", label: "Initiated", dotClass: "bg-slate-400" },
+  { value: "FAILED", label: "Failed", dotClass: "bg-destructive" },
+  { value: "ABANDONED", label: "Abandoned", dotClass: "bg-muted-foreground/60" },
 ] as const;
-const SOURCE_FILTERS = ["ALL", "GIFT", "ORDER", "DIRECT"] as const;
 const DATE_FILTERS = [
   { value: "ALL", label: "All Time", days: null },
   { value: "TODAY", label: "Today", days: 1 },
-  { value: "7D", label: "7 Days", days: 7 },
-  { value: "30D", label: "30 Days", days: 30 },
-  { value: "90D", label: "90 Days", days: 90 },
+  { value: "7D", label: "Last 7 Days", days: 7 },
+  { value: "30D", label: "Last 30 Days", days: 30 },
+  { value: "90D", label: "Last 90 Days", days: 90 },
 ] as const;
 const PAGE_SIZE = 10;
 
@@ -115,7 +121,7 @@ export function PaymentManagementView() {
     setPage(1);
   };
 
-  const filtered = React.useMemo(() => {
+  const filteredWithoutStatus = React.useMemo(() => {
     const now = Date.now();
     const selectedDateOption = DATE_FILTERS.find((d) => d.value === dateFilter);
     const cutoffMs =
@@ -138,7 +144,6 @@ export function PaymentManagementView() {
         (pay.order?.recipientName?.toLowerCase().includes(q) ?? false) ||
         (pay.gift?.event?.name?.toLowerCase().includes(q) ?? false) ||
         (pay.gift?.event?.slug?.toLowerCase().includes(q) ?? false);
-      const matchesStatus = statusFilter === "ALL" || pay.status === statusFilter;
       const matchesSource =
         sourceFilter === "ALL" ||
         (sourceFilter === "GIFT" && Boolean(pay.gift)) ||
@@ -154,7 +159,6 @@ export function PaymentManagementView() {
 
       return (
         matchesSearch &&
-        matchesStatus &&
         matchesSource &&
         matchesProvider &&
         matchesChannel &&
@@ -164,12 +168,27 @@ export function PaymentManagementView() {
   }, [
     payments,
     search,
-    statusFilter,
     sourceFilter,
     providerFilter,
     channelFilter,
     dateFilter,
   ]);
+
+  const statusCounts = React.useMemo(() => {
+    const counts: Record<string, number> = { ALL: filteredWithoutStatus.length };
+    for (const p of filteredWithoutStatus) {
+      counts[p.status] = (counts[p.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [filteredWithoutStatus]);
+
+  const filtered = React.useMemo(
+    () =>
+      statusFilter === "ALL"
+        ? filteredWithoutStatus
+        : filteredWithoutStatus.filter((pay) => pay.status === statusFilter),
+    [filteredWithoutStatus, statusFilter]
+  );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -319,20 +338,35 @@ export function PaymentManagementView() {
         <DailyVolumeChart
           title={
             isViewingNonSettledStatus
-              ? `${chartDays}-Day ${statusFilter} Volume (Not Settled)`
-              : `${chartDays}-Day Settled Inflow`
+              ? `${
+                  STATUS_FILTERS.find((s) => s.value === statusFilter)?.label ??
+                  statusFilter
+                } Attempts (${chartDays}D)`
+              : `Settled Inflow (Last ${chartDays} Days)`
           }
           subtitle={
             isViewingNonSettledStatus
-              ? `Filtered ${statusFilter.toLowerCase()} records`
-              : "Verified SUCCESS payments only"
+              ? statusFilter === "REFUNDED"
+                ? "Refunded payments only"
+                : "Not settled — attempted volume"
+              : "Verified settlements only"
+          }
+          barColorClass={
+            statusFilter === "FAILED" || statusFilter === "ABANDONED"
+              ? "bg-destructive/80"
+              : isViewingNonSettledStatus
+                ? "bg-amber-500"
+                : "bg-primary"
           }
           points={dailySeries}
         />
         <VolumeBreakdownCard
           title={
             isViewingNonSettledStatus
-              ? `${statusFilter} Volume by Source`
+              ? `${
+                  STATUS_FILTERS.find((s) => s.value === statusFilter)?.label ??
+                  statusFilter
+                } Volume by Source`
               : "Settled Volume by Source"
           }
           segments={[
@@ -360,12 +394,12 @@ export function PaymentManagementView() {
 
       {/* Search & Filters */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
+          <div className="relative sm:col-span-2 lg:col-span-4">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Trace by reference, payer email, provider, channel, order #, or celebration..."
-              className="pl-9 text-xs"
+              placeholder="Search reference, email, order #, event..."
+              className="h-9 pl-9 text-xs"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -373,123 +407,134 @@ export function PaymentManagementView() {
               }}
             />
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {SOURCE_FILTERS.map((src) => (
-              <Button
-                key={src}
-                type="button"
-                size="sm"
-                variant={sourceFilter === src ? "default" : "outline"}
-                className="h-8 text-xs"
-                onClick={() => {
-                  setSourceFilter(src);
-                  setPage(1);
-                }}
-              >
-                {src === "ALL"
-                  ? "All Sources"
-                  : src === "GIFT"
-                    ? "Gifts"
-                    : src === "ORDER"
-                      ? "Orders"
-                      : "Wallet / Direct"}
-              </Button>
-            ))}
-          </div>
-          {hasActiveFilters && (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 text-xs text-muted-foreground"
-              onClick={resetFilters}
+
+          <div className="lg:col-span-2">
+            <Select
+              value={sourceFilter}
+              onValueChange={(val) => {
+                setSourceFilter(val);
+                setPage(1);
+              }}
             >
-              <FilterX className="mr-1.5 h-3.5 w-3.5" />
-              Clear
-            </Button>
-          )}
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Sources</SelectItem>
+                <SelectItem value="GIFT">Celebration Gifts</SelectItem>
+                <SelectItem value="ORDER">Store &amp; Gift Orders</SelectItem>
+                <SelectItem value="DIRECT">Wallet / Direct</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="lg:col-span-2">
+            <Select
+              value={dateFilter}
+              onValueChange={(val) => {
+                setDateFilter(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Period" />
+              </SelectTrigger>
+              <SelectContent>
+                {DATE_FILTERS.map((d) => (
+                  <SelectItem key={d.value} value={d.value}>
+                    {d.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="lg:col-span-2">
+            <Select
+              value={providerFilter}
+              onValueChange={(val) => {
+                setProviderFilter(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {providerOptions.map((prov) => (
+                  <SelectItem key={prov} value={prov}>
+                    {prov === "ALL" ? "All Providers" : prov}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-2 lg:col-span-2">
+            <Select
+              value={channelFilter}
+              onValueChange={(val) => {
+                setChannelFilter(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 flex-1 text-xs">
+                <SelectValue placeholder="Channel" />
+              </SelectTrigger>
+              <SelectContent>
+                {channelOptions.map((ch) => (
+                  <SelectItem key={ch} value={ch}>
+                    {ch === "ALL" ? "All Channels" : formatChannelLabel(ch)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {hasActiveFilters && (
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                className="h-9 w-9 shrink-0"
+                title="Reset all filters"
+                onClick={resetFilters}
+              >
+                <FilterX className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-1.5">
-            {STATUS_FILTERS.map((st) => (
-              <Button
-                key={st}
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3">
+          {STATUS_FILTERS.map((st) => {
+            const count = statusCounts[st.value] ?? 0;
+            const active = statusFilter === st.value;
+            return (
+              <button
+                key={st.value}
                 type="button"
-                size="sm"
-                variant={statusFilter === st ? "secondary" : "ghost"}
-                className="h-7 text-[11px]"
                 onClick={() => {
-                  setStatusFilter(st);
+                  setStatusFilter(st.value);
                   setPage(1);
                 }}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border/70 bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                }`}
               >
-                {st === "ALL" ? "All Statuses" : st}
-              </Button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-1.5">
-            {DATE_FILTERS.map((d) => (
-              <Button
-                key={d.value}
-                type="button"
-                size="sm"
-                variant={dateFilter === d.value ? "secondary" : "ghost"}
-                className="h-7 text-[11px]"
-                onClick={() => {
-                  setDateFilter(d.value);
-                  setPage(1);
-                }}
-              >
-                {d.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-2.5">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              Provider:
-            </span>
-            {providerOptions.map((prov) => (
-              <Button
-                key={prov}
-                type="button"
-                size="sm"
-                variant={providerFilter === prov ? "secondary" : "ghost"}
-                className="h-6 px-2 text-[11px]"
-                onClick={() => {
-                  setProviderFilter(prov);
-                  setPage(1);
-                }}
-              >
-                {prov === "ALL" ? "All" : prov}
-              </Button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              Channel:
-            </span>
-            {channelOptions.map((ch) => (
-              <Button
-                key={ch}
-                type="button"
-                size="sm"
-                variant={channelFilter === ch ? "secondary" : "ghost"}
-                className="h-6 px-2 text-[11px]"
-                onClick={() => {
-                  setChannelFilter(ch);
-                  setPage(1);
-                }}
-              >
-                {ch === "ALL" ? "All" : formatChannelLabel(ch)}
-              </Button>
-            ))}
-          </div>
+                <span className={`h-1.5 w-1.5 rounded-full ${st.dotClass}`} />
+                <span>{st.label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                    active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

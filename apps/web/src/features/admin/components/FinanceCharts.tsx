@@ -54,9 +54,11 @@ export function DailyVolumeChart({
   barColorClass?: string;
 }) {
   const maxAmount = Math.max(1, ...points.map((p) => p.amountKobo));
+  const isDense = points.length > 10;
+  const labelStep = points.length > 20 ? 5 : points.length > 10 ? 2 : 1;
 
   return (
-    <Card className="border-border/80">
+    <Card className="overflow-hidden border-border/80">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-sm font-semibold">{title}</CardTitle>
@@ -66,16 +68,22 @@ export function DailyVolumeChart({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex h-36 items-end gap-2 pt-4">
-          {points.map((pt) => {
+        <div
+          className={`flex h-36 items-end pt-4 ${isDense ? "gap-1" : "gap-2"}`}
+        >
+          {points.map((pt, idx) => {
             const heightPct =
               pt.amountKobo > 0
                 ? Math.max(10, Math.round((pt.amountKobo / maxAmount) * 100))
                 : 4;
+            const showLabel =
+              !isDense || idx === 0 || idx === points.length - 1 || idx % labelStep === 0;
+            const nairaTooltip = `₦${(pt.amountKobo / 100).toLocaleString("en-NG")}`;
+
             return (
               <div
                 key={pt.dateKey}
-                className="group flex flex-1 flex-col items-center gap-1.5"
+                className="group flex min-w-0 flex-1 flex-col items-center gap-1.5"
               >
                 <div className="relative flex h-24 w-full items-end justify-center">
                   <div
@@ -83,13 +91,17 @@ export function DailyVolumeChart({
                       pt.amountKobo > 0 ? barColorClass : "bg-muted"
                     }`}
                     style={{ height: `${heightPct}%` }}
-                    title={`${pt.label}: ${pt.count} tx`}
+                    title={`${pt.label}: ${nairaTooltip} (${pt.count} tx)`}
                   />
                 </div>
-                <span className="text-[10px] text-muted-foreground">{pt.label}</span>
-                <span className="text-[10px] font-medium text-foreground">
-                  {pt.count > 0 ? <Money amountKobo={pt.amountKobo} /> : "—"}
+                <span className="h-3.5 truncate text-[10px] text-muted-foreground">
+                  {showLabel ? pt.label : ""}
                 </span>
+                {!isDense && (
+                  <span className="truncate text-[10px] font-medium text-foreground">
+                    {pt.count > 0 ? <Money amountKobo={pt.amountKobo} /> : "—"}
+                  </span>
+                )}
               </div>
             );
           })}
