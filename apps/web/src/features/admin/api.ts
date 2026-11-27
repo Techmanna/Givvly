@@ -377,6 +377,27 @@ export function forwardOrderToVendor(
   });
 }
 
+export function issueAdminRefund(payload: {
+  paymentId: string;
+  amountKobo?: number;
+  reason: string;
+  destination?: "ORIGINAL" | "WALLET";
+}): Promise<{
+  refunded: boolean;
+  paymentId: string;
+  orderId: string | null;
+  orderNumber: string | null;
+  giftId: string | null;
+  amountKobo: number;
+  destination: "ORIGINAL" | "WALLET";
+  alreadyProcessed?: boolean;
+}> {
+  return api("/admin/refunds", {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export async function fetchAdminUsers(): Promise<AdminUserListItem[]> {
   const res = await api<any>("/admin/users");
   return Array.isArray(res) ? res : (res?.users ?? []);

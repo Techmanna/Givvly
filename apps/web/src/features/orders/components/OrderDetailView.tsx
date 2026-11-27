@@ -114,6 +114,25 @@ export function OrderDetailView({
                 currentStatus={order.status}
                 timeline={order.timeline}
               />
+              {order.status === "CONFIRMED" &&
+              (order.vtuPhones?.length ||
+                order.timeline?.some((t) =>
+                  (t as { note?: string }).note?.includes("[VTU FULFILLMENT FAILED]")
+                )) ? (
+                <div
+                  role="status"
+                  className="mt-4 rounded-xl border border-amber-300/70 bg-amber-50/80 p-3.5 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-200"
+                >
+                  <p className="font-semibold">
+                    Instant top-up delivery is taking longer than expected
+                  </p>
+                  <p className="mt-1 leading-relaxed">
+                    Your payment is confirmed. Our team has been alerted to
+                    complete your airtime/data delivery or issue a refund
+                    shortly.
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <div className="border-t border-border pt-4">

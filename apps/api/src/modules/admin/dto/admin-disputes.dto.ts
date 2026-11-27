@@ -63,6 +63,7 @@ export const issueRefundSchema = z.object({
   paymentId: z.string().uuid(),
   amountKobo: z.number().int().min(1).optional(),
   reason: z.string().trim().min(5).max(300),
+  destination: z.enum(["ORIGINAL", "WALLET"]).optional().default("ORIGINAL"),
 });
 
 export class IssueRefundDto {
@@ -81,4 +82,9 @@ export class IssueRefundDto {
   @MinLength(5)
   @MaxLength(300)
   reason: string;
+
+  @ApiPropertyOptional({ enum: ["ORIGINAL", "WALLET"], default: "ORIGINAL" })
+  @IsOptional()
+  @IsEnum(["ORIGINAL", "WALLET"])
+  destination?: "ORIGINAL" | "WALLET" = "ORIGINAL";
 }

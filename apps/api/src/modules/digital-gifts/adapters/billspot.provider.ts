@@ -203,24 +203,31 @@ export class BillSpotProvider implements DigitalTopUpProvider {
     request: BillSpotPurchaseRequest
   ): Promise<BillSpotPurchaseResponse> {
     if (!this.isConfigured) {
-      const mockRef = `BillSpotMOCK_${Date.now()}`;
-      this.logger.warn(
-        `[SAFE MEASURE] BILLSPOT_API_KEY is not configured. Skipping request to ${this.baseUrl} and simulating successful purchase for ${request.provider}.`
-      );
-      return {
-        message: "VTU purchase simulated successfully (safe mock mode)",
-        txt_ref: mockRef,
-        purchase: {
+      if (process.env.NODE_ENV === "test") {
+        const mockRef = `BillSpotMOCK_${Date.now()}`;
+        this.logger.warn(
+          `[TEST MOCK] BILLSPOT_API_KEY is not configured. Simulating successful purchase for ${request.provider}.`
+        );
+        return {
+          message: "VTU purchase simulated successfully (safe mock mode)",
           txt_ref: mockRef,
-          phone: request.phone ?? request.phones?.[0] ?? "08000000000",
-          phones: request.phones,
-          amount: String(request.amount),
-          provider: request.provider,
-          type: request.type ?? "airtime",
-          status: "paid",
-          currency: "NGN",
-        },
-      };
+          purchase: {
+            txt_ref: mockRef,
+            phone: request.phone ?? request.phones?.[0] ?? "08000000000",
+            phones: request.phones,
+            amount: String(request.amount),
+            provider: request.provider,
+            type: request.type ?? "airtime",
+            status: "paid",
+            currency: "NGN",
+          },
+        };
+      }
+
+      const missingKeyErr =
+        "VTU provider (BillSpot) is not configured: BILLSPOT_API_KEY is missing.";
+      this.logger.error(`[BILLSPOT CONFIG ERROR] ${missingKeyErr}`);
+      throw new Error(missingKeyErr);
     }
 
     const endpoint = `${this.baseUrl}/partner/vtu`;

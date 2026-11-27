@@ -1338,7 +1338,7 @@ export class AdminService {
   async issueRefund(dto: IssueRefundDto, adminId?: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: dto.paymentId },
-      include: { order: true },
+      include: { order: true, gift: true },
     });
 
     if (!payment) {
@@ -1346,22 +1346,87 @@ export class AdminService {
     }
 
     if (payment.status !== PaymentStatus.SUCCESS) {
-      throw new BadRequestException("Only successful payments can be refunded");
+      throw new ConflictException(
+        payment.status === PaymentStatus.REFUNDED
+          ? "This payment has already been refunded"
+          : "Only successful payments can be refunded"
+      );
     }
 
-    const refundAmount = dto.amountKobo || payment.amountKobo;
+    if (
+      payment.order &&
+      (payment.order.status === OrderStatus.REFUNDED ||
+        payment.order.status === OrderStatus.CANCELLED)
+    ) {
+      throw new ConflictException(
+        `Order '${payment.order.number}' is already ${payment.order.status.toLowerCase()} and cannot be refunded again`
+      );
+    }
+
+    if ((payment as any).gift?.status === "REFUNDED") {
+      throw new ConflictException("This gift has already been refunded");
+    }
+
+    const refundAmount = dto.amountKobo ?? payment.amountKobo;
+    if (!Number.isSafeInteger(refundAmount) || refundAmount <= 0) {
+      throw new BadRequestException("Refund amount must be a positive integer in kobo");
+    }
+    if (refundAmount > payment.amountKobo) {
+      throw new BadRequestException(
+        `Refund amount (${refundAmount} kobo) cannot exceed original payment amount (${payment.amountKobo} kobo)`
+      );
+    }
+
     const currency = payment.currency || "NGN";
+    const destination =
+      dto.destination === "WALLET" || payment.provider === "GIVVLY_WALLET"
+        ? "WALLET"
+        : "ORIGINAL";
+    const targetUserId =
+      payment.order?.buyerUserId ?? (payment as any).gift?.giverUserId ?? null;
 
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Update Payment status
-      const updatedPayment = await tx.payment.update({
-        where: { id: payment.id },
-        data: {
-          status: PaymentStatus.REFUNDED,
-        },
-      });
+    if (destination === "WALLET" && !targetUserId) {
+      throw new BadRequestException(
+        "Cannot refund to Givvly Wallet because no registered user is linked to this payment. Use Original Payment Method instead."
+      );
+    }
 
-      // 2. If attached to order, update order status to REFUNDED
+    const updatedPayment = await this.prisma.$transaction(async (tx) => {
+      // 1. Atomic conditional claim: only transition SUCCESS -> REFUNDED once
+      let updatedPayment: any;
+      if (typeof (tx.payment as any).updateMany === "function") {
+        const claim = await (tx.payment as any).updateMany({
+          where: { id: payment.id, status: PaymentStatus.SUCCESS },
+          data: { status: PaymentStatus.REFUNDED },
+        });
+        if (claim.count === 0) {
+          throw new ConflictException(
+            "This payment has already been refunded or is no longer eligible"
+          );
+        }
+        updatedPayment = await tx.payment.findUniqueOrThrow({
+          where: { id: payment.id },
+        });
+      } else {
+        updatedPayment = await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.REFUNDED },
+        });
+      }
+
+      const refundRef = `refund:${payment.id}`;
+      if (typeof (tx as any).ledgerTransaction?.findUnique === "function") {
+        const existingTx = await (tx as any).ledgerTransaction.findUnique({
+          where: { reference: refundRef },
+        });
+        if (existingTx) {
+          throw new ConflictException(
+            "A refund ledger transaction already exists for this payment"
+          );
+        }
+      }
+
+      // 2. If attached to order, update order status to REFUNDED with full audit note
       if (payment.order) {
         await tx.order.update({
           where: { id: payment.order.id },
@@ -1371,7 +1436,7 @@ export class AdminService {
               create: [
                 {
                   status: OrderStatus.REFUNDED,
-                  note: `Refund issued: ${dto.reason} (${refundAmount} ${currency})`,
+                  note: `Manual refund issued (${destination}): ${dto.reason} (${refundAmount} ${currency})`,
                   actorId: adminId,
                 },
               ],
@@ -1380,12 +1445,34 @@ export class AdminService {
         });
       }
 
-      // 3. Post double-entry refund ledger transaction (deterministic reference for idempotency)
+      // 3. If attached to gift, mark gift REFUNDED
+      if ((payment as any).gift && typeof (tx as any).gift?.update === "function") {
+        await (tx as any).gift.update({
+          where: { id: (payment as any).gift.id },
+          data: { status: "REFUNDED" },
+        });
+      }
+
+      // 4. Post double-entry refund ledger transaction (deterministic reference for idempotency)
+      const creditEntry =
+        destination === "WALLET" && targetUserId
+          ? {
+              accountCode: `USER_WALLET:${targetUserId}:${currency}`,
+              ownerId: targetUserId,
+              direction: Direction.CREDIT,
+              amountKobo: refundAmount,
+            }
+          : {
+              accountCode: `PROVIDER_CLEARING:${currency}`,
+              direction: Direction.CREDIT,
+              amountKobo: refundAmount,
+            };
+
       await this.ledger.postTransaction(
         {
-          reference: `refund:${payment.id}`,
+          reference: refundRef,
           kind: "REFUND",
-          description: `Refund for payment ${payment.reference}: ${dto.reason}`,
+          description: `Refund (${destination}) for payment ${payment.reference}: ${dto.reason}`,
           paymentId: payment.id,
           entries: [
             {
@@ -1393,11 +1480,7 @@ export class AdminService {
               direction: Direction.DEBIT,
               amountKobo: refundAmount,
             },
-            {
-              accountCode: `PROVIDER_CLEARING:${currency}`,
-              direction: Direction.CREDIT,
-              amountKobo: refundAmount,
-            },
+            creditEntry,
           ],
         },
         tx
@@ -1405,11 +1488,134 @@ export class AdminService {
 
       await this.logAudit(adminId, "PAYMENT_REFUND", "Payment", payment.id, {
         amountKobo: refundAmount,
+        destination,
+        orderId: payment.order?.id ?? null,
+        orderNumber: payment.order?.number ?? null,
+        giftId: (payment as any).gift?.id ?? null,
         reason: dto.reason,
       });
 
       return updatedPayment;
     });
+
+    if (this.notifications) {
+      let targetEmail =
+        payment.order?.buyerEmail ?? (payment as any).gift?.giverEmail ?? null;
+      let targetName =
+        payment.order?.recipientName ??
+        (payment as any).gift?.giverName ??
+        "Valued Customer";
+
+      if ((!targetEmail || !targetName) && targetUserId) {
+        const userRecord = await this.prisma.user
+          .findUnique({
+            where: { id: targetUserId },
+            select: { email: true, name: true },
+          })
+          .catch(() => null);
+        targetEmail = targetEmail ?? userRecord?.email ?? null;
+        targetName = targetName || userRecord?.name || "Valued Customer";
+      }
+
+      const formattedAmount = `${currency} ${(refundAmount / 100).toLocaleString("en-NG", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+      const destinationLabel =
+        destination === "WALLET"
+          ? "your Givvly Wallet"
+          : `your original payment method (${payment.provider})`;
+      const referenceLabel = payment.order
+        ? `order #${payment.order.number}`
+        : `payment ${payment.reference}`;
+      const userActionPath = payment.order
+        ? `/orders/${payment.order.id}`
+        : destination === "WALLET"
+          ? "/wallet"
+          : "/orders";
+      const userTitle = payment.order
+        ? `Refund Issued for Order #${payment.order.number}`
+        : "Refund Issued";
+      const userBody = `A refund of ${formattedAmount} for ${referenceLabel} has been issued to ${destinationLabel}. Reason: ${dto.reason}`;
+
+      const notifData = {
+        paymentId: payment.id,
+        orderId: payment.order?.id ?? null,
+        orderNumber: payment.order?.number ?? null,
+        giftId: (payment as any).gift?.id ?? null,
+        amountKobo: refundAmount,
+        destination,
+        reason: dto.reason,
+        actionPath: userActionPath,
+      };
+
+      if (targetUserId) {
+        void this.notifications
+          .notify({
+            userId: targetUserId,
+            channel: Channel.IN_APP,
+            type: "REFUND_ISSUED",
+            category: "ORDERS",
+            title: userTitle,
+            body: userBody,
+            data: notifData,
+          })
+          .catch((err: unknown) =>
+            this.logger.warn(`Failed to send in-app refund notification: ${err}`)
+          );
+      }
+
+      if (targetEmail) {
+        const html = this.emailService?.renderTemplate(
+          userTitle,
+          `
+          <h2>${userTitle}</h2>
+          <p>Hi ${targetName},</p>
+          <p>A refund of <strong>${formattedAmount}</strong> for <strong>${referenceLabel}</strong> has been issued to <strong>${destinationLabel}</strong>.</p>
+          <p><strong>Reason:</strong> ${dto.reason}</p>
+          <p><strong>Reference:</strong> ${payment.reference}</p>
+          `
+        );
+
+        void this.notifications
+          .notify({
+            userId: targetUserId ?? undefined,
+            channel: Channel.EMAIL,
+            toAddress: targetEmail,
+            type: "REFUND_ISSUED",
+            category: "ORDERS",
+            title: userTitle,
+            body: userBody,
+            html,
+            data: notifData,
+          })
+          .catch((err: unknown) =>
+            this.logger.warn(`Failed to send email refund notification: ${err}`)
+          );
+      }
+
+      void this.notifications
+        .notifyAdmins?.({
+          type: "ADMIN_REFUND_ISSUED",
+          category: "ADMIN_ALERTS",
+          title: payment.order
+            ? `Manual Refund Issued: #${payment.order.number}`
+            : `Manual Refund Issued: ${payment.reference}`,
+          body: `Refund of ${formattedAmount} issued to ${destination} for ${referenceLabel}${targetEmail ? ` (${targetEmail})` : ""}. Reason: ${dto.reason}`,
+          actionPath: payment.order
+            ? `/admin/orders/${payment.order.id}`
+            : "/admin/payments",
+          data: {
+            ...notifData,
+            adminId: adminId ?? null,
+          },
+        })
+        ?.catch?.((err: unknown) =>
+          this.logger.warn(`Failed to send admin refund notification: ${err}`)
+        );
+    }
+
+    return updatedPayment;
   }
 
   // ==================== LEDGER & TRIAL BALANCE ====================

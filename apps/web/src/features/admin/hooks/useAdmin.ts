@@ -37,6 +37,7 @@ import {
   updateAdminVendor,
   deleteAdminVendor,
   forwardOrderToVendor,
+  issueAdminRefund,
 } from "../api";
 import { adminKeys } from "../keys";
 
@@ -446,6 +447,24 @@ export function useForwardOrderToVendor() {
       vendorId?: string;
       channel: "EMAIL" | "WHATSAPP";
     }) => forwardOrderToVendor(orderId, { vendorId, channel }),
+  });
+}
+
+export function useIssueAdminRefund() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: issueAdminRefund,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.payments() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.ledger() });
+      if (data.orderId) {
+        queryClient.invalidateQueries({
+          queryKey: adminKeys.orderDetail(data.orderId),
+        });
+      }
+    },
   });
 }
 

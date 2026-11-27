@@ -137,57 +137,96 @@ export class DigitalGiftsService {
     }
 
     // Fulfill digital items concurrently
-    const fulfillmentResults = await Promise.all(
-      digitalItems.map(async (item) => {
-        const product = productMap.get(item.productId);
-        const kind: DigitalKind = addressMeta.vtuType
-          ? addressMeta.vtuType === "data"
-            ? "DATA"
-            : "AIRTIME"
-          : ((product?.digitalKind as DigitalKind) || "VOUCHER");
+    let fulfillmentResults: any[];
+    try {
+      fulfillmentResults = await Promise.all(
+        digitalItems.map(async (item) => {
+          const product = productMap.get(item.productId);
+          const kind: DigitalKind = addressMeta.vtuType
+            ? addressMeta.vtuType === "data"
+              ? "DATA"
+              : "AIRTIME"
+            : ((product?.digitalKind as DigitalKind) || "VOUCHER");
 
-        const recipientPhones: string[] = Array.isArray(addressMeta.recipientPhones)
-          ? addressMeta.recipientPhones
-          : order.recipientPhone
-            ? [order.recipientPhone]
-            : [];
+          const recipientPhones: string[] = Array.isArray(addressMeta.recipientPhones)
+            ? addressMeta.recipientPhones
+            : order.recipientPhone
+              ? [order.recipientPhone]
+              : [];
 
-        const primaryPhone = recipientPhones[0] || order.recipientPhone;
+          const primaryPhone = recipientPhones[0] || order.recipientPhone;
 
-        if ((kind === "AIRTIME" || kind === "DATA") && primaryPhone) {
-          const unitAmountSubunits =
-            typeof addressMeta.unitVtuAmountKobo === "number" &&
-            addressMeta.unitVtuAmountKobo > 0
-              ? addressMeta.unitVtuAmountKobo
-              : item.unitPriceKobo;
+          if ((kind === "AIRTIME" || kind === "DATA") && primaryPhone) {
+            const unitAmountSubunits =
+              typeof addressMeta.unitVtuAmountKobo === "number" &&
+              addressMeta.unitVtuAmountKobo > 0
+                ? addressMeta.unitVtuAmountKobo
+                : item.unitPriceKobo;
 
-          const topUp = await this.billspot.fulfillTopUp({
-            phoneNumber: primaryPhone,
-            phoneNumbers: recipientPhones.length > 0 ? recipientPhones : undefined,
-            operator:
-              addressMeta.vtuProvider ||
-              product?.occasions?.[0] ||
-              product?.title ||
-              item.title,
-            amountSubunits: unitAmountSubunits,
+            const topUp = await this.billspot.fulfillTopUp({
+              phoneNumber: primaryPhone,
+              phoneNumbers: recipientPhones.length > 0 ? recipientPhones : undefined,
+              operator:
+                addressMeta.vtuProvider ||
+                product?.occasions?.[0] ||
+                product?.title ||
+                item.title,
+              amountSubunits: unitAmountSubunits,
+              reference: `${order.number}-${item.id}`,
+              type: kind === "DATA" ? "data" : "airtime",
+              billItemIdentifier: addressMeta.billItemIdentifier || undefined,
+            });
+            return { item: item.title, topUp };
+          }
+
+          const voucher = await this.vouchers.generateVoucher({
+            kind,
+            title: item.title,
+            amountSubunits: item.unitPriceKobo,
+            recipientEmail: order.recipientEmail || order.buyerEmail,
+            recipientPhone: primaryPhone || undefined,
             reference: `${order.number}-${item.id}`,
-            type: kind === "DATA" ? "data" : "airtime",
-            billItemIdentifier: addressMeta.billItemIdentifier || undefined,
           });
-          return { item: item.title, topUp };
-        }
+          return { item: item.title, voucher };
+        })
+      );
+    } catch (err: any) {
+      const errorMsg = err?.message || "Unknown VTU provider error";
+      this.logger.error(
+        `Digital fulfillment failed for order '${order.number}': ${errorMsg}`
+      );
 
-        const voucher = await this.vouchers.generateVoucher({
-          kind,
-          title: item.title,
-          amountSubunits: item.unitPriceKobo,
-          recipientEmail: order.recipientEmail || order.buyerEmail,
-          recipientPhone: primaryPhone || undefined,
-          reference: `${order.number}-${item.id}`,
-        });
-        return { item: item.title, voucher };
-      })
-    );
+      if (typeof (this.prisma as any).orderStatusHistory?.create === "function") {
+        await (this.prisma as any).orderStatusHistory
+          .create({
+            data: {
+              orderId: order.id,
+              status: order.status,
+              note: `[VTU FULFILLMENT FAILED] ${errorMsg}`,
+            },
+          })
+          .catch(() => {});
+      }
+
+      void this.notifications
+        ?.notifyAdmins?.({
+          type: "ADMIN_VTU_FAILURE",
+          title: `VTU Fulfillment Failed: ${order.number}`,
+          body: `Order ${order.number} could not be fulfilled: ${errorMsg}`,
+          actionPath: `/admin/orders/${order.id}`,
+          data: { orderId: order.id, orderNumber: order.number, error: errorMsg },
+        })
+        ?.catch?.(() => {});
+
+      return {
+        fulfilled: false,
+        allDigital: false,
+        orderNumber: order.number,
+        error: errorMsg,
+        userMessage:
+          "Payment confirmed, but instant top-up delivery encountered a provider issue. Our team has been alerted and will complete or refund your order shortly.",
+      };
+    }
 
     // Advance order directly to DELIVERED since digital goods do not require physical shipping
     const allDigital = order.items.length === digitalItems.length;

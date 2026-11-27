@@ -18,6 +18,7 @@ import {
   Package,
   Phone,
   RefreshCw,
+  RotateCcw,
   Send,
   ShieldCheck,
   Sparkles,
@@ -39,6 +40,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -55,6 +58,7 @@ import {
   useAdminOrderDetail,
   useAdminVendors,
   useForwardOrderToVendor,
+  useIssueAdminRefund,
   useUpdateAdminOrderStatus,
 } from "../hooks/useAdmin";
 import type { AdminAddressPayload } from "../types";
@@ -69,10 +73,15 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
   const updateStatusMutation = useUpdateAdminOrderStatus();
   const vendorsQuery = useAdminVendors();
   const forwardMutation = useForwardOrderToVendor();
+  const issueRefundMutation = useIssueAdminRefund();
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isForwardOpen, setIsForwardOpen] = useState(false);
   const [selectedVendorId, setSelectedVendorId] = useState<string>("");
+  const [isRefundOpen, setIsRefundOpen] = useState(false);
+  const [refundAmountNaira, setRefundAmountNaira] = useState("");
+  const [refundDestination, setRefundDestination] = useState<"ORIGINAL" | "WALLET">("ORIGINAL");
+  const [refundReason, setRefundReason] = useState("");
 
   const handleCopy = (text: string, key: string, label: string) => {
     if (typeof window !== "undefined") {
@@ -312,8 +321,55 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
               <span>Confirm Delivery</span>
             </Button>
           )}
+
+          {order.payment?.id &&
+            order.payment.status === "SUCCESS" &&
+            order.status !== "REFUNDED" &&
+            order.status !== "CANCELLED" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const maxNaira = ((order.payment?.amountKobo ?? order.totalKobo) / 100).toFixed(2);
+                  setRefundAmountNaira(maxNaira);
+                  setRefundDestination(
+                    order.payment?.provider === "GIVVLY_WALLET" ? "WALLET" : "ORIGINAL"
+                  );
+                  setRefundReason("");
+                  setIsRefundOpen(true);
+                }}
+                disabled={issueRefundMutation.isPending}
+                className="border-destructive/40 text-destructive hover:bg-destructive/10 text-xs"
+              >
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                <span>Issue Refund</span>
+              </Button>
+            )}
         </div>
       </div>
+
+      {(() => {
+        const vtuFailureEntry = [...(order.history ?? [])]
+          .reverse()
+          .find((h) => h.note?.includes("[VTU FULFILLMENT FAILED]"));
+        if (!vtuFailureEntry || order.status === "DELIVERED") return null;
+        return (
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+          >
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-semibold">
+                VTU / Digital Fulfillment Failed
+              </p>
+              <p className="text-xs leading-relaxed">
+                {vtuFailureEntry.note?.replace("[VTU FULFILLMENT FAILED]", "").trim()}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 4 KPI / Stat Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1026,6 +1082,134 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
           </Dialog>
         );
       })()}
+
+      <Dialog open={isRefundOpen} onOpenChange={setIsRefundOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Issue Manual Refund</DialogTitle>
+            <DialogDescription>
+              Refunds are single-use, permanently audited against order{" "}
+              <span className="font-medium text-foreground">#{order.number}</span>, and
+              cannot exceed the captured payment amount.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!order.payment?.id) return;
+
+              const parsedNaira = Number(refundAmountNaira);
+              const amountKobo = Math.round(parsedNaira * 100);
+              const maxKobo = order.payment.amountKobo;
+
+              if (!Number.isFinite(parsedNaira) || amountKobo <= 0) {
+                toast.error("Enter a valid refund amount greater than ₦0");
+                return;
+              }
+              if (amountKobo > maxKobo) {
+                toast.error(
+                  `Refund cannot exceed original payment (₦${(maxKobo / 100).toLocaleString("en-NG")})`
+                );
+                return;
+              }
+              if (refundReason.trim().length < 5) {
+                toast.error("Please provide a clear audit reason (at least 5 characters)");
+                return;
+              }
+
+              try {
+                await issueRefundMutation.mutateAsync({
+                  paymentId: order.payment.id,
+                  amountKobo,
+                  reason: refundReason.trim(),
+                  destination: refundDestination,
+                });
+                toast.success(`Refund issued for order #${order.number}`);
+                setIsRefundOpen(false);
+                await refetch();
+              } catch (err) {
+                toast.error(
+                  err instanceof Error ? err.message : "Failed to issue refund"
+                );
+              }
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="refund-amount-naira">
+                Refund Amount (NGN) — Max ₦
+                {((order.payment?.amountKobo ?? 0) / 100).toLocaleString("en-NG", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </Label>
+              <Input
+                id="refund-amount-naira"
+                type="number"
+                step="0.01"
+                min="0.01"
+                max={((order.payment?.amountKobo ?? 0) / 100).toFixed(2)}
+                value={refundAmountNaira}
+                onChange={(e) => setRefundAmountNaira(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="refund-destination">Refund Destination</Label>
+              <Select
+                value={refundDestination}
+                onValueChange={(value) =>
+                  setRefundDestination(value as "ORIGINAL" | "WALLET")
+                }
+              >
+                <SelectTrigger id="refund-destination">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ORIGINAL">
+                    Original Payment Method ({order.payment?.provider ?? "Provider"})
+                  </SelectItem>
+                  {order.buyerUserId ? (
+                    <SelectItem value="WALLET">Customer Givvly Wallet</SelectItem>
+                  ) : null}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="refund-reason">Audit Reason (required)</Label>
+              <Textarea
+                id="refund-reason"
+                placeholder="e.g. VTU failed due to provider key error; customer requested refund to wallet"
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                rows={3}
+                required
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsRefundOpen(false)}
+                disabled={issueRefundMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={issueRefundMutation.isPending}
+              >
+                {issueRefundMutation.isPending ? "Processing..." : "Confirm Refund"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
