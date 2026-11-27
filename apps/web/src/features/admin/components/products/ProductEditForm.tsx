@@ -28,6 +28,8 @@ import {
 } from "../../hooks/useAdmin";
 import { COMMON_OCCASIONS, COMMON_RELATIONSHIPS } from "./constants";
 import type { AdminProduct } from "../../types";
+import { calculateVendorSellingPrice } from "@givvly/contracts";
+import { VendorPricingPreview } from "./VendorPricingPreview";
 
 interface ProductEditFormProps {
   product: AdminProduct;
@@ -53,6 +55,7 @@ export function ProductEditForm({
     slug: "",
     priceNaira: "",
     costPriceNaira: "",
+    priceOverridden: false,
     mainCategory: "WEDDING",
     category: "Curated Combos & Boxes",
     giftType: "LUXURY",
@@ -137,6 +140,7 @@ export function ProductEditForm({
           product.costPriceKobo !== null && product.costPriceKobo !== undefined
             ? String(Math.round(product.costPriceKobo / 100))
             : "",
+        priceOverridden: Boolean(product.priceOverridden),
         mainCategory: initialMain,
         category: dept,
         giftType: product.giftType || "LUXURY",
@@ -406,6 +410,7 @@ export function ProductEditForm({
             costPriceNum !== null && !isNaN(costPriceNum) && costPriceNum >= 0
               ? Math.round(costPriceNum * 100)
               : null,
+          priceOverridden: editFormData.priceOverridden,
           imageUrl: editFormData.imageUrl.trim() || undefined,
           inStock: editFormData.inStock,
           stock: editFormData.inStock ? editFormData.stock : 0,
@@ -542,6 +547,7 @@ export function ProductEditForm({
                 setEditFormData((prev) => ({
                   ...prev,
                   priceNaira: e.target.value,
+                  priceOverridden: Boolean(prev.vendorId),
                 }))
               }
               required
@@ -562,32 +568,55 @@ export function ProductEditForm({
               type="number"
               min="0"
               value={editFormData.costPriceNaira}
-              onChange={(e) =>
-                setEditFormData((prev) => ({
-                  ...prev,
-                  costPriceNaira: e.target.value,
-                }))
-              }
+              onChange={(e) => {
+                const nextCost = e.target.value;
+                setEditFormData((prev) => {
+                  const chosen = vendors.find((v) => v.id === prev.vendorId);
+                  const costNum = parseFloat(nextCost);
+                  const suggested =
+                    chosen && !prev.priceOverridden && !isNaN(costNum) && costNum > 0
+                      ? String(
+                          Math.round(
+                            calculateVendorSellingPrice(
+                              Math.round(costNum * 100),
+                              chosen
+                            ).sellingPriceKobo / 100
+                          )
+                        )
+                      : null;
+                  return {
+                    ...prev,
+                    costPriceNaira: nextCost,
+                    ...(suggested !== null && { priceNaira: suggested }),
+                  };
+                });
+              }}
               placeholder="Optional (not visible to customers)"
               className="text-xs"
             />
-            {editFormData.costPriceNaira &&
-              !isNaN(parseFloat(editFormData.costPriceNaira)) &&
-              editFormData.priceNaira &&
-              !isNaN(parseFloat(editFormData.priceNaira)) && (
-                <p className="text-[11px] text-muted-foreground">
-                  Margin:{" "}
-                  <strong className="text-foreground">
-                    ₦
-                    {(
-                      parseFloat(editFormData.priceNaira) -
-                      parseFloat(editFormData.costPriceNaira)
-                    ).toLocaleString()}
-                  </strong>
-                </p>
-              )}
           </div>
         </div>
+
+        <VendorPricingPreview
+          vendor={vendors.find((v) => v.id === editFormData.vendorId) ?? null}
+          costPriceNaira={editFormData.costPriceNaira}
+          priceNaira={editFormData.priceNaira}
+          isOverridden={editFormData.priceOverridden}
+          onReapplyRule={() => {
+            const chosen = vendors.find((v) => v.id === editFormData.vendorId);
+            const costNum = parseFloat(editFormData.costPriceNaira);
+            if (!chosen || isNaN(costNum) || costNum <= 0) return;
+            const calc = calculateVendorSellingPrice(
+              Math.round(costNum * 100),
+              chosen
+            );
+            setEditFormData((prev) => ({
+              ...prev,
+              priceNaira: String(Math.round(calc.sellingPriceKobo / 100)),
+              priceOverridden: false,
+            }));
+          }}
+        />
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -597,12 +626,28 @@ export function ProductEditForm({
             <Select
               value={editFormData.vendorId || "__NONE__"}
               onValueChange={(val) => {
-                const chosen = vendors.find((v) => v.id === val);
-                setEditFormData((prev) => ({
-                  ...prev,
-                  vendorId: val === "__NONE__" ? "" : val,
-                  vendorName: chosen ? chosen.name : "Givvly Curated",
-                }));
+                const nextVendorId = val === "__NONE__" ? "" : val;
+                const chosen = vendors.find((v) => v.id === nextVendorId);
+                setEditFormData((prev) => {
+                  const costNum = parseFloat(prev.costPriceNaira);
+                  const suggested =
+                    chosen && !prev.priceOverridden && !isNaN(costNum) && costNum > 0
+                      ? String(
+                          Math.round(
+                            calculateVendorSellingPrice(
+                              Math.round(costNum * 100),
+                              chosen
+                            ).sellingPriceKobo / 100
+                          )
+                        )
+                      : null;
+                  return {
+                    ...prev,
+                    vendorId: nextVendorId,
+                    vendorName: chosen ? chosen.name : "Givvly Curated",
+                    ...(suggested !== null && { priceNaira: suggested }),
+                  };
+                });
               }}
             >
               <SelectTrigger className="h-9 text-xs bg-card">

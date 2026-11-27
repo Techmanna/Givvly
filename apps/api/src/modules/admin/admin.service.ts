@@ -10,6 +10,12 @@ import { PrismaService } from "../../infra/prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
 import { SlugService } from "../../common/slug/slug.service";
 import {
+  calculateVendorSellingPrice,
+  VendorPricingMode,
+  VendorPricingTier,
+} from "./vendor-pricing.util";
+import {
+  Prisma,
   OrderStatus,
   PaymentStatus,
   DisputeStatus,
@@ -128,6 +134,7 @@ export class AdminService {
         description: p.description,
         priceKobo: p.priceKobo,
         costPriceKobo: p.costPriceKobo ?? null,
+        priceOverridden: Boolean((p as any).priceOverridden),
         category: p.occasions[0] || "Wedding Gifts",
         occasions: p.occasions,
         relationships: p.relationships,
@@ -198,6 +205,7 @@ export class AdminService {
         description: dto.description,
         priceKobo: dto.priceKobo,
         costPriceKobo: dto.costPriceKobo ?? null,
+        priceOverridden: dto.priceOverridden ?? false,
         occasions: dto.occasions,
         relationships: dto.relationships,
         images: images as any,
@@ -268,6 +276,7 @@ export class AdminService {
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.priceKobo !== undefined && { priceKobo: dto.priceKobo }),
         ...(dto.costPriceKobo !== undefined && { costPriceKobo: dto.costPriceKobo }),
+        ...(dto.priceOverridden !== undefined && { priceOverridden: dto.priceOverridden }),
         ...(dto.occasions !== undefined && { occasions: dto.occasions }),
         ...(dto.relationships !== undefined && { relationships: dto.relationships }),
         ...(images !== undefined && { images: images as any }),
@@ -2285,6 +2294,32 @@ export class AdminService {
 
   // ==================== VENDORS (LEGACY PARTNERS) ====================
 
+  private mapVendorSummary(v: any) {
+    return {
+      id: v.id,
+      name: v.name,
+      slug: v.slug,
+      email: v.contactEmail,
+      phone: v.phone ?? undefined,
+      location: v.location ?? v.city ?? undefined,
+      logoUrl: v.logoUrl ?? undefined,
+      active: Boolean(v.active),
+      pricingMode: (v.pricingMode ?? "PUBLIC_MARKUP") as VendorPricingMode,
+      markupBps: typeof v.markupBps === "number" ? v.markupBps : 1500,
+      discountBps: typeof v.discountBps === "number" ? v.discountBps : 0,
+      commissionBps: typeof v.commissionBps === "number" ? v.commissionBps : 0,
+      roundingStepKobo:
+        typeof v.roundingStepKobo === "number" ? v.roundingStepKobo : 50_000,
+      pricingTiers: Array.isArray(v.pricingTiers)
+        ? (v.pricingTiers as VendorPricingTier[])
+        : null,
+      productCount: v._count?.products ?? v.products?.length ?? 0,
+      status: v.active
+        ? ("VERIFIED" as const)
+        : ("PENDING_REVIEW" as const),
+    };
+  }
+
   async getVendors(query?: { limit?: number; offset?: number }) {
     const take = query?.limit ? Math.min(Number(query.limit), 100) : 100;
     const skip = query?.offset ? Number(query.offset) : 0;
@@ -2300,20 +2335,7 @@ export class AdminService {
       },
     });
 
-    return vendors.map((v: any) => ({
-      id: v.id,
-      name: v.name,
-      slug: v.slug,
-      email: v.contactEmail,
-      phone: v.phone ?? undefined,
-      location: v.location ?? v.city ?? undefined,
-      logoUrl: v.logoUrl ?? undefined,
-      active: Boolean(v.active),
-      productCount: v._count?.products ?? v.products?.length ?? 0,
-      status: v.active
-        ? ("VERIFIED" as const)
-        : ("PENDING_REVIEW" as const),
-    }));
+    return vendors.map((v: any) => this.mapVendorSummary(v));
   }
 
   async createVendor(dto: CreateAdminVendorDto, adminId?: string) {
@@ -2332,26 +2354,22 @@ export class AdminService {
         city: dto.location?.trim() || null,
         logoUrl: dto.logoUrl?.trim() || null,
         active: dto.active ?? true,
+        pricingMode: dto.pricingMode ?? "PUBLIC_MARKUP",
+        markupBps: dto.markupBps ?? 1500,
+        discountBps: dto.discountBps ?? 0,
+        commissionBps: dto.commissionBps ?? 0,
+        roundingStepKobo: dto.roundingStepKobo ?? 50_000,
+        pricingTiers: dto.pricingTiers ?? undefined,
       },
     });
 
     await this.logAudit(adminId, "VENDOR_CREATE", "Vendor", vendor.id, {
       name: vendor.name,
       email: vendor.contactEmail,
+      pricingMode: vendor.pricingMode,
     });
 
-    return {
-      id: vendor.id,
-      name: vendor.name,
-      slug: vendor.slug,
-      email: vendor.contactEmail,
-      phone: vendor.phone ?? undefined,
-      location: vendor.location ?? vendor.city ?? undefined,
-      logoUrl: vendor.logoUrl ?? undefined,
-      active: Boolean(vendor.active),
-      productCount: 0,
-      status: vendor.active ? ("VERIFIED" as const) : ("PENDING_REVIEW" as const),
-    };
+    return this.mapVendorSummary({ ...vendor, _count: { products: 0 } });
   }
 
   async updateVendor(id: string, dto: UpdateAdminVendorDto, adminId?: string) {
@@ -2376,6 +2394,21 @@ export class AdminService {
           logoUrl: dto.logoUrl?.trim() || null,
         }),
         ...(dto.active !== undefined && { active: dto.active }),
+        ...(dto.pricingMode !== undefined && { pricingMode: dto.pricingMode }),
+        ...(dto.markupBps !== undefined && { markupBps: dto.markupBps }),
+        ...(dto.discountBps !== undefined && { discountBps: dto.discountBps }),
+        ...(dto.commissionBps !== undefined && {
+          commissionBps: dto.commissionBps,
+        }),
+        ...(dto.roundingStepKobo !== undefined && {
+          roundingStepKobo: dto.roundingStepKobo,
+        }),
+        ...(dto.pricingTiers !== undefined && {
+          pricingTiers:
+            dto.pricingTiers === null
+              ? Prisma.JsonNull
+              : (dto.pricingTiers as Prisma.InputJsonValue),
+        }),
       },
       include: { _count: { select: { products: true } } },
     });
@@ -2383,19 +2416,92 @@ export class AdminService {
     await this.logAudit(adminId, "VENDOR_UPDATE", "Vendor", id, {
       name: updated.name,
       email: updated.contactEmail,
+      pricingMode: updated.pricingMode,
     });
 
+    return this.mapVendorSummary(updated);
+  }
+
+  async recalculateVendorPrices(vendorId: string, adminId?: string) {
+    const vendor = await this.prisma.vendor.findUnique({
+      where: { id: vendorId },
+      include: {
+        products: {
+          select: {
+            id: true,
+            title: true,
+            costPriceKobo: true,
+            priceKobo: true,
+            priceOverridden: true,
+          },
+        },
+      },
+    });
+    if (!vendor) {
+      throw new NotFoundException(`Vendor '${vendorId}' not found`);
+    }
+
+    let updatedCount = 0;
+    let skippedOverridden = 0;
+    let skippedNoCost = 0;
+
+    const updates: Array<{ id: string; priceKobo: number }> = [];
+
+    for (const product of vendor.products) {
+      if (product.priceOverridden) {
+        skippedOverridden++;
+        continue;
+      }
+      if (!product.costPriceKobo || product.costPriceKobo <= 0) {
+        skippedNoCost++;
+        continue;
+      }
+
+      const calc = calculateVendorSellingPrice(product.costPriceKobo, {
+        pricingMode: (vendor.pricingMode ?? "PUBLIC_MARKUP") as VendorPricingMode,
+        markupBps: vendor.markupBps,
+        discountBps: vendor.discountBps,
+        commissionBps: vendor.commissionBps,
+        roundingStepKobo: vendor.roundingStepKobo,
+        pricingTiers: Array.isArray(vendor.pricingTiers)
+          ? (vendor.pricingTiers as VendorPricingTier[])
+          : null,
+      });
+
+      if (calc.sellingPriceKobo > 0 && calc.sellingPriceKobo !== product.priceKobo) {
+        updates.push({ id: product.id, priceKobo: calc.sellingPriceKobo });
+      }
+    }
+
+    if (updates.length > 0) {
+      await this.prisma.$transaction(
+        updates.map((u) =>
+          this.prisma.product.update({
+            where: { id: u.id },
+            data: { priceKobo: u.priceKobo },
+          })
+        )
+      );
+      updatedCount = updates.length;
+    }
+
+    await this.logAudit(
+      adminId,
+      "VENDOR_RECALCULATE_PRICES",
+      "Vendor",
+      vendorId,
+      {
+        updatedCount,
+        skippedOverridden,
+        skippedNoCost,
+      }
+    );
+
     return {
-      id: updated.id,
-      name: updated.name,
-      slug: updated.slug,
-      email: updated.contactEmail,
-      phone: updated.phone ?? undefined,
-      location: updated.location ?? updated.city ?? undefined,
-      logoUrl: updated.logoUrl ?? undefined,
-      active: Boolean(updated.active),
-      productCount: updated._count?.products ?? 0,
-      status: updated.active ? ("VERIFIED" as const) : ("PENDING_REVIEW" as const),
+      vendorId,
+      updatedCount,
+      skippedOverridden,
+      skippedNoCost,
     };
   }
 

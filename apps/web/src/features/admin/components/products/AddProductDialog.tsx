@@ -32,6 +32,8 @@ import {
 import { useAdminVendors, useCreateAdminProduct } from "../../hooks/useAdmin";
 import type { CreateProductInput } from "../../types";
 import { Textarea } from "@/components/ui/textarea";
+import { calculateVendorSellingPrice } from "@givvly/contracts";
+import { VendorPricingPreview } from "./VendorPricingPreview";
 
 interface AddProductDialogProps {
   open?: boolean;
@@ -56,6 +58,7 @@ export function AddProductDialog({
     description: "",
     priceNaira: "",
     costPriceNaira: "",
+    priceOverridden: false,
     mainCategory: "WEDDING",
     category: "Curated Combos & Boxes",
     giftType: "LUXURY",
@@ -81,6 +84,7 @@ export function AddProductDialog({
       description: "",
       priceNaira: "",
       costPriceNaira: "",
+      priceOverridden: false,
       mainCategory: "WEDDING",
       category: "Curated Combos & Boxes",
       giftType: "LUXURY",
@@ -97,6 +101,19 @@ export function AddProductDialog({
     setMediaPreviewUrl("");
     setUploadProgress(0);
   };
+
+  const computeSuggestedPriceNaira = (
+    vendorId: string,
+    costPriceNaira: string
+  ): string | null => {
+    const vendor = vendors.find((v) => v.id === vendorId);
+    const costNum = parseFloat(costPriceNaira);
+    if (!vendor || isNaN(costNum) || costNum <= 0) return null;
+    const calc = calculateVendorSellingPrice(Math.round(costNum * 100), vendor);
+    return String(Math.round(calc.sellingPriceKobo / 100));
+  };
+
+  const selectedVendor = vendors.find((v) => v.id === formData.vendorId) ?? null;
 
   const handleSelectProductMedia = async (file: File) => {
     const objectUrl = URL.createObjectURL(file);
@@ -187,6 +204,7 @@ export function AddProductDialog({
           costPriceNum !== null && !isNaN(costPriceNum) && costPriceNum >= 0
             ? Math.round(costPriceNum * 100)
             : null,
+        priceOverridden: formData.priceOverridden,
         category: isGiftBox ? "Gift Boxes" : formData.category,
         mainCategories: mainCats,
         giftType: isGiftBox ? "PACKAGING" : dept?.giftType || formData.giftType || "LUXURY",
@@ -280,12 +298,23 @@ export function AddProductDialog({
                 </label>
                 <Select
                   value={formData.vendorId || "__NONE__"}
-                  onValueChange={(val) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      vendorId: val === "__NONE__" ? "" : val,
-                    }))
-                  }
+                  onValueChange={(val) => {
+                    const nextVendorId = val === "__NONE__" ? "" : val;
+                    setFormData((prev) => {
+                      const suggested =
+                        nextVendorId && !prev.priceOverridden
+                          ? computeSuggestedPriceNaira(
+                              nextVendorId,
+                              prev.costPriceNaira
+                            )
+                          : null;
+                      return {
+                        ...prev,
+                        vendorId: nextVendorId,
+                        ...(suggested !== null && { priceNaira: suggested }),
+                      };
+                    });
+                  }}
                 >
                   <SelectTrigger className="h-9 text-xs bg-card">
                     <SelectValue placeholder="Givvly Curated (No specific vendor)" />
@@ -407,6 +436,7 @@ export function AddProductDialog({
                     setFormData((prev) => ({
                       ...prev,
                       priceNaira: e.target.value,
+                      priceOverridden: Boolean(prev.vendorId),
                     }))
                   }
                 />
@@ -421,14 +451,42 @@ export function AddProductDialog({
                   min="0"
                   placeholder="Optional (e.g. 35000)"
                   value={formData.costPriceNaira}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      costPriceNaira: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => {
+                    const nextCost = e.target.value;
+                    setFormData((prev) => {
+                      const suggested =
+                        prev.vendorId && !prev.priceOverridden
+                          ? computeSuggestedPriceNaira(prev.vendorId, nextCost)
+                          : null;
+                      return {
+                        ...prev,
+                        costPriceNaira: nextCost,
+                        ...(suggested !== null && { priceNaira: suggested }),
+                      };
+                    });
+                  }}
                 />
               </div>
+
+              <VendorPricingPreview
+                vendor={selectedVendor}
+                costPriceNaira={formData.costPriceNaira}
+                priceNaira={formData.priceNaira}
+                isOverridden={formData.priceOverridden}
+                onReapplyRule={() => {
+                  const suggested = computeSuggestedPriceNaira(
+                    formData.vendorId,
+                    formData.costPriceNaira
+                  );
+                  if (suggested !== null) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      priceNaira: suggested,
+                      priceOverridden: false,
+                    }));
+                  }
+                }}
+              />
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-foreground">

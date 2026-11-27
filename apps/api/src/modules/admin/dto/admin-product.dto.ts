@@ -13,6 +13,10 @@ import {
   IsUUID,
 } from "class-validator";
 import { z } from "zod";
+import {
+  vendorPricingModeSchema,
+  vendorPricingTierSchema,
+} from "../vendor-pricing.util";
 import { isSafeMediaUrl } from "../../../infra/storage/file-security.util";
 
 const safeMediaUrlSchema = z
@@ -88,6 +92,11 @@ export class CreateProductDto {
   @IsOptional()
   @IsInt()
   costPriceKobo?: number | null;
+
+  @ApiPropertyOptional({ example: false, description: "Whether selling price was manually overridden instead of following vendor pricing rules" })
+  @IsOptional()
+  @IsBoolean()
+  priceOverridden?: boolean;
 
   @ApiPropertyOptional({ example: ["BIRTHDAY", "ANNIVERSARY"], default: [] })
   @IsOptional()
@@ -239,6 +248,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsInt()
   costPriceKobo?: number | null;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  priceOverridden?: boolean;
 
   @ApiPropertyOptional({ example: "Wedding Gifts" })
   @IsOptional()
@@ -395,6 +409,18 @@ export const createAdminVendorSchema = z.object({
   location: z.string().trim().max(160).optional().nullable(),
   logoUrl: z.string().trim().max(500).optional().nullable(),
   active: z.boolean().optional().default(true),
+  pricingMode: vendorPricingModeSchema.optional().default("PUBLIC_MARKUP"),
+  markupBps: z.coerce.number().int().min(0).max(20000).optional().default(1500),
+  discountBps: z.coerce.number().int().min(0).max(9500).optional().default(0),
+  commissionBps: z.coerce.number().int().min(0).max(9500).optional().default(0),
+  roundingStepKobo: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(1_000_000)
+    .optional()
+    .default(50_000),
+  pricingTiers: z.array(vendorPricingTierSchema).nullable().optional(),
 });
 
 export type CreateAdminVendorDto = z.infer<typeof createAdminVendorSchema>;

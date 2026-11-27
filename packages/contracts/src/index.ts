@@ -237,6 +237,7 @@ export * from "./events";
 export * from "./gifts";
 export * from "./rsvp";
 export * from "./commerce";
+export * from "./pricing";
 
 
 

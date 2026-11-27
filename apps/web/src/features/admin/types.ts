@@ -148,6 +148,8 @@ export type AdminLedgerReport = {
   entries: AdminLedgerEntry[];
 };
 
+import type { VendorPricingMode, VendorPricingTier } from "@givvly/contracts";
+
 export type AdminVendorSummary = {
   id: string;
   name: string;
@@ -157,6 +159,12 @@ export type AdminVendorSummary = {
   location?: string;
   logoUrl?: string;
   active?: boolean;
+  pricingMode?: VendorPricingMode;
+  markupBps?: number;
+  discountBps?: number;
+  commissionBps?: number;
+  roundingStepKobo?: number;
+  pricingTiers?: VendorPricingTier[] | null;
   productCount: number;
   status: "VERIFIED" | "PENDING_REVIEW";
 };
@@ -168,6 +176,12 @@ export type CreateAdminVendorInput = {
   location?: string;
   logoUrl?: string;
   active?: boolean;
+  pricingMode?: VendorPricingMode;
+  markupBps?: number;
+  discountBps?: number;
+  commissionBps?: number;
+  roundingStepKobo?: number;
+  pricingTiers?: VendorPricingTier[] | null;
 };
 
 export type UpdateAdminVendorInput = Partial<CreateAdminVendorInput>;
@@ -188,6 +202,7 @@ export type AdminProduct = {
   description: string;
   priceKobo: number;
   costPriceKobo?: number | null;
+  priceOverridden?: boolean;
   category: string;
   giftType?: string;
   mainCategories?: string[];
@@ -220,6 +235,7 @@ export type UpdateProductInput = {
   description?: string;
   priceKobo?: number;
   costPriceKobo?: number | null;
+  priceOverridden?: boolean;
   category?: string;
   giftType?: string;
   mainCategories?: string[];
@@ -247,6 +263,7 @@ export type CreateProductInput = {
   description: string;
   priceKobo: number;
   costPriceKobo?: number | null;
+  priceOverridden?: boolean;
   category: string;
   giftType?: string;
   mainCategories?: string[];

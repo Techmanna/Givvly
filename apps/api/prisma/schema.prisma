@@ -489,20 +489,25 @@ model LedgerEntry {
 }
 
 model Vendor {
-  id            String         @id @default(uuid())
-  name          String
-  slug          String         @unique
-  contactEmail  String
-  phone         String?
-  city          String?
-  location      String?
-  logoUrl       String?
-  active        Boolean        @default(true)
-  commissionBps Int            @default(0)
-  createdAt     DateTime       @default(now())
-  members       VendorMember[]
-  products      Product[]
-  orders        Order[]
+  id               String         @id @default(uuid())
+  name             String
+  slug             String         @unique
+  contactEmail     String
+  phone            String?
+  city             String?
+  location         String?
+  logoUrl          String?
+  active           Boolean        @default(true)
+  commissionBps    Int            @default(0)
+  pricingMode      String         @default("PUBLIC_MARKUP")
+  markupBps        Int            @default(1500)
+  discountBps      Int            @default(0)
+  roundingStepKobo Int            @default(50000)
+  pricingTiers     Json?
+  createdAt        DateTime       @default(now())
+  members          VendorMember[]
+  products         Product[]
+  orders           Order[]
 }
 
 model VendorMember {
@@ -518,8 +523,9 @@ model Product {
   slug          String         @unique
   title         String
   description   String
-  priceKobo     Int
-  costPriceKobo Int?
+  priceKobo       Int
+  costPriceKobo   Int?
+  priceOverridden Boolean        @default(false)
   images        Json
   occasions     String[]
   relationships String[]

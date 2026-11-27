@@ -469,6 +469,15 @@ export class AdminController {
     return this.adminService.deleteVendor(id, admin.id);
   }
 
+  @Post("vendors/:id/recalculate-prices")
+  @ApiOperation({ summary: "Recalculate selling prices for all non-overridden products of a vendor" })
+  async recalculateVendorPrices(
+    @Param("id") id: string,
+    @CurrentUser() admin: { id: string }
+  ) {
+    return this.adminService.recalculateVendorPrices(id, admin.id);
+  }
+
   @Post("orders/:id/forward-vendor")
   @ApiOperation({ summary: "Forward order details to a vendor via email or WhatsApp" })
   @UsePipes(new ZodValidationPipe(forwardOrderToVendorSchema))

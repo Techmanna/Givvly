@@ -362,6 +362,22 @@ export function deleteAdminVendor(
   );
 }
 
+export function recalculateVendorPrices(vendorId: string): Promise<{
+  vendorId: string;
+  updatedCount: number;
+  skippedOverridden: number;
+  skippedNoCost: number;
+}> {
+  return api<{
+    vendorId: string;
+    updatedCount: number;
+    skippedOverridden: number;
+    skippedNoCost: number;
+  }>(`/admin/vendors/${encodeURIComponent(vendorId)}/recalculate-prices`, {
+    method: "POST",
+  });
+}
+
 export function forwardOrderToVendor(
   orderId: string,
   payload: { vendorId?: string; channel: "EMAIL" | "WHATSAPP" }
@@ -429,6 +445,7 @@ export async function fetchAdminProducts(): Promise<AdminProduct[]> {
     description: p.description ?? "",
     priceKobo: p.priceKobo ?? 0,
     costPriceKobo: p.costPriceKobo ?? null,
+    priceOverridden: Boolean(p.priceOverridden),
     category: p.category ?? (Array.isArray(p.occasions) && p.occasions[0]) ?? "Wedding Gifts",
     giftType: p.giftType,
     mainCategories: p.mainCategories ?? [],

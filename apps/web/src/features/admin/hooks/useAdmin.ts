@@ -36,6 +36,7 @@ import {
   createAdminVendor,
   updateAdminVendor,
   deleteAdminVendor,
+  recalculateVendorPrices,
   forwardOrderToVendor,
   issueAdminRefund,
 } from "../api";
@@ -431,6 +432,16 @@ export function useDeleteAdminVendor() {
     mutationFn: (vendorId: string) => deleteAdminVendor(vendorId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.vendors() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.products() });
+    },
+  });
+}
+
+export function useRecalculateVendorPrices() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vendorId: string) => recalculateVendorPrices(vendorId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.products() });
     },
   });
