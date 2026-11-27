@@ -176,9 +176,45 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
             </div>
           </div>
 
-          <p className="text-sm leading-relaxed text-foreground">
-            {product.description}
-          </p>
+          <div className="space-y-2.5 text-sm leading-relaxed text-foreground">
+            {(() => {
+              const lines = (product.description || "")
+                .split(/\r?\n/)
+                .map((l) => l.trim())
+                .filter(Boolean);
+              const blocks: Array<
+                | { type: "p"; text: string }
+                | { type: "ul"; items: string[] }
+              > = [];
+              for (const line of lines) {
+                if (line.startsWith("•") || line.startsWith("- ")) {
+                  const text = line.replace(/^[•\-]\s*/, "").trim();
+                  const last = blocks[blocks.length - 1];
+                  if (last && last.type === "ul") {
+                    last.items.push(text);
+                  } else {
+                    blocks.push({ type: "ul", items: [text] });
+                  }
+                } else {
+                  blocks.push({ type: "p", text: line });
+                }
+              }
+              return blocks.map((block, idx) =>
+                block.type === "ul" ? (
+                  <ul
+                    key={idx}
+                    className="list-disc space-y-1 pl-5 text-muted-foreground"
+                  >
+                    {block.items.map((item, itemIdx) => (
+                      <li key={itemIdx}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p key={idx}>{block.text}</p>
+                )
+              );
+            })()}
+          </div>
 
           {/* Variant Selection Chips */}
           {hasVariants && (

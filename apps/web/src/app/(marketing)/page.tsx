@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/shared/Money";
+import { api } from "@/lib/api-client";
+import type { CatalogProduct } from "@givvly/contracts";
 
 export const metadata: Metadata = {
   title: "Givvly — One Link for Celebrations, Wishlists & Cash Gifts",
@@ -38,34 +40,20 @@ const CHAPTERS = [
   },
 ];
 
-const CURATED_HIGHLIGHTS = [
-  {
-    slug: "lagos-champagne-celebration-hamper",
-    category: "Signature Hamper",
-    title: "The Eko Grand Champagne & Artisanal Truffle Trunk",
-    vendor: "Lagos Luxe Hampers",
-    priceKobo: 12_500_000,
-    note: "Hand-wrapped in luxury satin with a personalized note.",
-  },
-  {
-    slug: "smeg-retro-kettle-toaster-duo",
-    category: "Home Sanctuary",
-    title: "Smeg 50s Cream Kettle & Two-Slice Breakfast Set",
-    vendor: "Maison Lekki",
-    priceKobo: 34_000_000,
-    note: "A timeless luxury aesthetic for modern homes, birthdays, and celebrations.",
-  },
-  {
-    slug: "oriire-handwoven-aso-oke-throw",
-    category: "Heritage Keepsake",
-    title: "Handloomed Iseyin Aso-Oke & Brass Table Runner",
-    vendor: "Atélìer Oriire",
-    priceKobo: 6_800_000,
-    note: "Handwoven by master artisans in Oyo State.",
-  },
-];
+async function getBestSellingProducts(): Promise<CatalogProduct[]> {
+  try {
+    const items = await api<CatalogProduct[]>(
+      "/catalog/products?sortBy=popularity&limit=3",
+      { next: { revalidate: 60 } }
+    );
+    return Array.isArray(items) ? items.slice(0, 3) : [];
+  } catch {
+    return [];
+  }
+}
 
-export default function MarketingHomePage() {
+export default async function MarketingHomePage() {
+  const bestSellingProducts = await getBestSellingProducts();
   return (
     <div className="space-y-28 pb-12 pt-8 sm:pt-14">
       {/* HERO: Asymmetrical Editorial Composition */}
@@ -206,48 +194,73 @@ export default function MarketingHomePage() {
           </Button>
         </div>
 
-        <div className="mt-8 grid gap-6 md:grid-cols-3">
-          {CURATED_HIGHLIGHTS.map((item) => (
-            <div
-              key={item.slug}
-              className="paper-surface scroll-reveal editorial-lift group flex flex-col justify-between rounded-[22px] border border-border p-6"
-            >
-              <div className="space-y-4">
-                <div className="flex h-36 flex-col items-center justify-center rounded-2xl border border-accent/30 bg-gradient-to-br from-primary/10 via-background to-accent/20 p-4 text-center">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
-                    {item.category}
-                  </span>
-                  <p className="mt-1 font-heading text-base font-medium italic text-foreground/90">
-                    {item.vendor}
-                  </p>
+        {bestSellingProducts.length > 0 ? (
+          <div className="mt-8 grid gap-6 md:grid-cols-3">
+            {bestSellingProducts.map((item) => (
+              <div
+                key={item.id || item.slug}
+                className="paper-surface scroll-reveal editorial-lift group flex flex-col justify-between rounded-[22px] border border-border p-6"
+              >
+                <div className="space-y-4">
+                  <div className="relative flex h-44 flex-col items-center justify-center overflow-hidden rounded-2xl border border-accent/30 bg-gradient-to-br from-primary/10 via-background to-accent/20 text-center">
+                    {item.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="p-4">
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
+                          {item.category}
+                        </span>
+                        <p className="mt-1 font-heading text-base font-medium italic text-foreground/90">
+                          {item.vendorName}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                      <span>{item.category}</span>
+                      <span className="text-muted-foreground font-normal normal-case tracking-normal">
+                        {item.vendorName}
+                      </span>
+                    </div>
+                    <h3 className="font-heading text-lg font-semibold leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                      {item.name}
+                    </h3>
+                    <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">
+                      {item.description}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <h3 className="font-heading text-lg font-semibold leading-snug text-foreground group-hover:text-primary transition-colors">
-                    {item.title}
-                  </h3>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    {item.note}
-                  </p>
+                <div className="mt-6 flex items-center justify-between border-t border-border/70 pt-4">
+                  <Money
+                    amountKobo={item.priceKobo}
+                    className="font-heading text-lg font-semibold text-foreground"
+                  />
+                  <Link
+                    href={`/gifts/${item.slug}`}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                  >
+                    <span>Send Gift</span>
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>
                 </div>
               </div>
-
-              <div className="mt-6 flex items-center justify-between border-t border-border/70 pt-4">
-                <Money
-                  amountKobo={item.priceKobo}
-                  className="font-heading text-lg font-semibold text-foreground"
-                />
-                <Link
-                  href="/gifts"
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-                >
-                  <span>Send Gift</span>
-                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-8 rounded-[22px] border border-border bg-card/60 p-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Curated best-sellers will appear here as soon as products are published.
+            </p>
+          </div>
+        )}
       </section>
 
       {/* EMOTIONAL QUOTE & CLOSING BANNER */}

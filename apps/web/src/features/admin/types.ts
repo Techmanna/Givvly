@@ -190,6 +190,8 @@ export type ProductVariant = {
   id: string;
   name: string;
   priceKobo: number;
+  costPriceKobo?: number | null;
+  priceOverridden?: boolean;
   stock?: number | null;
   sku?: string | null;
   active?: boolean;

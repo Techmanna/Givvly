@@ -65,6 +65,7 @@ export function ProductEditForm({
     packagingIncluded: "Luxury Gift Box & Ribbon",
     description: "",
     imageUrl: "",
+    active: true,
     inStock: true,
     stock: 50,
     isCombo: false,
@@ -73,6 +74,8 @@ export function ProductEditForm({
       id: string;
       name: string;
       priceNaira: string;
+      costPriceNaira: string;
+      priceOverridden: boolean;
       stock: string;
       sku: string;
       active: boolean;
@@ -88,6 +91,8 @@ export function ProductEditForm({
   const [variantInput, setVariantInput] = useState({
     name: "",
     priceNaira: "",
+    costPriceNaira: "",
+    priceOverridden: false,
     stock: "",
     sku: "",
   });
@@ -126,6 +131,11 @@ export function ProductEditForm({
             id: v.id || `var_${Math.random().toString(36).substring(2, 9)}`,
             name: v.name || "",
             priceNaira: String(Math.round((v.priceKobo || 0) / 100)),
+            costPriceNaira:
+              v.costPriceKobo !== null && v.costPriceKobo !== undefined
+                ? String(Math.round(v.costPriceKobo / 100))
+                : "",
+            priceOverridden: Boolean(v.priceOverridden),
             stock: v.stock === null || v.stock === undefined ? "" : String(v.stock),
             sku: v.sku || "",
             active: v.active !== false,
@@ -150,6 +160,7 @@ export function ProductEditForm({
         packagingIncluded: product.packagingIncluded || "Luxury Gift Box & Ribbon",
         description: product.description || "",
         imageUrl: product.imageUrl || "",
+        active: product.active !== false,
         inStock: product.inStock,
         stock: product.stock ?? (product.inStock ? 50 : 0),
         isCombo: Boolean(product.isCombo || items.length > 0),
@@ -166,7 +177,14 @@ export function ProductEditForm({
       setEditMediaPreviewUrl(product.imageUrl || "");
       setEditMediaKind(isVideoMediaUrl(product.imageUrl || "") ? "VIDEO" : "IMAGE");
       setEditComboItemInput({ name: "", qty: 1 });
-      setVariantInput({ name: "", priceNaira: "", stock: "", sku: "" });
+      setVariantInput({
+        name: "",
+        priceNaira: "",
+        costPriceNaira: "",
+        priceOverridden: false,
+        stock: "",
+        sku: "",
+      });
       setEditUploadProgress(0);
     }
   }, [product]);
@@ -252,10 +270,14 @@ export function ProductEditForm({
       return;
     }
 
+    const costNum = parseFloat(variantInput.costPriceNaira);
     const newVariant = {
       id: `var_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       name,
       priceNaira: String(priceNum),
+      costPriceNaira:
+        !isNaN(costNum) && costNum >= 0 ? String(costNum) : "",
+      priceOverridden: variantInput.priceOverridden,
       stock: variantInput.stock.trim(),
       sku: variantInput.sku.trim(),
       active: true,
@@ -266,7 +288,14 @@ export function ProductEditForm({
       variants: [...prev.variants, newVariant],
     }));
 
-    setVariantInput({ name: "", priceNaira: "", stock: "", sku: "" });
+    setVariantInput({
+      name: "",
+      priceNaira: "",
+      costPriceNaira: "",
+      priceOverridden: false,
+      stock: "",
+      sku: "",
+    });
     toast.success(`Option "${name}" added`);
   };
 
@@ -282,6 +311,8 @@ export function ProductEditForm({
     patch: Partial<{
       name: string;
       priceNaira: string;
+      costPriceNaira: string;
+      priceOverridden: boolean;
       stock: string;
       sku: string;
       active: boolean;
@@ -363,10 +394,14 @@ export function ProductEditForm({
       const pendingName = variantInput.name.trim();
       const pendingPrice = parseFloat(variantInput.priceNaira);
       if (pendingName && !isNaN(pendingPrice) && pendingPrice > 0) {
+        const pendingCost = parseFloat(variantInput.costPriceNaira);
         allVariants.push({
           id: `var_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           name: pendingName,
           priceNaira: String(pendingPrice),
+          costPriceNaira:
+            !isNaN(pendingCost) && pendingCost >= 0 ? String(pendingCost) : "",
+          priceOverridden: variantInput.priceOverridden,
           stock: variantInput.stock.trim(),
           sku: variantInput.sku.trim(),
           active: true,
@@ -377,16 +412,22 @@ export function ProductEditForm({
         .filter(
           (v) => v.name.trim().length > 0 && parseFloat(v.priceNaira) > 0
         )
-        .map((v) => ({
-          id: v.id,
-          name: v.name.trim(),
-          priceKobo: Math.round(parseFloat(v.priceNaira) * 100),
-          stock: String(v.stock ?? "").trim()
-            ? parseInt(String(v.stock), 10)
-            : null,
-          sku: String(v.sku ?? "").trim() || undefined,
-          active: v.active !== false,
-        }));
+        .map((v) => {
+          const vCost = parseFloat(v.costPriceNaira);
+          return {
+            id: v.id,
+            name: v.name.trim(),
+            priceKobo: Math.round(parseFloat(v.priceNaira) * 100),
+            costPriceKobo:
+              !isNaN(vCost) && vCost >= 0 ? Math.round(vCost * 100) : null,
+            priceOverridden: Boolean(v.priceOverridden),
+            stock: String(v.stock ?? "").trim()
+              ? parseInt(String(v.stock), 10)
+              : null,
+            sku: String(v.sku ?? "").trim() || undefined,
+            active: v.active !== false,
+          };
+        });
 
       const costPriceNum = editFormData.costPriceNaira.trim()
         ? parseFloat(editFormData.costPriceNaira)
@@ -412,6 +453,7 @@ export function ProductEditForm({
               : null,
           priceOverridden: editFormData.priceOverridden,
           imageUrl: editFormData.imageUrl.trim() || undefined,
+          active: editFormData.active,
           inStock: editFormData.inStock,
           stock: editFormData.inStock ? editFormData.stock : 0,
           isCombo: editFormData.isCombo,
@@ -573,11 +615,30 @@ export function ProductEditForm({
                           )
                         )
                       : null;
+                  const updatedVariants = chosen
+                    ? prev.variants.map((v) => {
+                        const vCost = parseFloat(v.costPriceNaira);
+                        if (v.priceOverridden || isNaN(vCost) || vCost <= 0) {
+                          return v;
+                        }
+                        const vCalc = calculateVendorSellingPrice(
+                          Math.round(vCost * 100),
+                          chosen
+                        );
+                        return {
+                          ...v,
+                          priceNaira: String(
+                            Math.round(vCalc.sellingPriceKobo / 100)
+                          ),
+                        };
+                      })
+                    : prev.variants;
                   return {
                     ...prev,
                     vendorId: nextVendorId,
                     vendorName: chosen ? chosen.name : "Givvly Curated",
                     ...(suggested !== null && { priceNaira: suggested }),
+                    variants: updatedVariants,
                   };
                 });
               }}
@@ -862,10 +923,11 @@ export function ProductEditForm({
           {editFormData.variants.length > 0 ? (
             <div className="space-y-2">
               <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-[10px] font-semibold uppercase text-muted-foreground px-2">
-                <span className="col-span-4">Option Name</span>
-                <span className="col-span-3">Price (₦)</span>
+                <span className="col-span-3">Option Name</span>
+                <span className="col-span-2">Buying Cost (₦)</span>
+                <span className="col-span-3">Selling Price (₦)</span>
                 <span className="col-span-2">Stock</span>
-                <span className="col-span-2">SKU</span>
+                <span className="col-span-1">SKU</span>
                 <span className="col-span-1 text-right">Action</span>
               </div>
               {editFormData.variants.map((variant, idx) => (
@@ -873,7 +935,7 @@ export function ProductEditForm({
                   key={variant.id || idx}
                   className="flex flex-col sm:grid sm:grid-cols-12 items-start sm:items-center gap-2 rounded-md border border-border/50 bg-card p-2 text-xs"
                 >
-                  <div className="w-full sm:col-span-4">
+                  <div className="w-full sm:col-span-3">
                     <Input
                       value={variant.name}
                       onChange={(e) =>
@@ -882,6 +944,47 @@ export function ProductEditForm({
                       placeholder="e.g. 500g, Large, Rose Gold"
                       className="h-8 text-xs font-medium"
                     />
+                  </div>
+                  <div className="w-full sm:col-span-2">
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-serif text-muted-foreground">
+                        ₦
+                      </span>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={variant.costPriceNaira}
+                        onChange={(e) => {
+                          const nextCost = e.target.value;
+                          const chosen = vendors.find(
+                            (v) => v.id === editFormData.vendorId
+                          );
+                          const costNum = parseFloat(nextCost);
+                          const suggested =
+                            chosen &&
+                            !variant.priceOverridden &&
+                            !isNaN(costNum) &&
+                            costNum > 0
+                              ? String(
+                                  Math.round(
+                                    calculateVendorSellingPrice(
+                                      Math.round(costNum * 100),
+                                      chosen
+                                    ).sellingPriceKobo / 100
+                                  )
+                                )
+                              : undefined;
+                          handleUpdateVariant(idx, {
+                            costPriceNaira: nextCost,
+                            ...(suggested !== undefined && {
+                              priceNaira: suggested,
+                            }),
+                          });
+                        }}
+                        placeholder="Cost"
+                        className="h-8 pl-5 text-xs font-mono"
+                      />
+                    </div>
                   </div>
                   <div className="w-full sm:col-span-3">
                     <div className="relative">
@@ -894,7 +997,10 @@ export function ProductEditForm({
                         step="100"
                         value={variant.priceNaira}
                         onChange={(e) =>
-                          handleUpdateVariant(idx, { priceNaira: e.target.value })
+                          handleUpdateVariant(idx, {
+                            priceNaira: e.target.value,
+                            priceOverridden: Boolean(editFormData.vendorId),
+                          })
                         }
                         placeholder="Price"
                         className="h-8 pl-6 text-xs font-mono font-semibold"
@@ -913,13 +1019,13 @@ export function ProductEditForm({
                       className="h-8 text-xs font-mono"
                     />
                   </div>
-                  <div className="w-full sm:col-span-2">
+                  <div className="w-full sm:col-span-1">
                     <Input
                       value={variant.sku ?? ""}
                       onChange={(e) =>
                         handleUpdateVariant(idx, { sku: e.target.value })
                       }
-                      placeholder="SKU-001"
+                      placeholder="SKU"
                       className="h-8 text-[11px] font-mono uppercase"
                     />
                   </div>
@@ -949,7 +1055,7 @@ export function ProductEditForm({
               Add New Option
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-              <div className="sm:col-span-4">
+              <div className="sm:col-span-3">
                 <Input
                   placeholder="Option name (e.g. Deluxe 1kg)"
                   value={variantInput.name}
@@ -964,6 +1070,50 @@ export function ProductEditForm({
                     }
                   }}
                 />
+              </div>
+              <div className="sm:col-span-2">
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-serif text-muted-foreground">
+                    ₦
+                  </span>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="Cost (opt)"
+                    value={variantInput.costPriceNaira}
+                    onChange={(e) => {
+                      const nextCost = e.target.value;
+                      const chosen = vendors.find(
+                        (v) => v.id === editFormData.vendorId
+                      );
+                      const costNum = parseFloat(nextCost);
+                      setVariantInput((prev) => {
+                        const suggested =
+                          chosen &&
+                          !prev.priceOverridden &&
+                          !isNaN(costNum) &&
+                          costNum > 0
+                            ? String(
+                                Math.round(
+                                  calculateVendorSellingPrice(
+                                    Math.round(costNum * 100),
+                                    chosen
+                                  ).sellingPriceKobo / 100
+                                )
+                              )
+                            : undefined;
+                        return {
+                          ...prev,
+                          costPriceNaira: nextCost,
+                          ...(suggested !== undefined && {
+                            priceNaira: suggested,
+                          }),
+                        };
+                      });
+                    }}
+                    className="h-8 pl-5 text-xs font-mono"
+                  />
+                </div>
               </div>
               <div className="sm:col-span-3">
                 <div className="relative">
@@ -980,6 +1130,7 @@ export function ProductEditForm({
                       setVariantInput((prev) => ({
                         ...prev,
                         priceNaira: e.target.value,
+                        priceOverridden: Boolean(editFormData.vendorId),
                       }))
                     }
                     className="h-8 pl-6 text-xs font-mono"
@@ -1004,9 +1155,9 @@ export function ProductEditForm({
                   className="h-8 text-xs font-mono"
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-1">
                 <Input
-                  placeholder="SKU (opt)"
+                  placeholder="SKU"
                   value={variantInput.sku}
                   onChange={(e) =>
                     setVariantInput((prev) => ({ ...prev, sku: e.target.value }))
@@ -1306,6 +1457,28 @@ export function ProductEditForm({
         <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Inventory & Availability
         </h4>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-border/60 bg-muted/20 p-3">
+          <div className="space-y-0.5">
+            <p className="text-xs font-semibold text-foreground">
+              Storefront Visibility
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Publish this product to the public /gifts catalog (turn off to keep as draft)
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {editFormData.active ? "Active (Published)" : "Draft (Hidden)"}
+            </span>
+            <Switch
+              checked={editFormData.active}
+              onCheckedChange={(checked) =>
+                setEditFormData((prev) => ({ ...prev, active: checked }))
+              }
+            />
+          </div>
+        </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-0.5">

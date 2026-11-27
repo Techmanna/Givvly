@@ -95,9 +95,10 @@ export class AdminService {
     limit?: number;
     offset?: number;
   }) {
-    const where: any = {
-      active: query.active !== undefined ? query.active : true,
-    };
+    const where: any = {};
+    if (query.active !== undefined) {
+      where.active = query.active;
+    }
     if (query.search && query.search.trim()) {
       const term = query.search.trim();
       where.OR = [
@@ -106,7 +107,7 @@ export class AdminService {
       ];
     }
 
-    const take = query.limit ? Math.min(Number(query.limit), 100) : 50;
+    const take = query.limit ? Math.min(Number(query.limit), 200) : 100;
     const skip = query.offset ? Number(query.offset) : 0;
 
     const [products, total] = await Promise.all([
@@ -2433,6 +2434,7 @@ export class AdminService {
             costPriceKobo: true,
             priceKobo: true,
             priceOverridden: true,
+            variants: true,
           },
         },
       },
@@ -2445,31 +2447,68 @@ export class AdminService {
     let skippedOverridden = 0;
     let skippedNoCost = 0;
 
-    const updates: Array<{ id: string; priceKobo: number }> = [];
+    const rule = {
+      pricingMode: (vendor.pricingMode ?? "PUBLIC_MARKUP") as VendorPricingMode,
+      markupBps: vendor.markupBps,
+      discountBps: vendor.discountBps,
+      commissionBps: vendor.commissionBps,
+      roundingStepKobo: vendor.roundingStepKobo,
+      pricingTiers: Array.isArray(vendor.pricingTiers)
+        ? (vendor.pricingTiers as VendorPricingTier[])
+        : null,
+    };
+
+    const updates: Array<{
+      id: string;
+      priceKobo?: number;
+      variants?: Prisma.InputJsonValue;
+    }> = [];
 
     for (const product of vendor.products) {
+      let nextPriceKobo: number | undefined;
+      let nextVariants: any[] | undefined;
+      let productChanged = false;
+
       if (product.priceOverridden) {
         skippedOverridden++;
-        continue;
-      }
-      if (!product.costPriceKobo || product.costPriceKobo <= 0) {
+      } else if (!product.costPriceKobo || product.costPriceKobo <= 0) {
         skippedNoCost++;
-        continue;
+      } else {
+        const calc = calculateVendorSellingPrice(product.costPriceKobo, rule);
+        if (calc.sellingPriceKobo > 0 && calc.sellingPriceKobo !== product.priceKobo) {
+          nextPriceKobo = calc.sellingPriceKobo;
+          productChanged = true;
+        }
       }
 
-      const calc = calculateVendorSellingPrice(product.costPriceKobo, {
-        pricingMode: (vendor.pricingMode ?? "PUBLIC_MARKUP") as VendorPricingMode,
-        markupBps: vendor.markupBps,
-        discountBps: vendor.discountBps,
-        commissionBps: vendor.commissionBps,
-        roundingStepKobo: vendor.roundingStepKobo,
-        pricingTiers: Array.isArray(vendor.pricingTiers)
-          ? (vendor.pricingTiers as VendorPricingTier[])
-          : null,
-      });
+      if (Array.isArray(product.variants) && product.variants.length > 0) {
+        let variantsChanged = false;
+        const mappedVariants = (product.variants as any[]).map((v) => {
+          const vCost = typeof v?.costPriceKobo === "number" ? v.costPriceKobo : 0;
+          if (!v || v.priceOverridden || vCost <= 0) {
+            return v;
+          }
+          const vCalc = calculateVendorSellingPrice(vCost, rule);
+          if (vCalc.sellingPriceKobo > 0 && vCalc.sellingPriceKobo !== v.priceKobo) {
+            variantsChanged = true;
+            return { ...v, priceKobo: vCalc.sellingPriceKobo };
+          }
+          return v;
+        });
+        if (variantsChanged) {
+          nextVariants = mappedVariants;
+          productChanged = true;
+        }
+      }
 
-      if (calc.sellingPriceKobo > 0 && calc.sellingPriceKobo !== product.priceKobo) {
-        updates.push({ id: product.id, priceKobo: calc.sellingPriceKobo });
+      if (productChanged) {
+        updates.push({
+          id: product.id,
+          ...(nextPriceKobo !== undefined && { priceKobo: nextPriceKobo }),
+          ...(nextVariants !== undefined && {
+            variants: nextVariants as Prisma.InputJsonValue,
+          }),
+        });
       }
     }
 
@@ -2478,7 +2517,10 @@ export class AdminService {
         updates.map((u) =>
           this.prisma.product.update({
             where: { id: u.id },
-            data: { priceKobo: u.priceKobo },
+            data: {
+              ...(u.priceKobo !== undefined && { priceKobo: u.priceKobo }),
+              ...(u.variants !== undefined && { variants: u.variants }),
+            },
           })
         )
       );
