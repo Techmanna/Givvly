@@ -148,6 +148,76 @@ export type AdminLedgerReport = {
   entries: AdminLedgerEntry[];
 };
 
+export type AdminFinancePnlReport = {
+  windowDays: number | null;
+  recognizedOrderCount: number;
+  excluded: {
+    total: number;
+    cancelled: number;
+    refunded: number;
+    disputed: number;
+    unpaidOrPending: number;
+  };
+  missingCostItemCount: number;
+  summary: {
+    totalCollectedKobo: number;
+    merchandiseRevenueKobo: number;
+    deliveryCollectedKobo: number;
+    packagingCollectedKobo: number;
+    vatCollectedKobo: number;
+    vendorCostKobo: number;
+    grossProfitKobo: number;
+    grossMarginPct: number;
+    gatewayFeesKobo: number;
+    netProfitKobo: number;
+    netMarginPct: number;
+    avgOrderRevenueKobo: number;
+    avgOrderNetProfitKobo: number;
+  };
+  dailySeries: Array<{
+    date: string;
+    orders: number;
+    revenueKobo: number;
+    cogsKobo: number;
+    gatewayFeeKobo: number;
+    netProfitKobo: number;
+  }>;
+  byVendor: Array<{
+    vendorName: string;
+    orders: number;
+    units: number;
+    revenueKobo: number;
+    cogsKobo: number;
+    grossProfitKobo: number;
+    marginPct: number;
+  }>;
+  topProducts: Array<{
+    productId: string;
+    title: string;
+    units: number;
+    revenueKobo: number;
+    cogsKobo: number;
+    grossProfitKobo: number;
+    marginPct: number;
+  }>;
+  orders: Array<{
+    id: string;
+    number: string;
+    createdAt: string;
+    status: string;
+    vendorName: string;
+    provider: string;
+    totalKobo: number;
+    subtotalKobo: number;
+    cogsKobo: number;
+    gatewayFeeKobo: number;
+    grossProfitKobo: number;
+    netProfitKobo: number;
+    netMarginPct: number;
+    missingCostItems: number;
+  }>;
+};
+
 import type { VendorPricingMode, VendorPricingTier } from "@givvly/contracts";
 
 export type AdminVendorSummary = {

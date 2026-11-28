@@ -98,7 +98,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
   );
   const payWithWalletMutation = usePayOrderWithWalletMutation();
   const [walletPin, setWalletPin] = React.useState("");
-  const [paymentMethod, setPaymentMethod] = React.useState<"paystack" | "wallet">("paystack");
+  const [paymentMethod, setPaymentMethod] = React.useState<"gateway" | "wallet">("gateway");
   const [savedPhones, setSavedPhones] = React.useState<
     Array<{ phone: string; name?: string }>
   >([]);
@@ -573,7 +573,7 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
         email: buyerEmail,
       });
 
-      if (paymentMethod === "paystack") {
+      if (paymentMethod === "gateway") {
         const paystackRes = await openGatewayCheckout({
           email: buyerEmail,
           amountKobo: result.order.totalKobo,
@@ -786,10 +786,26 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                       type="number"
                       min={50}
                       max={500000}
-                      value={airtimeAmountNaira}
-                      onChange={(e) =>
-                        setAirtimeAmountNaira(Math.max(50, Number(e.target.value) || 0))
-                      }
+                      placeholder="e.g. 5000"
+                      value={airtimeAmountNaira === 0 ? "" : airtimeAmountNaira}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") {
+                          setAirtimeAmountNaira(0);
+                          return;
+                        }
+                        const parsed = Math.floor(Number(raw));
+                        if (!Number.isNaN(parsed)) {
+                          setAirtimeAmountNaira(
+                            Math.min(500000, Math.max(0, parsed))
+                          );
+                        }
+                      }}
+                      onBlur={() => {
+                        if (airtimeAmountNaira < 50) {
+                          setAirtimeAmountNaira(50);
+                        }
+                      }}
                       className="mt-1 max-w-xs"
                     />
                   </div>
@@ -1312,15 +1328,19 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                 </div>
               )}
               <div className="rounded-xl border border-border/80 bg-muted/30 p-3">
-                <label className="flex cursor-pointer items-start gap-2.5 text-xs">
+                <div className="flex items-start gap-2.5 text-xs">
                   <Checkbox
+                    id="checkout-send-recipient-sms"
                     checked={sendRecipientSms}
                     onCheckedChange={(checked) =>
-                      setSendRecipientSms(Boolean(checked))
+                      setSendRecipientSms(checked === true)
                     }
                     className="mt-0.5"
                   />
-                  <span className="space-y-0.5">
+                  <Label
+                    htmlFor="checkout-send-recipient-sms"
+                    className="cursor-pointer space-y-0.5 font-normal leading-normal"
+                  >
                     <span className="block font-semibold text-ink">
                       Send personalized SMS to recipient (
                       {formatNaira(SMS_FEE_PER_RECIPIENT_KOBO)}
@@ -1330,8 +1350,8 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                       Notifies the recipient by SMS with your name, gift
                       note, and gift card link.
                     </span>
-                  </span>
-                </label>
+                  </Label>
+                </div>
               </div>
               <div className="border-t border-border pt-3 space-y-0.5">
                 <div className="flex items-center justify-between text-base font-semibold text-ink">
@@ -1352,8 +1372,8 @@ export function CheckoutForm({ productSlug }: CheckoutFormProps) {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod("paystack")}
-                    className={`rounded-lg border px-2.5 py-2 text-left transition ${paymentMethod === "paystack"
+                    onClick={() => setPaymentMethod("gateway")}
+                    className={`rounded-lg border px-2.5 py-2 text-left transition ${paymentMethod === "gateway"
                         ? "border-primary bg-primary/10 font-semibold text-primary"
                         : "border-border bg-background text-ink-muted"
                       }`}

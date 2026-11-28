@@ -26,6 +26,7 @@ import {
   Share,
   Settings,
   Truck,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +60,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/payments", label: "Payment Inflow", icon: CreditCard },
       { href: "/admin/payouts", label: "Bank Payouts", icon: Building2 },
       { href: "/admin/ledger", label: "Dual-Entry Ledger", icon: BookOpen },
+      { href: "/admin/pnl", label: "P&L & Margins", icon: TrendingUp },
     ],
   },
   {

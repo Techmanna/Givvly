@@ -1,5 +1,6 @@
 import { api } from "@/lib/api-client";
 import type {
+  AdminFinancePnlReport,
   AdminLedgerReport,
   AdminModerationItem,
   AdminOrderDetail,
@@ -64,6 +65,27 @@ function mapLedgerEntries(rawEntries: any[]) {
         ? e.createdAt
         : (e.createdAt?.toISOString?.() ?? new Date().toISOString()),
   }));
+}
+
+export function fetchAdminFinancePnl(params?: {
+  days?: number;
+  startDate?: string;
+  endDate?: string;
+}): Promise<AdminFinancePnlReport> {
+  const qs = new URLSearchParams();
+  if (params?.days && params.days > 0) {
+    qs.set("days", String(params.days));
+  }
+  if (params?.startDate) {
+    qs.set("startDate", params.startDate);
+  }
+  if (params?.endDate) {
+    qs.set("endDate", params.endDate);
+  }
+  const query = qs.toString();
+  return api<AdminFinancePnlReport>(
+    `/admin/finance/pnl${query ? `?${query}` : ""}`
+  );
 }
 
 export async function fetchAdminLedger(): Promise<LedgerEntry[]> {

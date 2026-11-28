@@ -11,6 +11,7 @@ import { LedgerService } from "../ledger/ledger.service";
 import { SlugService } from "../../common/slug/slug.service";
 import {
   calculateVendorSellingPrice,
+  estimateGatewayFeeKobo,
   VendorPricingMode,
   VendorPricingTier,
 } from "./vendor-pricing.util";
@@ -1629,6 +1630,388 @@ export class AdminService {
   }
 
   // ==================== LEDGER & TRIAL BALANCE ====================
+
+  async getFinancePnl(query?: {
+    days?: number;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const days =
+      query?.days && Number.isFinite(query.days) && query.days > 0
+        ? Math.min(Math.round(query.days), 3650)
+        : null;
+
+    const parseBoundary = (iso?: string, endOfDay = false): Date | undefined => {
+      if (!iso || !iso.trim()) return undefined;
+      const d = new Date(`${iso.trim()}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}`);
+      return Number.isNaN(d.getTime()) ? undefined : d;
+    };
+
+    const customStart = parseBoundary(query?.startDate, false);
+    const customEnd = parseBoundary(query?.endDate, true);
+
+    const createdAtFilter: { gte?: Date; lte?: Date } = {};
+    if (customStart || customEnd) {
+      if (customStart) createdAtFilter.gte = customStart;
+      if (customEnd) createdAtFilter.lte = customEnd;
+    } else if (days) {
+      createdAtFilter.gte = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    }
+
+    const orders = await this.prisma.order.findMany({
+      where:
+        createdAtFilter.gte || createdAtFilter.lte
+          ? { createdAt: createdAtFilter }
+          : undefined,
+      orderBy: { createdAt: "desc" },
+      include: {
+        items: true,
+        vendor: {
+          select: {
+            id: true,
+            name: true,
+            pricingMode: true,
+            commissionBps: true,
+          },
+        },
+        payment: {
+          select: {
+            id: true,
+            status: true,
+            provider: true,
+            providerFeeKobo: true,
+            feeKobo: true,
+          },
+        },
+      },
+    });
+
+    const RECOGNIZED_STATUSES = new Set<OrderStatus>([
+      OrderStatus.CONFIRMED,
+      OrderStatus.PACKED,
+      OrderStatus.SHIPPED,
+      OrderStatus.DELIVERED,
+    ]);
+
+    const excluded = {
+      total: 0,
+      cancelled: 0,
+      refunded: 0,
+      disputed: 0,
+      unpaidOrPending: 0,
+    };
+
+    const recognizedOrders: typeof orders = [];
+    for (const order of orders) {
+      const paymentStatus = order.payment?.status;
+      const isPaymentRefunded =
+        paymentStatus === PaymentStatus.REFUNDED ||
+        paymentStatus === PaymentStatus.PARTIALLY_REFUNDED;
+      const isPaymentFailedOrPending =
+        paymentStatus !== undefined && paymentStatus !== PaymentStatus.SUCCESS;
+
+      if (order.status === OrderStatus.REFUNDED || isPaymentRefunded) {
+        excluded.total++;
+        excluded.refunded++;
+        continue;
+      }
+      if (order.status === OrderStatus.CANCELLED) {
+        excluded.total++;
+        excluded.cancelled++;
+        continue;
+      }
+      if (order.status === OrderStatus.DISPUTED) {
+        excluded.total++;
+        excluded.disputed++;
+        continue;
+      }
+      if (!RECOGNIZED_STATUSES.has(order.status) || isPaymentFailedOrPending) {
+        excluded.total++;
+        excluded.unpaidOrPending++;
+        continue;
+      }
+      recognizedOrders.push(order);
+    }
+
+    const productIds = Array.from(
+      new Set(
+        recognizedOrders.flatMap((o) => o.items.map((it) => it.productId))
+      )
+    );
+    const products =
+      productIds.length > 0
+        ? await this.prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: {
+              id: true,
+              title: true,
+              costPriceKobo: true,
+              vendorId: true,
+              vendor: {
+                select: {
+                  id: true,
+                  name: true,
+                  pricingMode: true,
+                  commissionBps: true,
+                },
+              },
+            },
+          })
+        : [];
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    let totalCollectedKobo = 0;
+    let merchandiseRevenueKobo = 0;
+    let deliveryCollectedKobo = 0;
+    let packagingCollectedKobo = 0;
+    let vatCollectedKobo = 0;
+    let vendorCostKobo = 0;
+    let grossProfitKobo = 0;
+    let gatewayFeesKobo = 0;
+    let missingCostItemCount = 0;
+
+    const dailyMap = new Map<
+      string,
+      {
+        date: string;
+        orders: number;
+        revenueKobo: number;
+        cogsKobo: number;
+        gatewayFeeKobo: number;
+        netProfitKobo: number;
+      }
+    >();
+
+    const vendorMap = new Map<
+      string,
+      {
+        vendorName: string;
+        orders: number;
+        units: number;
+        revenueKobo: number;
+        cogsKobo: number;
+        grossProfitKobo: number;
+      }
+    >();
+
+    const productStatsMap = new Map<
+      string,
+      {
+        productId: string;
+        title: string;
+        units: number;
+        revenueKobo: number;
+        cogsKobo: number;
+        grossProfitKobo: number;
+      }
+    >();
+
+    const orderRows: Array<{
+      id: string;
+      number: string;
+      createdAt: string;
+      status: OrderStatus;
+      vendorName: string;
+      provider: string;
+      totalKobo: number;
+      subtotalKobo: number;
+      cogsKobo: number;
+      gatewayFeeKobo: number;
+      grossProfitKobo: number;
+      netProfitKobo: number;
+      netMarginPct: number;
+      missingCostItems: number;
+    }> = [];
+
+    for (const order of recognizedOrders) {
+      let orderCogsKobo = 0;
+      let orderGrossProfitKobo = 0;
+      let orderMissingCostItems = 0;
+
+      const orderVendorNames = new Set<string>();
+      if (order.vendor?.name) orderVendorNames.add(order.vendor.name);
+
+      for (const item of order.items) {
+        const prod = productMap.get(item.productId);
+        const itemRevenueKobo = item.unitPriceKobo * item.qty;
+        const vendorMeta = prod?.vendor ?? order.vendor;
+        const vendorName = vendorMeta?.name ?? "Givvly Curated";
+        orderVendorNames.add(vendorName);
+
+        let itemCogsKobo = 0;
+        let itemGrossProfitKobo = 0;
+
+        if (vendorMeta?.pricingMode === "COMMISSION") {
+          const commBps = vendorMeta.commissionBps ?? 0;
+          itemGrossProfitKobo = Math.round(itemRevenueKobo * (commBps / 10_000));
+          itemCogsKobo = itemRevenueKobo - itemGrossProfitKobo;
+        } else if (prod?.costPriceKobo !== null && prod?.costPriceKobo !== undefined) {
+          itemCogsKobo = prod.costPriceKobo * item.qty;
+          itemGrossProfitKobo = itemRevenueKobo - itemCogsKobo;
+        } else {
+          orderMissingCostItems++;
+          missingCostItemCount++;
+          itemCogsKobo = 0;
+          itemGrossProfitKobo = itemRevenueKobo;
+        }
+
+        orderCogsKobo += itemCogsKobo;
+        orderGrossProfitKobo += itemGrossProfitKobo;
+
+        const vEntry = vendorMap.get(vendorName) ?? {
+          vendorName,
+          orders: 0,
+          units: 0,
+          revenueKobo: 0,
+          cogsKobo: 0,
+          grossProfitKobo: 0,
+        };
+        vEntry.units += item.qty;
+        vEntry.revenueKobo += itemRevenueKobo;
+        vEntry.cogsKobo += itemCogsKobo;
+        vEntry.grossProfitKobo += itemGrossProfitKobo;
+        vendorMap.set(vendorName, vEntry);
+
+        const pEntry = productStatsMap.get(item.productId) ?? {
+          productId: item.productId,
+          title: prod?.title ?? item.title,
+          units: 0,
+          revenueKobo: 0,
+          cogsKobo: 0,
+          grossProfitKobo: 0,
+        };
+        pEntry.units += item.qty;
+        pEntry.revenueKobo += itemRevenueKobo;
+        pEntry.cogsKobo += itemCogsKobo;
+        pEntry.grossProfitKobo += itemGrossProfitKobo;
+        productStatsMap.set(item.productId, pEntry);
+      }
+
+      for (const vName of orderVendorNames) {
+        const vEntry = vendorMap.get(vName);
+        if (vEntry) vEntry.orders += 1;
+      }
+
+      const provider = order.payment?.provider ?? "FLUTTERWAVE";
+      const orderGatewayFeeKobo =
+        order.payment?.providerFeeKobo !== null &&
+        order.payment?.providerFeeKobo !== undefined
+          ? order.payment.providerFeeKobo
+          : estimateGatewayFeeKobo(order.totalKobo, provider);
+
+      const orderNetProfitKobo = orderGrossProfitKobo - orderGatewayFeeKobo;
+      const orderNetMarginPct =
+        order.subtotalKobo > 0
+          ? Number(((orderNetProfitKobo / order.subtotalKobo) * 100).toFixed(2))
+          : 0;
+
+      totalCollectedKobo += order.totalKobo;
+      merchandiseRevenueKobo += order.subtotalKobo;
+      deliveryCollectedKobo += order.deliveryFeeKobo;
+      packagingCollectedKobo += order.packagingFeeKobo;
+      vatCollectedKobo += order.vatKobo;
+      vendorCostKobo += orderCogsKobo;
+      grossProfitKobo += orderGrossProfitKobo;
+      gatewayFeesKobo += orderGatewayFeeKobo;
+
+      const dayKey = order.createdAt.toISOString().slice(0, 10);
+      const dayEntry = dailyMap.get(dayKey) ?? {
+        date: dayKey,
+        orders: 0,
+        revenueKobo: 0,
+        cogsKobo: 0,
+        gatewayFeeKobo: 0,
+        netProfitKobo: 0,
+      };
+      dayEntry.orders += 1;
+      dayEntry.revenueKobo += order.subtotalKobo;
+      dayEntry.cogsKobo += orderCogsKobo;
+      dayEntry.gatewayFeeKobo += orderGatewayFeeKobo;
+      dayEntry.netProfitKobo += orderNetProfitKobo;
+      dailyMap.set(dayKey, dayEntry);
+
+      orderRows.push({
+        id: order.id,
+        number: order.number,
+        createdAt: order.createdAt.toISOString(),
+        status: order.status,
+        vendorName: Array.from(orderVendorNames).join(", ") || "Givvly Curated",
+        provider,
+        totalKobo: order.totalKobo,
+        subtotalKobo: order.subtotalKobo,
+        cogsKobo: orderCogsKobo,
+        gatewayFeeKobo: orderGatewayFeeKobo,
+        grossProfitKobo: orderGrossProfitKobo,
+        netProfitKobo: orderNetProfitKobo,
+        netMarginPct: orderNetMarginPct,
+        missingCostItems: orderMissingCostItems,
+      });
+    }
+
+    const netProfitKobo = grossProfitKobo - gatewayFeesKobo;
+    const grossMarginPct =
+      merchandiseRevenueKobo > 0
+        ? Number(((grossProfitKobo / merchandiseRevenueKobo) * 100).toFixed(2))
+        : 0;
+    const netMarginPct =
+      merchandiseRevenueKobo > 0
+        ? Number(((netProfitKobo / merchandiseRevenueKobo) * 100).toFixed(2))
+        : 0;
+
+    const avgOrderRevenueKobo =
+      recognizedOrders.length > 0
+        ? Math.round(merchandiseRevenueKobo / recognizedOrders.length)
+        : 0;
+    const avgOrderNetProfitKobo =
+      recognizedOrders.length > 0
+        ? Math.round(netProfitKobo / recognizedOrders.length)
+        : 0;
+
+    return {
+      windowDays: days,
+      recognizedOrderCount: recognizedOrders.length,
+      excluded,
+      missingCostItemCount,
+      summary: {
+        totalCollectedKobo,
+        merchandiseRevenueKobo,
+        deliveryCollectedKobo,
+        packagingCollectedKobo,
+        vatCollectedKobo,
+        vendorCostKobo,
+        grossProfitKobo,
+        grossMarginPct,
+        gatewayFeesKobo,
+        netProfitKobo,
+        netMarginPct,
+        avgOrderRevenueKobo,
+        avgOrderNetProfitKobo,
+      },
+      dailySeries: Array.from(dailyMap.values()).sort((a, b) =>
+        a.date.localeCompare(b.date)
+      ),
+      byVendor: Array.from(vendorMap.values())
+        .map((v) => ({
+          ...v,
+          marginPct:
+            v.revenueKobo > 0
+              ? Number(((v.grossProfitKobo / v.revenueKobo) * 100).toFixed(2))
+              : 0,
+        }))
+        .sort((a, b) => b.grossProfitKobo - a.grossProfitKobo),
+      topProducts: Array.from(productStatsMap.values())
+        .map((p) => ({
+          ...p,
+          marginPct:
+            p.revenueKobo > 0
+              ? Number(((p.grossProfitKobo / p.revenueKobo) * 100).toFixed(2))
+              : 0,
+        }))
+        .sort((a, b) => b.grossProfitKobo - a.grossProfitKobo)
+        .slice(0, 15),
+      orders: orderRows.slice(0, 100),
+    };
+  }
 
   async getLedgerReport() {
     const [trialBalance, recentEntries] = await Promise.all([

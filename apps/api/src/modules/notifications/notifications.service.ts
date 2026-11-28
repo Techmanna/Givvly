@@ -165,22 +165,37 @@ export class NotificationsService {
       }
     }
 
-    return this.prisma.notification.create({
-      data: {
-        userId: params.userId,
-        toAddress: params.toAddress,
-        channel: params.channel,
-        type: params.type,
-        title: params.title,
-        body: params.body,
-        data: persistedData ? (persistedData as any) : undefined,
-        status,
-        attempts,
-        providerRef,
-        error,
-        sentAt,
-      },
-    });
+    const notificationPayload = {
+      userId: params.userId ?? null,
+      toAddress: params.toAddress,
+      channel: params.channel,
+      type: params.type,
+      title: params.title,
+      body: params.body,
+      data: persistedData ? (persistedData as any) : undefined,
+      status,
+      attempts,
+      providerRef,
+      error,
+      sentAt,
+    };
+
+    try {
+      return await this.prisma.notification.create({
+        data: notificationPayload,
+      });
+    } catch (err: any) {
+      // Fallback to userId: null when a caller passes a synthetic/non-existent userId
+      if (err?.code === "P2003" && notificationPayload.userId) {
+        return this.prisma.notification.create({
+          data: {
+            ...notificationPayload,
+            userId: null,
+          },
+        });
+      }
+      throw err;
+    }
   }
 
   /**
@@ -383,8 +398,7 @@ export class NotificationsService {
       where: { id: orderId },
       include: {
         items: true,
-        buyer: { select: { name: true } },
-      } as any,
+      },
     });
 
     if (!order) return;
@@ -425,9 +439,19 @@ export class NotificationsService {
         ? items.map((it: any) => it.title || it.name || "a gift").join(", ")
         : "a special gift";
 
+    const buyerUser =
+      !addr.senderName && order.buyerUserId && typeof (this.prisma.user as any)?.findUnique === "function"
+        ? await this.prisma.user
+            .findUnique({
+              where: { id: order.buyerUserId },
+              select: { name: true },
+            })
+            .catch(() => null)
+        : null;
+
     const senderName =
       addr.senderName ||
-      (order as any).buyer?.name ||
+      buyerUser?.name ||
       (order.buyerEmail ? order.buyerEmail.split("@")[0] : undefined);
 
     // Mark dispatched before sending to prevent duplicate sends across concurrent webhook/verify calls

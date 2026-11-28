@@ -11,6 +11,7 @@ import {
   deleteAdminEvent,
   fetchAdminLedger,
   fetchAdminLedgerReport,
+  fetchAdminFinancePnl,
   fetchAdminModerationQueue,
   fetchAdminOrderDetail,
   fetchAdminOrders,
@@ -88,6 +89,17 @@ export function useAdminLedger() {
   return useQuery({
     queryKey: adminKeys.ledger(),
     queryFn: () => fetchAdminLedger(),
+  });
+}
+
+export function useAdminFinancePnl(params?: {
+  days?: number;
+  startDate?: string;
+  endDate?: string;
+}) {
+  return useQuery({
+    queryKey: adminKeys.financePnl(params),
+    queryFn: () => fetchAdminFinancePnl(params),
   });
 }
 

@@ -40,6 +40,7 @@ import { EventManagementView } from "./EventManagementView";
 import { PaymentManagementView } from "./PaymentManagementView";
 import { PayoutManagementView } from "./PayoutManagementView";
 import { LedgerManagementView } from "./LedgerManagementView";
+import { FinancePnlView } from "./FinancePnlView";
 import { VendorManagementView } from "./VendorManagementView";
 import { AuditLogsView } from "./AuditLogsView";
 
@@ -51,6 +52,7 @@ export type AdminSection =
   | "payments"
   | "payouts"
   | "ledger"
+  | "pnl"
   | "moderation"
   | "disputes"
   | "users"
@@ -71,6 +73,7 @@ const NAV_ITEMS: Array<{ key: AdminSection; label: string; href: string }> = [
   { key: "payments", label: "Payment Inflow", href: "/admin/payments" },
   { key: "payouts", label: "Bank Payouts", href: "/admin/payouts" },
   { key: "ledger", label: "Dual Ledger", href: "/admin/ledger" },
+  { key: "pnl", label: "P&L & Margins", href: "/admin/pnl" },
   { key: "moderation", label: "Moderation", href: "/admin/moderation" },
   { key: "disputes", label: "Disputes", href: "/admin/disputes" },
   { key: "users", label: "Users", href: "/admin/users" },
@@ -144,6 +147,9 @@ export function AdminConsoleView({
           </Link>
         ))}
       </nav> */}
+
+      {/* P&L & Margin Analytics */}
+      {section === "pnl" && <FinancePnlView />}
 
       {/* Overview Dashboard */}
       {section === "overview" && (

@@ -133,8 +133,8 @@ export function BagCheckoutForm() {
   const { data: walletSummary } = useWalletSummary(1, 5, true);
   const payWithWalletMutation = usePayOrderWithWalletMutation();
 
-  const [paymentMethod, setPaymentMethod] = React.useState<"paystack" | "wallet">(
-    "paystack"
+  const [paymentMethod, setPaymentMethod] = React.useState<"gateway" | "wallet">(
+    "gateway"
   );
   const [walletPin, setWalletPin] = React.useState("");
   const [createdOrder, setCreatedOrder] = React.useState<Order | null>(null);
@@ -421,7 +421,7 @@ export function BagCheckoutForm() {
       });
 
       // Payment Gateway flow (Monnify default)
-      if (paymentMethod === "paystack") {
+      if (paymentMethod === "gateway") {
         const paystackRes = await openGatewayCheckout({
           email: buyerEmail,
           amountKobo: result.order.totalKobo,
@@ -809,9 +809,9 @@ export function BagCheckoutForm() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod("paystack")}
+                    onClick={() => setPaymentMethod("gateway")}
                     className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
-                      paymentMethod === "paystack"
+                      paymentMethod === "gateway"
                         ? "border-primary bg-primary/5 ring-1 ring-primary"
                         : "border-border hover:border-primary/40"
                     }`}
@@ -1007,15 +1007,19 @@ export function BagCheckoutForm() {
                 )}
 
                 <div className="rounded-xl border border-border/80 bg-muted/30 p-3">
-                  <label className="flex cursor-pointer items-start gap-2.5 text-xs">
+                  <div className="flex items-start gap-2.5 text-xs">
                     <Checkbox
+                      id="bag-send-recipient-sms"
                       checked={sendRecipientSms}
                       onCheckedChange={(checked) =>
-                        setSendRecipientSms(Boolean(checked))
+                        setSendRecipientSms(checked === true)
                       }
                       className="mt-0.5"
                     />
-                    <span className="space-y-0.5">
+                    <label
+                      htmlFor="bag-send-recipient-sms"
+                      className="cursor-pointer space-y-0.5 font-normal"
+                    >
                       <span className="block font-semibold text-foreground">
                         Send personalized SMS to recipient (
                         {formatNaira(SMS_FEE_PER_RECIPIENT_KOBO)})
@@ -1024,8 +1028,8 @@ export function BagCheckoutForm() {
                         Notifies the recipient by SMS with your name, gift
                         note, and tracking link.
                       </span>
-                    </span>
-                  </label>
+                    </label>
+                  </div>
                 </div>
 
                 <div className="border-t border-border/80 pt-2 space-y-0.5">

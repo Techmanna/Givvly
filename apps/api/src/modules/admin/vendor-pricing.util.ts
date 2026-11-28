@@ -119,3 +119,20 @@ export function calculateVendorSellingPrice(
 
   return { sellingPriceKobo, appliedMarkupBps };
 }
+
+export function estimateGatewayFeeKobo(
+  amountKobo: number,
+  provider = "FLUTTERWAVE"
+): number {
+  if (amountKobo <= 0) return 0;
+  const p = provider.toUpperCase();
+  if (p === "PAYSTACK") {
+    const pct = Math.round(amountKobo * 0.015);
+    return amountKobo < 250_000 ? pct : Math.min(200_000, pct + 10_000);
+  }
+  if (p === "MONNIFY") {
+    return Math.min(200_000, Math.round(amountKobo * 0.015));
+  }
+  // Default: FLUTTERWAVE (1.4%, capped at ₦2,000)
+  return Math.min(200_000, Math.round(amountKobo * 0.014));
+}

@@ -263,6 +263,16 @@ export class CreateOrderDto {
   @Min(5000)
   customAmountKobo?: number;
 
+  @ApiPropertyOptional({ example: true, description: "Whether to send an SMS alert to the recipient" })
+  @IsOptional()
+  @IsBoolean()
+  sendRecipientSms?: boolean;
+
+  @ApiPropertyOptional({ example: "gateway", enum: ["wallet", "paystack", "gateway"] })
+  @IsOptional()
+  @IsIn(["wallet", "paystack", "gateway"])
+  paymentMethod?: "wallet" | "paystack" | "gateway";
+
   @ApiPropertyOptional({ example: "http://localhost:3000/orders", description: "Optional redirect URL after hosted payment checkout" })
   @IsOptional()
   @IsUrl({ require_tld: false })

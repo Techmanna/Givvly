@@ -51,13 +51,11 @@ const STATUS_FILTERS = [
   { value: "FAILED", label: "Failed", dotClass: "bg-destructive" },
   { value: "ABANDONED", label: "Abandoned", dotClass: "bg-muted-foreground/60" },
 ] as const;
-const DATE_FILTERS = [
-  { value: "ALL", label: "All Time", days: null },
-  { value: "TODAY", label: "Today", days: 1 },
-  { value: "7D", label: "Last 7 Days", days: 7 },
-  { value: "30D", label: "Last 30 Days", days: 30 },
-  { value: "90D", label: "Last 90 Days", days: 90 },
-] as const;
+import {
+  ADMIN_DATE_FILTERS,
+  matchesAdminDateFilter,
+} from "../utils/date-filter";
+import { AdminDateRangePicker } from "./AdminDateRangePicker";
 const PAGE_SIZE = 10;
 
 function normalizeChannel(channel?: string | null): string {
@@ -81,6 +79,8 @@ export function PaymentManagementView() {
   const [providerFilter, setProviderFilter] = React.useState<string>("ALL");
   const [channelFilter, setChannelFilter] = React.useState<string>("ALL");
   const [dateFilter, setDateFilter] = React.useState<string>("ALL");
+  const [customStartDate, setCustomStartDate] = React.useState<string>("");
+  const [customEndDate, setCustomEndDate] = React.useState<string>("");
   const [page, setPage] = React.useState(1);
   const [selectedPayment, setSelectedPayment] =
     React.useState<AdminPaymentRecord | null>(null);
@@ -118,19 +118,13 @@ export function PaymentManagementView() {
     setProviderFilter("ALL");
     setChannelFilter("ALL");
     setDateFilter("ALL");
+    setCustomStartDate("");
+    setCustomEndDate("");
     setPage(1);
   };
 
   const filteredWithoutStatus = React.useMemo(() => {
     const now = Date.now();
-    const selectedDateOption = DATE_FILTERS.find((d) => d.value === dateFilter);
-    const cutoffMs =
-      selectedDateOption?.days != null
-        ? selectedDateOption.value === "TODAY"
-          ? new Date().setHours(0, 0, 0, 0)
-          : now - selectedDateOption.days * 24 * 60 * 60 * 1000
-        : null;
-
     const q = search.trim().toLowerCase();
 
     return payments.filter((pay) => {
@@ -154,8 +148,13 @@ export function PaymentManagementView() {
         (pay.provider?.toUpperCase() ?? "") === providerFilter;
       const matchesChannel =
         channelFilter === "ALL" || normalizeChannel(pay.channel) === channelFilter;
-      const matchesDate =
-        cutoffMs == null || new Date(pay.createdAt).getTime() >= cutoffMs;
+      const matchesDate = matchesAdminDateFilter(
+        pay.createdAt,
+        dateFilter,
+        customStartDate,
+        customEndDate,
+        now
+      );
 
       return (
         matchesSearch &&
@@ -172,6 +171,8 @@ export function PaymentManagementView() {
     providerFilter,
     channelFilter,
     dateFilter,
+    customStartDate,
+    customEndDate,
   ]);
 
   const statusCounts = React.useMemo(() => {
@@ -440,7 +441,7 @@ export function PaymentManagementView() {
                 <SelectValue placeholder="Period" />
               </SelectTrigger>
               <SelectContent>
-                {DATE_FILTERS.map((d) => (
+                {ADMIN_DATE_FILTERS.map((d) => (
                   <SelectItem key={d.value} value={d.value}>
                     {d.label}
                   </SelectItem>
@@ -448,6 +449,23 @@ export function PaymentManagementView() {
               </SelectContent>
             </Select>
           </div>
+
+          {dateFilter === "CUSTOM" && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-2 lg:col-span-12">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                Custom Range:
+              </span>
+              <AdminDateRangePicker
+                startDate={customStartDate}
+                endDate={customEndDate}
+                onChange={({ startDate, endDate }) => {
+                  setCustomStartDate(startDate);
+                  setCustomEndDate(endDate);
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
 
           <div className="lg:col-span-2">
             <Select

@@ -347,6 +347,21 @@ export class AdminController {
     return this.adminService.getLedgerReport();
   }
 
+  @Get("finance/pnl")
+  @ApiOperation({ summary: "Get P&L and margin analytics for successful orders only" })
+  @ApiOkResponse({ description: "Financial flow, P&L breakdown, and projections." })
+  async getFinancePnl(
+    @Query("days") days?: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string
+  ) {
+    return this.adminService.getFinancePnl({
+      days: days !== undefined ? Number(days) : undefined,
+      startDate,
+      endDate,
+    });
+  }
+
   // ==================== MODERATION ====================
 
   @Get("moderation")

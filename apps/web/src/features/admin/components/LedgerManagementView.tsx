@@ -29,13 +29,11 @@ const DIRECTION_FILTERS = [
   { value: "DEBIT", label: "Debits", dotClass: "bg-primary" },
 ] as const;
 
-const DATE_FILTERS = [
-  { value: "ALL", label: "All Time", days: null },
-  { value: "TODAY", label: "Today", days: 1 },
-  { value: "7D", label: "Last 7 Days", days: 7 },
-  { value: "30D", label: "Last 30 Days", days: 30 },
-  { value: "90D", label: "Last 90 Days", days: 90 },
-] as const;
+import {
+  ADMIN_DATE_FILTERS,
+  matchesAdminDateFilter,
+} from "../utils/date-filter";
+import { AdminDateRangePicker } from "./AdminDateRangePicker";
 
 const ACCOUNT_CATEGORIES = [
   { value: "ALL", label: "All Account Types" },
@@ -66,6 +64,8 @@ export function LedgerManagementView() {
   const [categoryFilter, setCategoryFilter] = React.useState<string>("ALL");
   const [accountFilter, setAccountFilter] = React.useState<string>("ALL");
   const [dateFilter, setDateFilter] = React.useState<string>("ALL");
+  const [customStartDate, setCustomStartDate] = React.useState<string>("");
+  const [customEndDate, setCustomEndDate] = React.useState<string>("");
 
   const entries = reportQuery.data?.entries ?? [];
   const trialBalance = reportQuery.data?.trialBalance;
@@ -94,17 +94,12 @@ export function LedgerManagementView() {
     setCategoryFilter("ALL");
     setAccountFilter("ALL");
     setDateFilter("ALL");
+    setCustomStartDate("");
+    setCustomEndDate("");
   };
 
   const filteredWithoutDirection = React.useMemo(() => {
     const now = Date.now();
-    const selectedDateOption = DATE_FILTERS.find((d) => d.value === dateFilter);
-    const cutoffMs =
-      selectedDateOption?.days != null
-        ? selectedDateOption.value === "TODAY"
-          ? new Date().setHours(0, 0, 0, 0)
-          : now - selectedDateOption.days * 24 * 60 * 60 * 1000
-        : null;
     const q = search.trim().toLowerCase();
 
     return entries.filter((e) => {
@@ -118,12 +113,25 @@ export function LedgerManagementView() {
         getAccountCategory(e.accountCode) === categoryFilter;
       const matchesAcct =
         accountFilter === "ALL" || e.accountCode === accountFilter;
-      const matchesDate =
-        cutoffMs == null || new Date(e.createdAt).getTime() >= cutoffMs;
+      const matchesDate = matchesAdminDateFilter(
+        e.createdAt,
+        dateFilter,
+        customStartDate,
+        customEndDate,
+        now
+      );
 
       return matchesSearch && matchesCategory && matchesAcct && matchesDate;
     });
-  }, [entries, search, categoryFilter, accountFilter, dateFilter]);
+  }, [
+    entries,
+    search,
+    categoryFilter,
+    accountFilter,
+    dateFilter,
+    customStartDate,
+    customEndDate,
+  ]);
 
   const directionCounts = React.useMemo(() => {
     const counts: Record<string, number> = {
@@ -337,7 +345,7 @@ export function LedgerManagementView() {
                 <SelectValue placeholder="Period" />
               </SelectTrigger>
               <SelectContent>
-                {DATE_FILTERS.map((d) => (
+                {ADMIN_DATE_FILTERS.map((d) => (
                   <SelectItem key={d.value} value={d.value}>
                     {d.label}
                   </SelectItem>
@@ -359,6 +367,22 @@ export function LedgerManagementView() {
             )}
           </div>
         </div>
+
+        {dateFilter === "CUSTOM" && (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              Custom Range:
+            </span>
+            <AdminDateRangePicker
+              startDate={customStartDate}
+              endDate={customEndDate}
+              onChange={({ startDate, endDate }) => {
+                setCustomStartDate(startDate);
+                setCustomEndDate(endDate);
+              }}
+            />
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3">
           {DIRECTION_FILTERS.map((dir) => {

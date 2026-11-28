@@ -62,6 +62,7 @@ import {
   useUpdateAdminOrderStatus,
 } from "../hooks/useAdmin";
 import type { AdminAddressPayload } from "../types";
+import { verifyOrderPayment } from "@/features/orders/api";
 
 export type AdminOrderDetailViewProps = {
   orderId: string;
@@ -82,6 +83,29 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
   const [refundAmountNaira, setRefundAmountNaira] = useState("");
   const [refundDestination, setRefundDestination] = useState<"ORIGINAL" | "WALLET">("ORIGINAL");
   const [refundReason, setRefundReason] = useState("");
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
+
+  const handleVerifyPayment = async () => {
+    if (!order) return;
+    setIsVerifyingPayment(true);
+    try {
+      const res = await verifyOrderPayment(order.id);
+      await refetch();
+      if (res.verified || res.status === "CONFIRMED" || res.status === "DELIVERED") {
+        toast.success(`Payment verified for Order #${order.number}!`);
+      } else {
+        toast.info(
+          `Gateway check complete — order status is still ${res.status.replace("_", " ")}.`
+        );
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not verify payment with gateway"
+      );
+    } finally {
+      setIsVerifyingPayment(false);
+    }
+  };
 
   const handleCopy = (text: string, key: string, label: string) => {
     if (typeof window !== "undefined") {
@@ -321,6 +345,27 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
               <span>Confirm Delivery</span>
             </Button>
           )}
+
+          {(order.status === "PENDING_PAYMENT" ||
+            (order.payment?.status &&
+              order.payment.status !== "SUCCESS" &&
+              order.payment.status !== "REFUNDED" &&
+              order.payment.status !== "PARTIALLY_REFUNDED")) &&
+            order.status !== "CANCELLED" &&
+            order.status !== "REFUNDED" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void handleVerifyPayment()}
+                disabled={isVerifyingPayment}
+                className="border-primary/40 text-primary hover:bg-primary/10 text-xs"
+              >
+                <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                <span>
+                  {isVerifyingPayment ? "Verifying..." : "Verify Payment"}
+                </span>
+              </Button>
+            )}
 
           {order.payment?.id &&
             order.payment.status === "SUCCESS" &&
@@ -892,6 +937,30 @@ export function AdminOrderDetailView({ orderId }: AdminOrderDetailViewProps) {
                   <p className="mt-0.5">{order.payment.failureReason}</p>
                 </div>
               ) : null}
+
+              {(order.status === "PENDING_PAYMENT" ||
+                (order.payment?.status &&
+                  order.payment.status !== "SUCCESS" &&
+                  order.payment.status !== "REFUNDED" &&
+                  order.payment.status !== "PARTIALLY_REFUNDED")) &&
+                order.status !== "CANCELLED" &&
+                order.status !== "REFUNDED" && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleVerifyPayment()}
+                    disabled={isVerifyingPayment}
+                    className="w-full border-primary/40 text-primary hover:bg-primary/10 text-xs"
+                  >
+                    <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                    <span>
+                      {isVerifyingPayment
+                        ? "Verifying with Gateway..."
+                        : "Verify Payment"}
+                    </span>
+                  </Button>
+                )}
             </CardContent>
           </Card>
 

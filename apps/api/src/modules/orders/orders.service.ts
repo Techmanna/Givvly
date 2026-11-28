@@ -647,7 +647,19 @@ export class OrdersService {
     const gateway = this.paymentGatewayRegistry.getGateway(
       order.payment.provider || undefined
     );
-    const verifyRes = await gateway.verifyPayment(order.payment.reference);
+    let verifyRes: Awaited<ReturnType<typeof gateway.verifyPayment>>;
+    try {
+      verifyRes = await gateway.verifyPayment(order.payment.reference);
+    } catch (err: any) {
+      const msg = String(err?.message || "");
+      if (/no transaction|not found/i.test(msg)) {
+        this.logger.warn(
+          `Gateway has no recorded transaction yet for order ${order.number} (${order.payment.reference}): ${msg}`
+        );
+        return { order, verified: false, status: order.status };
+      }
+      throw err;
+    }
 
     if (verifyRes.status === "success") {
       let updatedOrder = await this.prisma.$transaction(async (tx) => {

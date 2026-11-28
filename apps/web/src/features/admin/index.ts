@@ -11,6 +11,7 @@ export { EventManagementView } from "./components/EventManagementView";
 export { PaymentManagementView } from "./components/PaymentManagementView";
 export { PayoutManagementView } from "./components/PayoutManagementView";
 export { LedgerManagementView } from "./components/LedgerManagementView";
+export { FinancePnlView } from "./components/FinancePnlView";
 export {
   AdminOrderDetailView,
   type AdminOrderDetailViewProps,

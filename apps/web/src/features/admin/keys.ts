@@ -3,6 +3,14 @@ export const adminKeys = {
   moderation: () => ["admin", "moderation"] as const,
   payouts: () => ["admin", "payouts"] as const,
   ledger: () => ["admin", "ledger"] as const,
+  financePnl: (params?: { days?: number; startDate?: string; endDate?: string }) =>
+    [
+      "admin",
+      "finance-pnl",
+      params?.days ?? "all",
+      params?.startDate ?? "",
+      params?.endDate ?? "",
+    ] as const,
   disputes: () => ["admin", "disputes"] as const,
   events: () => ["admin", "events"] as const,
   eventDetail: (id: string) => ["admin", "events", id] as const,
